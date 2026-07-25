@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, hojeISO, paraCents } from "../api";
+import AnexoCampo from "../components/AnexoCampo";
 
 type Variavel = {
   id: number;
@@ -7,6 +8,7 @@ type Variavel = {
   valor_cents: number;
   data: string;
   forma_pagamento: string | null;
+  anexo_id: number | null;
 };
 
 export default function Variaveis() {
@@ -16,6 +18,8 @@ export default function Variaveis() {
   const [descricao, setDescricao] = useState("");
   const [data, setData] = useState(hojeISO());
   const [forma, setForma] = useState("pix");
+  const [anexoId, setAnexoId] = useState<number | null>(null);
+  const [extraindo, setExtraindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(() => {
@@ -35,10 +39,11 @@ export default function Variaveis() {
     try {
       await api("/variaveis", {
         method: "POST",
-        body: JSON.stringify({ descricao, valor_cents: paraCents(valor), data, forma_pagamento: forma }),
+        body: JSON.stringify({ descricao, valor_cents: paraCents(valor), data, forma_pagamento: forma, anexo_id: anexoId }),
       });
       setValor("");
       setDescricao("");
+      setAnexoId(null);
       carregar();
     } catch (err) {
       setErro((err as Error).message);
@@ -48,6 +53,30 @@ export default function Variaveis() {
   async function excluir(id: number) {
     await api(`/variaveis/${id}`, { method: "DELETE" });
     carregar();
+  }
+
+  async function definirAnexo(id: number, novoAnexoId: number | null) {
+    await api(`/variaveis/${id}`, { method: "PATCH", body: JSON.stringify({ anexo_id: novoAnexoId }) });
+    carregar();
+  }
+
+  async function extrair() {
+    if (!anexoId) return;
+    setErro(null);
+    setExtraindo(true);
+    try {
+      const d = await api<{ valor_cents: number | null; descricao: string | null; vencimento: string | null }>(
+        `/ia/extrair/${anexoId}`,
+        { method: "POST", body: "{}" }
+      );
+      if (d.valor_cents != null) setValor((d.valor_cents / 100).toFixed(2).replace(".", ","));
+      if (d.descricao) setDescricao(d.descricao);
+      if (d.vencimento) setData(d.vencimento);
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setExtraindo(false);
+    }
   }
 
   return (
@@ -64,6 +93,12 @@ export default function Variaveis() {
           <option value="dinheiro">Dinheiro</option>
           <option value="boleto">Boleto</option>
         </select>
+        <AnexoCampo anexoId={anexoId} onChange={setAnexoId} />
+        {anexoId && (
+          <button type="button" onClick={extrair} disabled={extraindo}>
+            {extraindo ? "Lendo…" : "✨ extrair do anexo"}
+          </button>
+        )}
         <button type="submit">Adicionar</button>
       </form>
       {erro && <p className="erro">{erro}</p>}
@@ -76,6 +111,7 @@ export default function Variaveis() {
               <td>{i.descricao}</td>
               <td>{i.forma_pagamento}</td>
               <td>{brl(i.valor_cents)}</td>
+              <td><AnexoCampo anexoId={i.anexo_id} onChange={(id) => definirAnexo(i.id, id)} /></td>
               <td><button onClick={() => excluir(i.id)}>×</button></td>
             </tr>
           ))}

@@ -1,5 +1,7 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { getToken } from "./api";
+import { getToken, logout } from "./api";
+import Calendario from "./pages/Calendario";
+import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
 import Dashboard from "./pages/Dashboard";
 import Entradas from "./pages/Entradas";
@@ -13,6 +15,8 @@ const ABAS = [
   { para: "/variaveis", rotulo: "Variáveis" },
   { para: "/entradas", rotulo: "Entradas" },
   { para: "/metas", rotulo: "Metas" },
+  { para: "/calendario", rotulo: "Calendário" },
+  { para: "/config", rotulo: "IA" },
 ];
 
 export default function App() {
@@ -30,6 +34,7 @@ export default function App() {
               {a.rotulo}
             </NavLink>
           ))}
+          <button type="button" className="sair" onClick={logout}>Sair</button>
         </nav>
       </header>
       <main>
@@ -39,6 +44,8 @@ export default function App() {
           <Route path="/variaveis" element={<Variaveis />} />
           <Route path="/entradas" element={<Entradas />} />
           <Route path="/metas" element={<Metas />} />
+          <Route path="/calendario" element={<Calendario />} />
+          <Route path="/config" element={<Config />} />
         </Routes>
       </main>
     </div>

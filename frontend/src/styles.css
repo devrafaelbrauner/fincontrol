@@ -50,6 +50,7 @@ nav a {
   color: var(--texto);
 }
 nav a.active { background: var(--acento); color: #fff; }
+nav .sair { margin-left: auto; background: none; color: var(--vermelho); border: 1px solid var(--borda); }
 
 h2 small { font-weight: normal; opacity: 0.7; }
 
@@ -88,6 +89,11 @@ td, th { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borda); text-ali
 
 .erro { color: var(--vermelho); }
 
+.anexo-campo { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.anexo-upload, .anexo-link { cursor: pointer; background: none; border: 1px dashed var(--borda); border-radius: 6px; padding: 0.2rem 0.5rem; font-size: 0.85rem; color: inherit; }
+.anexo-link { border-style: solid; }
+.anexo-remover { cursor: pointer; background: none; border: none; color: var(--vermelho); font-size: 1rem; line-height: 1; padding: 0 0.2rem; }
+
 .login-wrap { min-height: 100vh; display: grid; place-items: center; }
 .login-card { width: min(320px, 90vw); gap: 0.75rem; }
 
@@ -95,3 +101,15 @@ td, th { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borda); text-ali
 .meta-cabecalho, .meta-rodape { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .progresso { height: 10px; background: var(--borda); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
 .progresso-preenchido { height: 100%; background: var(--acento); }
+
+.cal-url { display: flex; gap: 0.5rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
+.cal-url code { flex: 1; min-width: 0; overflow-x: auto; padding: 0.5rem 0.7rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; white-space: nowrap; }
+.botao-link { display: inline-block; text-decoration: none; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--acento); color: #fff; }
+.botao-perigo { background: var(--vermelho); }
+.cal-ajuda { margin-top: 1.5rem; padding: 1rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; }
+.cal-ajuda ul { margin: 0.5rem 0; padding-left: 1.2rem; }
+.cal-ajuda li { margin: 0.35rem 0; }
+.cal-aviso { color: var(--amarelo); font-size: 0.9rem; }
+
+.insights-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 1.5rem; flex-wrap: wrap; }
+.insights-texto { white-space: pre-wrap; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; }

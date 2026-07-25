@@ -15,6 +15,11 @@ class VariavelIn(BaseModel):
     valor_cents: int = Field(ge=0)
     data: str
     forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = None
+    anexo_id: int | None = None
+
+
+class VariavelPatch(BaseModel):
+    anexo_id: int | None = None
 
 
 @router.get("")
@@ -47,11 +52,22 @@ def listar(
 @router.post("", status_code=201)
 def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
     cur = db.execute(
-        """INSERT INTO lancamentos_variaveis (descricao, categoria_id, valor_cents, data, forma_pagamento)
-           VALUES (?, ?, ?, ?, ?)""",
-        (body.descricao, body.categoria_id, body.valor_cents, body.data, body.forma_pagamento),
+        """INSERT INTO lancamentos_variaveis (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (body.descricao, body.categoria_id, body.valor_cents, body.data, body.forma_pagamento, body.anexo_id),
     )
     return {"id": cur.lastrowid}
+
+
+@router.patch("/{lancamento_id}")
+def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db)):
+    cur = db.execute(
+        "UPDATE lancamentos_variaveis SET anexo_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        (body.anexo_id, lancamento_id),
+    )
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Lançamento não encontrado")
+    return {"ok": True}
 
 
 @router.delete("/{lancamento_id}")

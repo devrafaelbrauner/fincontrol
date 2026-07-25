@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, competenciaAtual, paraCents } from "../api";
+import AnexoCampo from "../components/AnexoCampo";
 
 type Lancamento = {
   id: number;
@@ -7,6 +8,7 @@ type Lancamento = {
   valor_cents: number;
   vencimento: string;
   status: "pago" | "pendente" | "atrasado";
+  anexo_id: number | null;
 };
 
 export default function ContasFixas() {
@@ -51,6 +53,11 @@ export default function ContasFixas() {
     carregar();
   }
 
+  async function definirAnexo(id: number, anexoId: number | null) {
+    await api(`/contas-fixas/lancamentos/${id}/anexo`, { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }) });
+    carregar();
+  }
+
   return (
     <>
       <h2>Contas fixas</h2>
@@ -66,7 +73,7 @@ export default function ContasFixas() {
 
       <table>
         <thead>
-          <tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr>
+          <tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Comprovante</th><th></th></tr>
         </thead>
         <tbody>
           {lancamentos.map((l) => (
@@ -75,6 +82,7 @@ export default function ContasFixas() {
               <td>{l.vencimento}</td>
               <td>{brl(l.valor_cents)}</td>
               <td><span className={`badge ${l.status}`}>{l.status}</span></td>
+              <td><AnexoCampo anexoId={l.anexo_id} onChange={(id) => definirAnexo(l.id, id)} /></td>
               <td>
                 <button onClick={() => alternarPago(l)}>
                   {l.status === "pago" ? "Desfazer" : "Pagar"}

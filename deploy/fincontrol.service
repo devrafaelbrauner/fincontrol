@@ -1,0 +1,27 @@
+# systemd unit para o backend FinControl (uvicorn).
+# Instalar: copie para /etc/systemd/system/fincontrol.service, então:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now fincontrol
+
+[Unit]
+Description=FinControl API (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=fincontrol
+Group=fincontrol
+WorkingDirectory=/opt/fincontrol/backend
+EnvironmentFile=/opt/fincontrol/backend/.env
+ExecStart=/opt/fincontrol/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=3
+
+# Endurecimento básico.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/fincontrol/backend/data
+
+[Install]
+WantedBy=multi-user.target
