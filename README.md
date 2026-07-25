@@ -32,6 +32,9 @@ Acesse http://localhost:5173 e faça login com a senha definida no setup.
 
 ## Produção (resumo — ver PLANO.md §2 e §5)
 
+> Guia completo de deploy (provisionamento + atualização em um comando) em **[deploy/README.md](deploy/README.md)**.
+> Artefatos prontos em `deploy/`: `Caddyfile`, `fincontrol.service`, `.env.example`, `deploy.sh`.
+
 - VPS com Caddy (HTTPS automático) → `uvicorn app.main:app`
 - `FINCONTROL_SECRET_KEY` obrigatória no ambiente (assina os JWT)
 - `FINCONTROL_FERNET_KEY` recomendada (criptografa a chave do OpenRouter; se ausente, é derivada do SECRET_KEY)

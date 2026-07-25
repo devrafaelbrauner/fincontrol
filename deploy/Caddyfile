@@ -1,0 +1,28 @@
+# Caddy — HTTPS automático (Let's Encrypt) + reverse proxy para o FinControl.
+# Substitua o domínio e o caminho do build, ou defina as variáveis de ambiente
+# FINCONTROL_DOMAIN e FINCONTROL_FRONTEND_DIST no serviço do Caddy.
+#
+# Instalar: copie para /etc/caddy/Caddyfile e rode `sudo systemctl reload caddy`.
+
+{$FINCONTROL_DOMAIN} {
+	encode gzip zstd
+
+	# API e feed de calendário (.ics) vão para o backend (uvicorn).
+	@backend path /api/* /calendar/*
+	handle @backend {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Restante: PWA (SPA) — serve os arquivos estáticos e faz fallback para index.html.
+	handle {
+		root * {$FINCONTROL_FRONTEND_DIST}
+		try_files {path} /index.html
+		file_server
+	}
+
+	# O uvicorn já marca o cookie de refresh como httpOnly/SameSite; o Caddy garante o HTTPS.
+	header {
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Content-Type-Options nosniff
+	}
+}
