@@ -1,6 +1,13 @@
 import { useId, useState } from "react";
 import { brl } from "../api";
 
+/** Paleta categórica validada (dataviz) — cores via tokens temáticos --series-*. */
+export const PALETA_SERIES = [
+  "var(--series-1)", "var(--series-2)", "var(--series-3)",
+  "var(--series-4)", "var(--series-5)", "var(--series-6)",
+];
+export const COR_SEM_CATEGORIA = "var(--series-neutro)";
+
 /** Sparkline minimalista (linha) sobre uma série de valores. */
 export function Sparkline({ valores, cor = "var(--acento)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
   const larg = 100;
@@ -151,41 +158,73 @@ export function BarrasRank({ fatias }: { fatias: FatiaDonut[] }) {
   );
 }
 
-/** Donut de distribuição por categoria + legenda com percentual e valor. */
+/** Donut de distribuição por categoria: fatias com folga + cantos arredondados,
+ *  hover interativo (fatia ↔ legenda) e centro dinâmico. */
 export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
+  const [ativo, setAtivo] = useState<number | null>(null);
   const total = fatias.reduce((s, f) => s + f.valor, 0);
-  const R = 52, r = 34, C = 60;
   if (total === 0) return <p className="sub">Sem gastos no período.</p>;
+
+  const CX = 60, rMid = 46, W = 15, Whover = 19;
+  const C = 2 * Math.PI * rMid;
+  const gap = 2.5;                    // folga (px de arco) entre fatias
   let acc = 0;
-  const circ = 2 * Math.PI * ((R + r) / 2);
-  const largura = R - r;
+  const segs = fatias.map((f, i) => {
+    const frac = f.valor / total;
+    const arco = frac * C;
+    const visivel = Math.max(arco - gap, arco > gap ? arco - gap : arco * 0.6);
+    const seg = { f, i, frac, offset: -acc * C, dash: `${visivel.toFixed(2)} ${(C - visivel).toFixed(2)}` };
+    acc += frac;
+    return seg;
+  });
+
+  const foco = ativo != null ? fatias[ativo] : null;
+  const pct = (v: number) => Math.round((v / total) * 100);
+
   return (
     <div style={{ display: "flex", gap: "1.25rem", alignItems: "center", flexWrap: "wrap" }}>
-      <svg width="140" height="140" viewBox="0 0 120 120" role="img" aria-label="Distribuição de despesas por categoria">
+      <svg width="150" height="150" viewBox="0 0 120 120" role="img"
+        aria-label={`Distribuição de despesas por categoria, total ${brl(total)}`}
+        onMouseLeave={() => setAtivo(null)}>
+        <title>Distribuição de despesas por categoria</title>
         <g transform="rotate(-90 60 60)">
-          {fatias.map((f) => {
-            const frac = f.valor / total;
-            const dash = `${(frac * circ).toFixed(2)} ${circ.toFixed(2)}`;
-            const el = (
-              <circle key={f.rotulo} cx={C} cy={C} r={(R + r) / 2} fill="none" stroke={f.cor}
-                strokeWidth={largura} strokeDasharray={dash} strokeDashoffset={(-acc * circ).toFixed(2)} />
-            );
-            acc += frac;
-            return el;
-          })}
+          {segs.map((s) => (
+            <circle key={s.f.rotulo} cx={CX} cy={CX} r={rMid} fill="none"
+              stroke={s.f.cor} strokeLinecap="round"
+              strokeWidth={ativo === s.i ? Whover : W}
+              strokeDasharray={s.dash} strokeDashoffset={s.offset.toFixed(2)}
+              opacity={ativo == null || ativo === s.i ? 1 : 0.38}
+              style={{ transition: "stroke-width var(--dur) var(--ease), opacity var(--dur) var(--ease)", cursor: "pointer" }}
+              onMouseEnter={() => setAtivo(s.i)}>
+              <title>{s.f.rotulo}: {brl(s.f.valor)} ({pct(s.f.valor)}%)</title>
+            </circle>
+          ))}
         </g>
-        <text x="60" y="57" textAnchor="middle" fontSize="9" fill="var(--texto-3)" fontFamily="system-ui">Total</text>
-        <text x="60" y="70" textAnchor="middle" fontSize="11" fill="var(--texto)" fontFamily="system-ui" fontWeight="600">{brl(total)}</text>
+        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--texto-3)" fontFamily="system-ui">
+          {foco ? foco.rotulo : "Total"}
+        </text>
+        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--texto)" fontFamily="system-ui" fontWeight="700">
+          {brl(foco ? foco.valor : total)}
+        </text>
+        {foco && (
+          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--texto-3)" fontFamily="system-ui">
+            {pct(foco.valor)}% do total
+          </text>
+        )}
       </svg>
-      <div className="legenda" style={{ flex: 1, minWidth: 160 }}>
-        {fatias.map((f) => (
-          <div className="item" key={f.rotulo}>
-            <span className="ponto" style={{ background: f.cor }} />
-            <span>{f.rotulo}</span>
-            <span className="pct">{Math.round((f.valor / total) * 100)}% · {brl(f.valor)}</span>
-          </div>
+      <ul className="legenda" style={{ flex: 1, minWidth: 170, listStyle: "none", margin: 0, padding: 0 }}>
+        {fatias.map((f, i) => (
+          <li key={f.rotulo}>
+            <button type="button" className="item legenda-item" aria-pressed={ativo === i}
+              onMouseEnter={() => setAtivo(i)} onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)}
+              style={{ opacity: ativo == null || ativo === i ? 1 : 0.5 }}>
+              <span className="ponto" style={{ background: f.cor }} />
+              <span>{f.rotulo}</span>
+              <span className="pct">{pct(f.valor)}% · {brl(f.valor)}</span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

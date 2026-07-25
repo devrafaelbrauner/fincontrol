@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { BarChart, BarrasRank, BarraMes, Donut, FatiaDonut } from "../components/graficos";
+import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES } from "../components/graficos";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -8,7 +8,6 @@ type Dash = { competencia: string; entradas_cents: number; fixas_cents: number; 
 type Categoria = { id: number; nome: string; tipo: string; cor: string | null; ativa: number };
 type Variavel = { valor_cents: number; categoria_id: number | null; forma_pagamento: string | null };
 
-const PALETA = ["#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#22d3ee", "#f472b6", "#94a3b8"];
 const FORMA_ROTULO: Record<string, string> = { pix: "Pix", credito: "Crédito", debito: "Débito", dinheiro: "Dinheiro", boleto: "Boleto" };
 
 function ultimasCompetencias(fim: string, n: number): string[] {
@@ -61,14 +60,14 @@ export default function Analises() {
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? mapaCat.get(v.categoria_id) : undefined;
         const nomeCat = c?.nome ?? "Sem categoria";
-        const corCat = c?.cor ?? (nomeCat === "Sem categoria" ? "#6b7080" : PALETA[i++ % PALETA.length]);
+        const corCat = nomeCat === "Sem categoria" ? COR_SEM_CATEGORIA : (c?.cor ?? PALETA_SERIES[i++ % PALETA_SERIES.length]);
         const at = somaCat.get(nomeCat) ?? { valor: 0, cor: corCat };
         at.valor += v.valor_cents; somaCat.set(nomeCat, at);
         const f = v.forma_pagamento ?? "outro";
         somaForma.set(f, (somaForma.get(f) ?? 0) + v.valor_cents);
       }
       setPorCategoria([...somaCat.entries()].map(([rotulo, x]) => ({ rotulo, valor: x.valor, cor: x.cor })).sort((a, b) => b.valor - a.valor));
-      setPorForma([...somaForma.entries()].map(([f, valor], j) => ({ rotulo: FORMA_ROTULO[f] ?? f, valor, cor: PALETA[j % PALETA.length] })).sort((a, b) => b.valor - a.valor));
+      setPorForma([...somaForma.entries()].map(([f, valor], j) => ({ rotulo: FORMA_ROTULO[f] ?? f, valor, cor: PALETA_SERIES[j % PALETA_SERIES.length] })).sort((a, b) => b.valor - a.valor));
     } catch (e) {
       setErro((e as Error).message);
     } finally {

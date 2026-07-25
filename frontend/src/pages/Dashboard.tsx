@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, brl } from "../api";
-import { AreaChart, Donut, FatiaDonut, SerieMes } from "../components/graficos";
+import { AreaChart, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, SerieMes } from "../components/graficos";
 import { IcEconomia, IcEntradas, IcExtrair, IcSaldo, IcVariaveis } from "../components/icones";
 import StatCard from "../components/StatCard";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -16,7 +16,6 @@ type Dash = {
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
 
-const PALETA = ["#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#22d3ee", "#f472b6", "#94a3b8"];
 
 /** Lista de N competências terminando em `fim` (inclusive), da mais antiga à mais nova. */
 function ultimasCompetencias(fim: string, n: number): string[] {
@@ -63,14 +62,21 @@ export default function Dashboard() {
         api<Categoria[]>("/categorias"),
       ]);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
-      const soma = new Map<string, number>();
+      const soma = new Map<string, { valor: number; cor: string | null }>();
       for (const v of vars.itens) {
-        const nome = v.categoria_id != null ? nomes.get(v.categoria_id)?.nome ?? "Outros" : "Sem categoria";
-        soma.set(nome, (soma.get(nome) ?? 0) + v.valor_cents);
+        const c = v.categoria_id != null ? nomes.get(v.categoria_id) : undefined;
+        const nome = c?.nome ?? "Sem categoria";
+        const at = soma.get(nome) ?? { valor: 0, cor: c?.cor ?? null };
+        at.valor += v.valor_cents;
+        soma.set(nome, at);
       }
       const fatias = [...soma.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([rotulo, valor], i) => ({ rotulo, valor, cor: PALETA[i % PALETA.length] }));
+        .sort((a, b) => b[1].valor - a[1].valor)
+        .map(([rotulo, x], i): FatiaDonut => ({
+          rotulo,
+          valor: x.valor,
+          cor: rotulo === "Sem categoria" ? COR_SEM_CATEGORIA : x.cor ?? PALETA_SERIES[i % PALETA_SERIES.length],
+        }));
       setDonut(fatias);
     } catch (e) {
       setErro((e as Error).message);

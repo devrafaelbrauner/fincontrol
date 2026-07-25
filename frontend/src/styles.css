@@ -49,6 +49,11 @@
 
   --halo-1: rgba(96, 165, 250, 0.16);
   --halo-2: rgba(251, 191, 36, 0.10);
+
+  /* Paleta categórica validada (passos escuros) — ver dataviz/palette. */
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --series-4: #c98500; --series-5: #d55181; --series-6: #9085e9;
+  --series-neutro: #565b6b;
 }
 
 /* ---------- Tema CLARO ---------- */
@@ -72,6 +77,11 @@
 
   --halo-1: rgba(37, 99, 235, 0.12);
   --halo-2: rgba(251, 146, 60, 0.10);
+
+  /* Paleta categórica validada (passos claros). */
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --series-4: #eda100; --series-5: #e87ba4; --series-6: #4a3aa7;
+  --series-neutro: #b6bbc7;
 }
 
 /* ---------- Reset / base ---------- */
@@ -444,6 +454,40 @@ tbody tr:hover { background: var(--vidro); }
 .cal-ajuda li { margin: 0.35rem 0; color: var(--texto-2); }
 .cal-aviso { color: var(--laranja); font-size: 0.88rem; }
 
+/* Calendário — grade do mês */
+.cal-topo { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; }
+.cal-mes { font-size: 1.1rem; }
+.cal-semana, .cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-semana { margin-bottom: 6px; }
+.cal-semana span { text-align: center; font-size: 0.72rem; color: var(--texto-3); font-family: system-ui, sans-serif; text-transform: uppercase; }
+.cal-dia {
+  position: relative; min-height: 62px; border-radius: 14px; padding: 0.35rem 0.4rem;
+  border: 1px solid var(--vidro-borda); background: var(--vidro);
+  font-family: system-ui, sans-serif; display: flex; flex-direction: column; gap: 3px;
+}
+.cal-dia.vazio { background: none; border: none; }
+.cal-dia .n { font-size: 0.78rem; color: var(--texto-2); align-self: flex-end; }
+.cal-dia.hoje { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+.cal-dia.hoje .n { color: var(--acento); font-weight: 700; }
+.cal-venc { font-size: 0.64rem; line-height: 1.2; padding: 1px 4px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-venc.pago { background: color-mix(in srgb, var(--verde) 20%, transparent); color: var(--verde); }
+.cal-venc.pendente { background: color-mix(in srgb, var(--laranja) 20%, transparent); color: var(--laranja); }
+.cal-venc.atrasado { background: color-mix(in srgb, var(--vermelho) 20%, transparent); color: var(--vermelho); }
+.cal-mais { font-size: 0.62rem; color: var(--texto-3); }
+.cal-dia .ponto-venc { display: none; }  /* indicador compacto: só no mobile */
+
+.prox-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-top: 1px solid var(--vidro-borda); }
+.prox-item:first-child { border-top: none; }
+.prox-item .dia { text-align: center; min-width: 44px; }
+.prox-item .dia b { display: block; font-size: 1.1rem; }
+.prox-item .dia small { color: var(--texto-3); text-transform: uppercase; font-size: 0.66rem; }
+
+@media (max-width: 640px) {
+  .cal-dia { min-height: 48px; }
+  .cal-venc { display: none; }
+  .cal-dia .ponto-venc { display: block; width: 6px; height: 6px; border-radius: 50%; align-self: center; }
+}
+
 .insights-texto {
   white-space: pre-wrap; padding: 1.15rem 1.25rem; margin-top: 0.5rem;
   font-family: system-ui, sans-serif; line-height: 1.55; color: var(--texto);
@@ -463,6 +507,13 @@ tbody tr:hover { background: var(--vidro); }
 .legenda .item { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; }
 .legenda .ponto { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
 .legenda .pct { color: var(--texto-3); margin-left: auto; }
+/* Item de legenda interativo (botão) — reseta o visual e sincroniza com a fatia. */
+.legenda-item {
+  width: 100%; background: none; border: none; color: inherit; text-align: left;
+  padding: 0.3rem 0.4rem; border-radius: 10px; cursor: pointer;
+  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.legenda-item:hover, .legenda-item[aria-pressed="true"] { background: var(--vidro); }
 
 /* ============================================================
    Responsivo
