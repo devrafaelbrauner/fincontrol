@@ -21,6 +21,10 @@ class VariavelIn(BaseModel):
 class VariavelPatch(BaseModel):
     anexo_id: int | None = None
     categoria_id: int | None = None
+    descricao: str | None = None
+    valor_cents: int | None = Field(default=None, ge=0)
+    data: str | None = None
+    forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = None
 
 
 @router.get("")

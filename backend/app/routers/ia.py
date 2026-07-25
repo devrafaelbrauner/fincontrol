@@ -1,4 +1,4 @@
-"""Configuração do OpenRouter e recursos de IA (extração de anexo, categorização).
+"""Configuração do OpenRouter e recursos de IA.
 
 A chave do OpenRouter é criptografada (Fernet) ao salvar e nunca volta ao frontend
 — só o status "configurada". Todas as chamadas de IA passam pelo backend.
@@ -6,6 +6,7 @@ A chave do OpenRouter é criptografada (Fernet) ao salvar e nunca volta ao front
 
 import json
 import sqlite3
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -15,11 +16,12 @@ from ..cripto import criptografar
 from ..db import get_db
 from ..openrouter import OpenRouterError
 from ..routers.anexos import EXTENSAO_PARA_CONTENT_TYPE, UPLOADS_DIR
-from ..util import gerar_lancamentos_fixos, validar_competencia
-from pathlib import Path
+from ..util import hoje, validar_competencia, gerar_lancamentos_fixos
 
 router = APIRouter(prefix="/ia", tags=["ia"])
 
+
+# ---------- helpers de resumo (contexto para insights/estratégia/chat) ----------
 
 def _competencias_anteriores(competencia: str, n: int) -> list[str]:
     ano, mes = int(competencia[:4]), int(competencia[5:7])
@@ -50,34 +52,31 @@ def _resumo_mes(db: sqlite3.Connection, competencia: str) -> str:
         f"gastos variáveis {reais(variaveis)}, saldo {reais(entradas - fixas - variaveis)}."
     ]
     if por_cat:
-        cats = "; ".join(f"{r['nome']} {reais(r['t'])}" for r in por_cat)
-        linhas.append(f"  Top categorias variáveis: {cats}.")
+        linhas.append("  Top categorias variáveis: " + "; ".join(f"{r['nome']} {reais(r['t'])}" for r in por_cat) + ".")
     return "\n".join(linhas)
 
+
+def _resumo_3meses(db: sqlite3.Connection, competencia: str) -> str:
+    return "\n".join(_resumo_mes(db, c) for c in _competencias_anteriores(competencia, 3))
+
+
+# ---------- config ----------
 
 class ConfigIn(BaseModel):
     api_key: str | None = None
     modelo: str | None = None
 
 
-class CategorizarIn(BaseModel):
-    descricao: str
-
-
 def _set_config(db: sqlite3.Connection, chave: str, valor: str) -> None:
     db.execute(
-        "INSERT INTO config (chave, valor) VALUES (?, ?) "
-        "ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
+        "INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
         (chave, valor),
     )
 
 
 @router.get("/config")
 def ver_config(db: sqlite3.Connection = Depends(get_db)):
-    return {
-        "configurada": openrouter.api_key(db) is not None,
-        "modelo": openrouter.modelo_preferido(db),
-    }
+    return {"configurada": openrouter.api_key(db) is not None, "modelo": openrouter.modelo_preferido(db)}
 
 
 @router.put("/config")
@@ -95,6 +94,8 @@ def remover_chave(db: sqlite3.Connection = Depends(get_db)):
     return {"ok": True}
 
 
+# ---------- extração de anexo ----------
+
 @router.post("/extrair/{anexo_id}")
 def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
@@ -108,11 +109,27 @@ def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
         dados = openrouter.extrair_de_anexo(db, caminho.read_bytes(), mime, row["tipo"])
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    db.execute(
-        "UPDATE anexos SET extraido_por_ia = 1, dados_extraidos_json = ? WHERE id = ?",
-        (json.dumps(dados, ensure_ascii=False), anexo_id),
-    )
+    db.execute("UPDATE anexos SET extraido_por_ia = 1, dados_extraidos_json = ? WHERE id = ?",
+               (json.dumps(dados, ensure_ascii=False), anexo_id))
     return dados
+
+
+# ---------- insights (com cache por competência) ----------
+
+def _ler_insights(db: sqlite3.Connection, competencia: str) -> dict | None:
+    row = db.execute("SELECT dados_json, criado_em FROM insights_cache WHERE competencia = ?", (competencia,)).fetchone()
+    if not row:
+        return None
+    return {"insights": json.loads(row["dados_json"]), "gerado_em": row["criado_em"]}
+
+
+@router.get("/insights/{competencia}")
+def insights_cache(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+    try:
+        validar_competencia(competencia)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _ler_insights(db, competencia) or {"insights": None}
 
 
 @router.post("/insights/{competencia}")
@@ -121,21 +138,127 @@ def insights(competencia: str, db: sqlite3.Connection = Depends(get_db)):
         validar_competencia(competencia)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    resumo = "\n".join(_resumo_mes(db, c) for c in _competencias_anteriores(competencia, 3))
     try:
-        texto = openrouter.gerar_insights(db, resumo)
+        dados = openrouter.gerar_insights(db, _resumo_3meses(db, competencia))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    return {"insights": texto}
+    db.execute(
+        "INSERT INTO insights_cache (competencia, dados_json, criado_em) VALUES (?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(competencia) DO UPDATE SET dados_json = excluded.dados_json, criado_em = CURRENT_TIMESTAMP",
+        (competencia, json.dumps(dados, ensure_ascii=False)),
+    )
+    return _ler_insights(db, competencia)
+
+
+# ---------- categorização (uma e em lote) ----------
+
+class CategorizarIn(BaseModel):
+    descricao: str
 
 
 @router.post("/categorizar")
 def categorizar(body: CategorizarIn, db: sqlite3.Connection = Depends(get_db)):
-    categorias = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1")]
+    categorias = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1 AND tipo = 'variavel'")]
     if not categorias:
         return {"categoria": None}
     try:
-        escolha = openrouter.categorizar(db, body.descricao, categorias)
+        return {"categoria": openrouter.categorizar(db, body.descricao, categorias)}
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    return {"categoria": escolha}
+
+
+@router.post("/categorizar-lote")
+def categorizar_lote(db: sqlite3.Connection = Depends(get_db)):
+    """Classifica todos os gastos variáveis SEM categoria numa passada e aplica."""
+    cats = db.execute("SELECT id, nome FROM categorias WHERE ativa = 1 AND tipo = 'variavel'").fetchall()
+    if not cats:
+        raise HTTPException(400, "Crie categorias (tipo variável) antes de categorizar.")
+    nome_para_id = {c["nome"]: c["id"] for c in cats}
+    sem_cat = db.execute(
+        "SELECT id, descricao FROM lancamentos_variaveis WHERE categoria_id IS NULL ORDER BY id DESC LIMIT 100"
+    ).fetchall()
+    if not sem_cat:
+        return {"categorizados": 0, "total": 0}
+    try:
+        mapa = openrouter.categorizar_lote(db, [dict(r) for r in sem_cat], list(nome_para_id))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    aplicados = 0
+    for lanc_id, nome in mapa.items():
+        cid = nome_para_id.get(nome)
+        if cid is not None:
+            db.execute("UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (cid, lanc_id))
+            aplicados += 1
+    return {"categorizados": aplicados, "total": len(sem_cat)}
+
+
+# ---------- estratégia de meta ----------
+
+@router.post("/estrategia-meta/{meta_id}")
+def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    row = db.execute(
+        """SELECT m.*, COALESCE(SUM(a.valor_cents), 0) AS valor_atual_cents
+           FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
+           WHERE m.id = ? GROUP BY m.id""",
+        (meta_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Meta não encontrada")
+    h = hoje()
+    ano, mes = int(row["prazo"][:4]), int(row["prazo"][5:7])
+    meses = max((ano - h.year) * 12 + (mes - h.month), 1)
+    faltante = max(row["valor_total_cents"] - row["valor_atual_cents"], 0)
+    meta = {
+        "nome": row["nome"], "valor_total_cents": row["valor_total_cents"],
+        "valor_atual_cents": row["valor_atual_cents"], "prazo": row["prazo"],
+        "valor_mensal_necessario_cents": faltante // meses,
+    }
+    comp = f"{h.year:04d}-{h.month:02d}"
+    try:
+        texto = openrouter.estrategia_meta(db, meta, _resumo_3meses(db, comp))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    db.execute("UPDATE metas SET estrategia_texto = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (texto, meta_id))
+    return {"estrategia": texto}
+
+
+# ---------- linguagem natural → transação ----------
+
+class InterpretarIn(BaseModel):
+    texto: str
+
+
+@router.post("/interpretar")
+def interpretar(body: InterpretarIn, db: sqlite3.Connection = Depends(get_db)):
+    cats = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1")]
+    try:
+        return openrouter.interpretar_transacao(db, body.texto, hoje().isoformat(), cats)
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+
+
+# ---------- assistente / chat ----------
+
+class PerguntarIn(BaseModel):
+    pergunta: str
+
+
+@router.post("/perguntar")
+def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
+    h = hoje()
+    comp = f"{h.year:04d}-{h.month:02d}"
+    partes = [f"Hoje: {h.isoformat()}.", "Resumo dos últimos 3 meses:", _resumo_3meses(db, comp)]
+    metas = db.execute(
+        """SELECT m.nome, m.valor_total_cents, m.prazo, COALESCE(SUM(a.valor_cents),0) atual
+           FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
+           WHERE m.ativa = 1 GROUP BY m.id""",
+    ).fetchall()
+    if metas:
+        partes.append("Metas: " + "; ".join(
+            f"{m['nome']} (guardado R$ {m['atual']/100:.2f} de R$ {m['valor_total_cents']/100:.2f}, prazo {m['prazo']})"
+            for m in metas
+        ))
+    try:
+        return {"resposta": openrouter.perguntar(db, body.pergunta, "\n".join(partes))}
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))

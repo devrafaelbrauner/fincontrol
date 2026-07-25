@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import Depends, FastAPI
@@ -11,6 +12,15 @@ from .db import migrate
 from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
 
 migrate()
+
+# Aviso de segurança: sem FERNET_KEY própria, a chave do OpenRouter é criptografada
+# sob um segredo derivado do SECRET_KEY — inseguro se o SECRET_KEY também for o default.
+if not os.environ.get("FINCONTROL_FERNET_KEY") and \
+        os.environ.get("FINCONTROL_SECRET_KEY", "dev-insecure-troque-em-producao") == "dev-insecure-troque-em-producao":
+    logging.getLogger("uvicorn.error").warning(
+        "FINCONTROL_FERNET_KEY e FINCONTROL_SECRET_KEY ausentes: a chave do OpenRouter será "
+        "criptografada sob um segredo público de desenvolvimento. Defina-os em produção."
+    )
 
 app = FastAPI(title="FinControl API", version="0.1.0")
 
