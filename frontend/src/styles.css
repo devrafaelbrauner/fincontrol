@@ -100,3 +100,12 @@ td, th { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borda); text-ali
 .meta-cabecalho, .meta-rodape { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .progresso { height: 10px; background: var(--borda); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
 .progresso-preenchido { height: 100%; background: var(--acento); }
+
+.cal-url { display: flex; gap: 0.5rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
+.cal-url code { flex: 1; min-width: 0; overflow-x: auto; padding: 0.5rem 0.7rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; white-space: nowrap; }
+.botao-link { display: inline-block; text-decoration: none; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--acento); color: #fff; }
+.botao-perigo { background: var(--vermelho); }
+.cal-ajuda { margin-top: 1.5rem; padding: 1rem; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; }
+.cal-ajuda ul { margin: 0.5rem 0; padding-left: 1.2rem; }
+.cal-ajuda li { margin: 0.35rem 0; }
+.cal-aviso { color: var(--amarelo); font-size: 0.9rem; }
