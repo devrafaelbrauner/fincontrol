@@ -1,0 +1,97 @@
+:root {
+  color-scheme: light dark;
+  --fundo: #f4f6fb;
+  --superficie: #ffffff;
+  --texto: #14213d;
+  --acento: #2563eb;
+  --borda: #dbe2ef;
+  --verde: #15803d;
+  --vermelho: #b91c1c;
+  --amarelo: #a16207;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #0f172a;
+    --superficie: #1e293b;
+    --texto: #e2e8f0;
+    --acento: #60a5fa;
+    --borda: #334155;
+    --verde: #4ade80;
+    --vermelho: #f87171;
+    --amarelo: #facc15;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+.layout { max-width: 900px; margin: 0 auto; padding: 0 1rem 3rem; }
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 0;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 1.3rem; margin: 0; }
+nav { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+nav a {
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--texto);
+}
+nav a.active { background: var(--acento); color: #fff; }
+
+h2 small { font-weight: normal; opacity: 0.7; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; }
+.card {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.card strong { font-size: 1.25rem; }
+.positivo { color: var(--verde); }
+.negativo { color: var(--vermelho); }
+
+.linha-form { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+input, select, button {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--borda);
+  background: var(--superficie);
+  color: var(--texto);
+}
+button { cursor: pointer; background: var(--acento); color: #fff; border: none; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+td, th { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borda); text-align: left; }
+
+.badge { padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; }
+.badge.pago { background: color-mix(in srgb, var(--verde) 18%, transparent); color: var(--verde); }
+.badge.pendente { background: color-mix(in srgb, var(--amarelo) 18%, transparent); color: var(--amarelo); }
+.badge.atrasado { background: color-mix(in srgb, var(--vermelho) 18%, transparent); color: var(--vermelho); }
+
+.erro { color: var(--vermelho); }
+
+.login-wrap { min-height: 100vh; display: grid; place-items: center; }
+.login-card { width: min(320px, 90vw); gap: 0.75rem; }
+
+.meta { margin-top: 0.75rem; }
+.meta-cabecalho, .meta-rodape { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.progresso { height: 10px; background: var(--borda); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
+.progresso-preenchido { height: 100%; background: var(--acento); }

@@ -1,0 +1,7 @@
+fastapi>=0.111
+uvicorn[standard]>=0.30
+pyjwt>=2.8
+pyotp>=2.9
+argon2-cffi>=23.1
+cryptography>=42.0
+python-multipart>=0.0.9
