@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
-import { api, brl, competenciaAtual } from "../api";
+import { useCallback, useEffect, useState } from "react";
+import { api, brl } from "../api";
+import { AreaChart, Donut, FatiaDonut, SerieMes } from "../components/graficos";
+import { IcEconomia, IcEntradas, IcExtrair, IcSaldo, IcVariaveis } from "../components/icones";
+import StatCard from "../components/StatCard";
+import { useAtualizacao, useCompetencia } from "../estado";
 
 type Dash = {
   competencia: string;
@@ -9,84 +13,171 @@ type Dash = {
   saldo_cents: number;
   proximos_vencimentos: { id: number; nome: string; valor_cents: number; vencimento: string; status: string }[];
 };
+type Categoria = { id: number; nome: string; cor: string | null };
+type Variavel = { valor_cents: number; categoria_id: number | null };
+
+const PALETA = ["#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#22d3ee", "#f472b6", "#94a3b8"];
+
+/** Lista de N competências terminando em `fim` (inclusive), da mais antiga à mais nova. */
+function ultimasCompetencias(fim: string, n: number): string[] {
+  let [ano, mes] = fim.split("-").map(Number);
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    out.unshift(`${ano}-${String(mes).padStart(2, "0")}`);
+    mes--;
+    if (mes === 0) { mes = 12; ano--; }
+  }
+  return out;
+}
+
+const mesCurto = (comp: string) =>
+  new Date(Number(comp.slice(0, 4)), Number(comp.slice(5, 7)) - 1, 1).toLocaleDateString("pt-BR", { month: "short" });
+
+const variacao = (atual: number, ant: number): number | null =>
+  ant === 0 ? null : Math.round(((atual - ant) / Math.abs(ant)) * 1000) / 10;
 
 export default function Dashboard() {
-  const [dash, setDash] = useState<Dash | null>(null);
+  const { competencia } = useCompetencia();
+  const { versao } = useAtualizacao();
+  const [meses, setMeses] = useState<Dash[]>([]);
+  const [donut, setDonut] = useState<FatiaDonut[]>([]);
+  const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
-  const [insights, setInsights] = useState<string | null>(null);
-  const [carregandoIa, setCarregandoIa] = useState(false);
-  const [erroIa, setErroIa] = useState<string | null>(null);
 
-  useEffect(() => {
-    api<Dash>(`/dashboard/${competenciaAtual()}`).then(setDash).catch((e) => setErro(e.message));
-  }, []);
+  const [insights, setInsights] = useState<string | null>(null);
+  const [iaCarregando, setIaCarregando] = useState(false);
+  const [iaErro, setIaErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const comps = ultimasCompetencias(competencia, 6);
+      const dados = await Promise.all(comps.map((c) => api<Dash>(`/dashboard/${c}`)));
+      setMeses(dados);
+
+      const [ano, mes] = competencia.split("-");
+      const ate = new Date(Number(ano), Number(mes), 0).getDate();
+      const [vars, cats] = await Promise.all([
+        api<{ itens: Variavel[] }>(`/variaveis?de=${competencia}-01&ate=${competencia}-${String(ate).padStart(2, "0")}`),
+        api<Categoria[]>("/categorias"),
+      ]);
+      const nomes = new Map(cats.map((c) => [c.id, c] as const));
+      const soma = new Map<string, number>();
+      for (const v of vars.itens) {
+        const nome = v.categoria_id != null ? nomes.get(v.categoria_id)?.nome ?? "Outros" : "Sem categoria";
+        soma.set(nome, (soma.get(nome) ?? 0) + v.valor_cents);
+      }
+      const fatias = [...soma.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([rotulo, valor], i) => ({ rotulo, valor, cor: PALETA[i % PALETA.length] }));
+      setDonut(fatias);
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setCarregando(false);
+    }
+  }, [competencia, versao]);
+
+  useEffect(() => { carregar(); }, [carregar]);
 
   async function pedirInsights() {
-    setErroIa(null);
-    setCarregandoIa(true);
+    setIaErro(null);
+    setIaCarregando(true);
     try {
-      const r = await api<{ insights: string }>(`/ia/insights/${competenciaAtual()}`, { method: "POST", body: "{}" });
+      const r = await api<{ insights: string }>(`/ia/insights/${competencia}`, { method: "POST", body: "{}" });
       setInsights(r.insights);
     } catch (e) {
-      setErroIa((e as Error).message);
+      setIaErro((e as Error).message);
     } finally {
-      setCarregandoIa(false);
+      setIaCarregando(false);
     }
   }
 
   if (erro) return <p className="erro">{erro}</p>;
-  if (!dash) return <p>Carregando…</p>;
+
+  if (carregando) {
+    return (
+      <>
+        <h2>Visão geral</h2>
+        <div className="grid-stats">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 150 }} />)}</div>
+      </>
+    );
+  }
+
+  const atual = meses[meses.length - 1];
+  const ant = meses[meses.length - 2];
+  const despesas = (d: Dash) => d.fixas_cents + d.variaveis_cents;
+  const serie = (sel: (d: Dash) => number) => meses.map(sel);
+  const fluxo: SerieMes[] = meses.map((d) => ({ rotulo: mesCurto(d.competencia), entradas: d.entradas_cents, despesas: despesas(d), saldo: d.saldo_cents }));
 
   return (
     <>
-      <h2>Resumo de {dash.competencia}</h2>
-      <div className="cards">
-        <div className="card">
-          <span>Saldo do mês</span>
-          <strong className={dash.saldo_cents < 0 ? "negativo" : "positivo"}>{brl(dash.saldo_cents)}</strong>
-        </div>
-        <div className="card">
-          <span>Entradas</span>
-          <strong>{brl(dash.entradas_cents)}</strong>
-        </div>
-        <div className="card">
-          <span>Contas fixas</span>
-          <strong>{brl(dash.fixas_cents)}</strong>
-        </div>
-        <div className="card">
-          <span>Variáveis</span>
-          <strong>{brl(dash.variaveis_cents)}</strong>
-        </div>
+      <h2>Visão geral</h2>
+      <p className="sub">Resumo de {mesCurto(competencia)} de {competencia.slice(0, 4)}</p>
+
+      <div className="grid-stats">
+        <StatCard rotulo="Saldo do mês" cents={atual.saldo_cents} icone={<IcSaldo />} atraso={1}
+          cor={atual.saldo_cents < 0 ? "var(--vermelho)" : "var(--verde)"}
+          variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
+        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--verde)" atraso={2}
+          variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
+        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--vermelho)" atraso={3} menosMelhor
+          variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
+        <StatCard rotulo="Economia" cents={atual.saldo_cents} icone={<IcEconomia />} cor="var(--azul)" atraso={4}
+          variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
       </div>
 
-      <div className="insights-cabecalho">
+      <div className="grid-2 secao">
+        <section className="glass card surgir">
+          <h3>Fluxo financeiro</h3>
+          <AreaChart dados={fluxo} />
+          <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
+            <span className="item"><span className="ponto" style={{ background: "var(--verde)" }} />Receitas</span>
+            <span className="item"><span className="ponto" style={{ background: "var(--vermelho)" }} />Despesas</span>
+            <span className="item"><span className="ponto" style={{ background: "var(--azul)" }} />Saldo</span>
+          </div>
+        </section>
+
+        <section className="glass card surgir">
+          <h3>Distribuição de despesas</h3>
+          <Donut fatias={donut} />
+        </section>
+      </div>
+
+      <section className="secao">
+        <h3>Próximos vencimentos</h3>
+        {atual.proximos_vencimentos.length === 0 ? (
+          <p className="glass card sub">Nada pendente neste mês. 🎉</p>
+        ) : (
+          <div className="glass card" style={{ padding: 0 }}>
+            <table>
+              <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
+              <tbody>
+                {atual.proximos_vencimentos.map((v) => (
+                  <tr key={v.id}>
+                    <td>{v.nome}</td>
+                    <td>{new Date(v.vencimento + "T00:00").toLocaleDateString("pt-BR")}</td>
+                    <td className="num">{brl(v.valor_cents)}</td>
+                    <td><span className={`badge ${v.status}`}>{v.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="secao">
         <h3>Insights de IA</h3>
-        <button onClick={pedirInsights} disabled={carregandoIa}>
-          {carregandoIa ? "Analisando…" : "✨ analisar mês"}
-        </button>
-      </div>
-      {erroIa && <p className="erro">{erroIa}</p>}
-      {insights && <div className="insights-texto">{insights}</div>}
-
-      <h3>Próximos vencimentos</h3>
-      {dash.proximos_vencimentos.length === 0 ? (
-        <p>Nada pendente neste mês. 🎉</p>
-      ) : (
-        <table>
-          <tbody>
-            {dash.proximos_vencimentos.map((v) => (
-              <tr key={v.id}>
-                <td>{v.nome}</td>
-                <td>{v.vencimento}</td>
-                <td>{brl(v.valor_cents)}</td>
-                <td>
-                  <span className={`badge ${v.status}`}>{v.status}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        <div className="glass card">
+          <button className="btn btn-primario" onClick={pedirInsights} disabled={iaCarregando}>
+            <IcExtrair />{iaCarregando ? "Analisando…" : "Analisar mês"}
+          </button>
+          {iaErro && <p className="erro" style={{ marginTop: "0.75rem" }}>{iaErro}</p>}
+          {insights && <div className="insights-texto">{insights}</div>}
+        </div>
+      </section>
     </>
   );
 }

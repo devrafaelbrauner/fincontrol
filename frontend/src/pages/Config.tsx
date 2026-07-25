@@ -91,52 +91,56 @@ export default function Config() {
 
   return (
     <>
-      <h2>IA (OpenRouter)</h2>
-      <p>
-        A chave é criptografada no servidor e nunca volta ao navegador. Ela permite ler boletos e
-        comprovantes por foto/PDF e sugerir categorias automaticamente.
-      </p>
-      {cfg && (
-        <p>
-          Status:{" "}
-          {cfg.configurada ? (
-            <strong className="positivo">chave configurada ••••</strong>
-          ) : (
-            <strong className="negativo">nenhuma chave configurada</strong>
-          )}
+      <h2>Configurações</h2>
+      <p className="sub">Integração de IA e notificações.</p>
+
+      <section className="glass card surgir" style={{ maxWidth: 560 }}>
+        <h3>IA (OpenRouter)</h3>
+        <p className="sub">
+          A chave é criptografada no servidor e nunca volta ao navegador. Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
         </p>
-      )}
-
-      <form onSubmit={salvar} className="login-card">
-        <input
-          type="password"
-          placeholder={cfg?.configurada ? "Nova chave (deixe em branco para manter)" : "Chave do OpenRouter (sk-or-…)"}
-          value={chave}
-          onChange={(e) => setChave(e.target.value)}
-          autoComplete="off"
-        />
-        <input placeholder="Modelo (ex: anthropic/claude-sonnet-4.5)" value={modelo} onChange={(e) => setModelo(e.target.value)} />
-        <button type="submit">Salvar</button>
-      </form>
-      {cfg?.configurada && (
-        <p><button className="botao-perigo" onClick={removerChave}>Remover chave</button></p>
-      )}
-      {msg && <p className="positivo">{msg}</p>}
-      {erro && <p className="erro">{erro}</p>}
-
-      <h2 style={{ marginTop: "2rem" }}>Notificações push</h2>
-      {push?.habilitado ? (
-        <>
-          <p>Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
-          <div className="linha-form">
-            <button onClick={ativarPush}>Ativar notificações</button>
-            <button onClick={testarPush}>Enviar teste</button>
+        {cfg && (
+          <p>Status:{" "}
+            {cfg.configurada
+              ? <strong className="positivo">chave configurada ••••</strong>
+              : <strong className="negativo">nenhuma chave configurada</strong>}
+          </p>
+        )}
+        <form onSubmit={salvar} className="campos">
+          <div className="campo">
+            <label htmlFor="c-chave">Chave OpenRouter</label>
+            <input id="c-chave" type="password" autoComplete="off"
+              placeholder={cfg?.configurada ? "Nova chave (em branco = manter)" : "sk-or-…"}
+              value={chave} onChange={(e) => setChave(e.target.value)} />
           </div>
-          {pushMsg && <p>{pushMsg}</p>}
-        </>
-      ) : (
-        <p>Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
-      )}
+          <div className="campo">
+            <label htmlFor="c-modelo">Modelo</label>
+            <input id="c-modelo" placeholder="anthropic/claude-sonnet-4.5" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+          </div>
+          <div className="acoes-modal">
+            <button className="btn btn-primario" type="submit">Salvar</button>
+            {cfg?.configurada && <button type="button" className="btn btn-perigo" onClick={removerChave}>Remover chave</button>}
+          </div>
+        </form>
+        {msg && <p className="positivo">{msg}</p>}
+        {erro && <p className="erro">{erro}</p>}
+      </section>
+
+      <section className="glass card surgir secao" style={{ maxWidth: 560 }}>
+        <h3>Notificações push</h3>
+        {push?.habilitado ? (
+          <>
+            <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
+            <div className="linha-form">
+              <button className="btn btn-primario" onClick={ativarPush}>Ativar notificações</button>
+              <button className="btn" onClick={testarPush}>Enviar teste</button>
+            </div>
+            {pushMsg && <p style={{ marginTop: "0.5rem" }}>{pushMsg}</p>}
+          </>
+        ) : (
+          <p className="sub">Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
+        )}
+      </section>
     </>
   );
 }

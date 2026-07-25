@@ -40,36 +40,34 @@ export default function Calendario() {
   return (
     <>
       <h2>Calendário</h2>
-      <p>
-        Assine este calendário no iPhone/Mac ou no Google Calendar para ver os vencimentos das
-        contas fixas e os prazos das metas — com lembrete automático.
+      <p className="sub">
+        Assine no iPhone/Mac ou no Google Calendar para ver vencimentos e prazos de metas — com lembrete automático.
       </p>
       {erro && <p className="erro">{erro}</p>}
 
       {info && (
-        <>
+        <div className="glass card surgir" style={{ maxWidth: 640 }}>
           <div className="cal-url">
             <code>{info.url}</code>
-            <button onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</button>
+            <button className="btn" onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</button>
           </div>
 
           <div className="linha-form">
-            <a href={info.webcal} className="botao-link">Assinar no Apple Calendar</a>
-            <button onClick={regenerar} className="botao-perigo">Gerar nova URL</button>
+            <a href={info.webcal} className="btn btn-primario">Assinar no Apple Calendar</a>
+            <button onClick={regenerar} className="btn btn-perigo">Gerar nova URL</button>
           </div>
 
-          <div className="cal-ajuda">
+          <div className="cal-ajuda glass" style={{ padding: "1rem" }}>
             <strong>Como assinar</strong>
             <ul>
               <li><strong>iPhone/Mac:</strong> toque em “Assinar no Apple Calendar” (ou Ajustes → Calendário → Contas → Adicionar assinatura, colando a URL).</li>
               <li><strong>Google Calendar:</strong> Outros calendários → “A partir do URL” → cole a URL copiada.</li>
             </ul>
             <p className="cal-aviso">
-              ⚠️ Esta URL dá acesso de leitura aos seus vencimentos — trate como senha. Se vazar,
-              use “Gerar nova URL”.
+              ⚠️ Esta URL dá acesso de leitura aos seus vencimentos — trate como senha. Se vazar, use “Gerar nova URL”.
             </p>
           </div>
-        </>
+        </div>
       )}
     </>
   );
