@@ -15,6 +15,7 @@ type Dash = {
 };
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
+type Insights = { destaques: string[]; alertas: string[]; sugestao: string };
 
 
 /** Lista de N competências terminando em `fim` (inclusive), da mais antiga à mais nova. */
@@ -43,7 +44,8 @@ export default function Dashboard() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
-  const [insights, setInsights] = useState<string | null>(null);
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [geradoEm, setGeradoEm] = useState<string | null>(null);
   const [iaCarregando, setIaCarregando] = useState(false);
   const [iaErro, setIaErro] = useState<string | null>(null);
 
@@ -78,6 +80,11 @@ export default function Dashboard() {
           cor: rotulo === "Sem categoria" ? COR_SEM_CATEGORIA : x.cor ?? PALETA_SERIES[i % PALETA_SERIES.length],
         }));
       setDonut(fatias);
+
+      // Insights: carrega do cache (instantâneo, sem re-cobrar).
+      const cache = await api<{ insights: Insights | null; gerado_em?: string }>(`/ia/insights/${competencia}`);
+      setInsights(cache.insights);
+      setGeradoEm(cache.gerado_em ?? null);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -91,8 +98,9 @@ export default function Dashboard() {
     setIaErro(null);
     setIaCarregando(true);
     try {
-      const r = await api<{ insights: string }>(`/ia/insights/${competencia}`, { method: "POST", body: "{}" });
+      const r = await api<{ insights: Insights | null; gerado_em?: string }>(`/ia/insights/${competencia}`, { method: "POST", body: "{}" });
       setInsights(r.insights);
+      setGeradoEm(r.gerado_em ?? null);
     } catch (e) {
       setIaErro((e as Error).message);
     } finally {
@@ -175,14 +183,35 @@ export default function Dashboard() {
       </section>
 
       <section className="secao">
-        <h3>Insights de IA</h3>
-        <div className="glass card">
+        <div className="insights-cabecalho">
+          <h3>Insights de IA</h3>
           <button className="btn btn-primario" onClick={pedirInsights} disabled={iaCarregando}>
-            <IcExtrair />{iaCarregando ? "Analisando…" : "Analisar mês"}
+            <IcExtrair />{iaCarregando ? "Analisando…" : insights ? "Recalcular" : "Analisar mês"}
           </button>
-          {iaErro && <p className="erro" style={{ marginTop: "0.75rem" }}>{iaErro}</p>}
-          {insights && <div className="insights-texto">{insights}</div>}
         </div>
+        {iaErro && <p className="erro">{iaErro}</p>}
+        {!insights && !iaCarregando && !iaErro && (
+          <p className="glass card sub">Clique em “Analisar mês” para a IA comentar suas finanças.</p>
+        )}
+        {iaCarregando && !insights && <div className="skeleton" style={{ height: 120 }} />}
+        {insights && (
+          <div className="glass card" style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+            {insights.destaques?.length > 0 && (
+              <ul className="insights-lista">
+                {insights.destaques.map((d, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--azul)" }} />{d}</li>)}
+              </ul>
+            )}
+            {insights.alertas?.length > 0 && (
+              <ul className="insights-lista">
+                {insights.alertas.map((a, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--laranja)" }} />⚠️ {a}</li>)}
+              </ul>
+            )}
+            {insights.sugestao && (
+              <div className="insights-sugestao"><strong>Sugestão:</strong> {insights.sugestao}</div>
+            )}
+            {geradoEm && <div className="sub" style={{ fontSize: "0.72rem" }}>Gerado em {new Date(geradoEm.replace(" ", "T") + "Z").toLocaleString("pt-BR")}</div>}
+          </div>
+        )}
       </section>
     </>
   );

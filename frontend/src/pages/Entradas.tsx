@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { api, brl } from "../api";
 import { IcEntradas } from "../components/icones";
 import { useToast } from "../components/Toast";
-import { useAtualizacao } from "../estado";
+import { useAtualizacao, useCompetencia } from "../estado";
 
 type Entrada = { id: number; descricao: string; valor_cents: number; data: string; recorrente: number };
 
+const ultimoDia = (comp: string) => new Date(Number(comp.slice(0, 4)), Number(comp.slice(5)), 0).getDate();
+
 export default function Entradas() {
   const toast = useToast();
+  const { competencia } = useCompetencia();
   const { versao, atualizar } = useAtualizacao();
   const [itens, setItens] = useState<Entrada[]>([]);
   const [total, setTotal] = useState(0);
@@ -16,11 +19,12 @@ export default function Entradas() {
 
   const carregar = useCallback(() => {
     setCarregando(true);
-    api<{ itens: Entrada[]; total_cents: number }>("/entradas")
+    const ate = `${competencia}-${String(ultimoDia(competencia)).padStart(2, "0")}`;
+    api<{ itens: Entrada[]; total_cents: number }>(`/entradas?de=${competencia}-01&ate=${ate}`)
       .then((r) => { setItens(r.itens); setTotal(r.total_cents); })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
-  }, []);
+  }, [competencia]);
 
   useEffect(carregar, [carregar, versao]);
 
@@ -36,7 +40,7 @@ export default function Entradas() {
   return (
     <>
       <h2>Entradas</h2>
-      <p className="sub">Total: <strong className="num positivo">{brl(total)}</strong> · use “Adicionar transação” para lançar.</p>
+      <p className="sub">Total do mês: <strong className="num positivo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
       {erro && <p className="erro">{erro}</p>}
 
       {carregando ? (

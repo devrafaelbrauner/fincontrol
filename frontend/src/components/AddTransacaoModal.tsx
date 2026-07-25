@@ -1,11 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, hojeISO, paraCents } from "../api";
 import { useAtualizacao } from "../estado";
+import AnexoCampo from "./AnexoCampo";
 import Modal from "./Modal";
 import { useToast } from "./Toast";
 
 type Tipo = "variavel" | "entrada" | "fixa";
 type Categoria = { id: number; nome: string; tipo: string };
+type Extraido = {
+  tipo?: Tipo; descricao?: string | null; valor_cents?: number | null;
+  data?: string | null; vencimento?: string | null; dia_vencimento?: number | null;
+  forma_pagamento?: string | null; categoria?: string | null;
+};
 
 const FORMAS = [
   ["pix", "Pix"], ["credito", "Crédito"], ["debito", "Débito"], ["dinheiro", "Dinheiro"], ["boleto", "Boleto"],
@@ -29,11 +35,56 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   const [erros, setErros] = useState<Record<string, string>>({});
   const [enviando, setEnviando] = useState(false);
 
+  const [nlTexto, setNlTexto] = useState("");
+  const [interpretando, setInterpretando] = useState(false);
+  const [anexoId, setAnexoId] = useState<number | null>(null);
+  const [extraindo, setExtraindo] = useState(false);
+
   useEffect(() => {
     if (aberto) api<Categoria[]>("/categorias").then(setCategorias).catch(() => setCategorias([]));
   }, [aberto]);
 
   const catsDoTipo = categorias.filter((c) => c.tipo === (tipo === "fixa" ? "fixa" : tipo));
+
+  const centsParaTexto = (c: number) => (c / 100).toFixed(2).replace(".", ",");
+
+  /** Pré-preenche o formulário com dados vindos da IA (extração ou linguagem natural). */
+  function aplicar(d: Extraido) {
+    if (d.tipo === "variavel" || d.tipo === "entrada" || d.tipo === "fixa") setTipo(d.tipo);
+    if (d.descricao) setDescricao(d.descricao);
+    if (d.valor_cents != null) setValor(centsParaTexto(d.valor_cents));
+    if (d.data) setData(d.data);
+    if (d.vencimento) { setData(d.vencimento); const dd = Number(d.vencimento.slice(8, 10)); if (dd) setDia(String(dd)); }
+    if (d.dia_vencimento) setDia(String(d.dia_vencimento));
+    if (d.forma_pagamento) setForma(d.forma_pagamento);
+    if (d.categoria) { const c = categorias.find((x) => x.nome === d.categoria); if (c) setCategoriaId(String(c.id)); }
+  }
+
+  async function interpretar() {
+    if (!nlTexto.trim()) return;
+    setInterpretando(true);
+    try {
+      aplicar(await api<Extraido>("/ia/interpretar", { method: "POST", body: JSON.stringify({ texto: nlTexto }) }));
+      toast("Preenchido pela IA — confira antes de salvar.");
+    } catch (err) {
+      toast((err as Error).message, "erro");
+    } finally {
+      setInterpretando(false);
+    }
+  }
+
+  async function extrairAnexo() {
+    if (!anexoId) return;
+    setExtraindo(true);
+    try {
+      aplicar(await api<Extraido>(`/ia/extrair/${anexoId}`, { method: "POST", body: "{}" }));
+      toast("Dados do comprovante extraídos — confira antes de salvar.");
+    } catch (err) {
+      toast((err as Error).message, "erro");
+    } finally {
+      setExtraindo(false);
+    }
+  }
 
   async function sugerirCategoria() {
     if (!descricao.trim() || catsDoTipo.length === 0) return;
@@ -51,7 +102,8 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   }
 
   function limpar() {
-    setDescricao(""); setValor(""); setData(hojeISO()); setDia("10"); setRecorrente(false); setCategoriaId(""); setErros({});
+    setDescricao(""); setValor(""); setData(hojeISO()); setDia("10"); setRecorrente(false);
+    setCategoriaId(""); setErros({}); setNlTexto(""); setAnexoId(null);
   }
 
   function validar(): boolean {
@@ -75,7 +127,7 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
     const cat = categoriaId ? Number(categoriaId) : null;
     try {
       if (tipo === "variavel") {
-        await api("/variaveis", { method: "POST", body: JSON.stringify({ descricao, valor_cents: cents, data, forma_pagamento: forma, categoria_id: cat }) });
+        await api("/variaveis", { method: "POST", body: JSON.stringify({ descricao, valor_cents: cents, data, forma_pagamento: forma, categoria_id: cat, anexo_id: anexoId }) });
       } else if (tipo === "entrada") {
         await api("/entradas", { method: "POST", body: JSON.stringify({ descricao, valor_cents: cents, data, recorrente, categoria_id: cat }) });
       } else {
@@ -95,6 +147,28 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   return (
     <Modal titulo="Adicionar transação" aberto={aberto} aoFechar={aoFechar}>
       <form onSubmit={salvar} className="campos">
+        <div className="ia-box glass">
+          <label htmlFor="add-nl" style={{ fontSize: "0.8rem", color: "var(--texto-2)", fontFamily: "system-ui" }}>
+            ✨ Descreva em uma frase, ou anexe um comprovante:
+          </label>
+          <div className="linha-form" style={{ alignItems: "stretch" }}>
+            <input id="add-nl" placeholder="ex: paguei 50 no mercado ontem no crédito"
+              value={nlTexto} onChange={(e) => setNlTexto(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); interpretar(); } }} style={{ flex: 1 }} />
+            <button type="button" className="btn" onClick={interpretar} disabled={interpretando || !nlTexto.trim()}>
+              {interpretando ? "…" : "Interpretar"}
+            </button>
+          </div>
+          <div className="linha-form" style={{ alignItems: "center" }}>
+            <AnexoCampo anexoId={anexoId} onChange={setAnexoId} />
+            {anexoId && (
+              <button type="button" className="btn" onClick={extrairAnexo} disabled={extraindo}>
+                {extraindo ? "Lendo…" : "Extrair do comprovante"}
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="seg" role="tablist" aria-label="Tipo de transação">
           {([["variavel", "Despesa"], ["entrada", "Receita"], ["fixa", "Conta fixa"]] as [Tipo, string][]).map(([t, r]) => (
             <button type="button" key={t} role="tab" aria-selected={tipo === t}

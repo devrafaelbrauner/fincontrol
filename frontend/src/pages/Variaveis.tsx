@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, brl } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
-import { IcBusca, IcVariaveis } from "../components/icones";
+import { IcBusca, IcExtrair, IcVariaveis } from "../components/icones";
 import { useToast } from "../components/Toast";
-import { useAtualizacao } from "../estado";
+import { useAtualizacao, useCompetencia } from "../estado";
+
+const ultimoDia = (comp: string) => new Date(Number(comp.slice(0, 4)), Number(comp.slice(5)), 0).getDate();
 
 type Variavel = {
   id: number;
@@ -18,6 +20,7 @@ type Categoria = { id: number; nome: string; tipo: string };
 
 export default function Variaveis() {
   const toast = useToast();
+  const { competencia } = useCompetencia();
   const { versao, atualizar } = useAtualizacao();
   const [itens, setItens] = useState<Variavel[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -25,17 +28,31 @@ export default function Variaveis() {
   const [busca, setBusca] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [categorizando, setCategorizando] = useState(false);
 
   const carregar = useCallback(() => {
     setCarregando(true);
-    api<{ itens: Variavel[]; total_cents: number }>("/variaveis")
+    const ate = `${competencia}-${String(ultimoDia(competencia)).padStart(2, "0")}`;
+    api<{ itens: Variavel[]; total_cents: number }>(`/variaveis?de=${competencia}-01&ate=${ate}`)
       .then((r) => { setItens(r.itens); setTotal(r.total_cents); })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
     api<Categoria[]>("/categorias").then((cs) => setCategorias(cs.filter((c) => c.tipo === "variavel"))).catch(() => {});
-  }, []);
+  }, [competencia]);
 
   useEffect(carregar, [carregar, versao]);
+
+  const semCategoria = itens.filter((i) => i.categoria_id == null).length;
+
+  async function categorizarTudo() {
+    setCategorizando(true);
+    try {
+      const r = await api<{ categorizados: number; total: number }>("/ia/categorizar-lote", { method: "POST", body: "{}" });
+      toast(r.categorizados > 0 ? `${r.categorizados} gasto(s) categorizado(s) pela IA.` : "Nada para categorizar.");
+      atualizar();
+    } catch (e) { toast((e as Error).message, "erro"); }
+    finally { setCategorizando(false); }
+  }
 
   const filtrados = useMemo(
     () => itens.filter((i) => i.descricao.toLowerCase().includes(busca.toLowerCase())),
@@ -67,11 +84,18 @@ export default function Variaveis() {
   return (
     <>
       <h2>Gastos variáveis</h2>
-      <p className="sub">Total: <strong className="num negativo">{brl(total)}</strong> · use “Adicionar transação” para lançar.</p>
+      <p className="sub">Total do mês: <strong className="num negativo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
 
-      <div className="busca-wrap glass card" style={{ padding: "0.4rem 0.6rem", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-        <IcBusca /><input placeholder="Buscar por descrição…" value={busca} onChange={(e) => setBusca(e.target.value)}
-          aria-label="Buscar" style={{ border: "none", background: "transparent", padding: "0.35rem 0" }} />
+      <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <div className="busca-wrap glass card" style={{ flex: 1, minWidth: 180, padding: "0.4rem 0.6rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <IcBusca /><input placeholder="Buscar por descrição…" value={busca} onChange={(e) => setBusca(e.target.value)}
+            aria-label="Buscar" style={{ border: "none", background: "transparent", padding: "0.35rem 0" }} />
+        </div>
+        {semCategoria > 0 && categorias.length > 0 && (
+          <button className="btn" onClick={categorizarTudo} disabled={categorizando} title="Categorizar com IA os gastos sem categoria">
+            <IcExtrair />{categorizando ? "Categorizando…" : `Categorizar ${semCategoria} com IA`}
+          </button>
+        )}
       </div>
       {erro && <p className="erro">{erro}</p>}
 
