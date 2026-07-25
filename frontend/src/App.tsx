@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { getToken } from "./api";
 import Calendario from "./pages/Calendario";
+import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
 import Dashboard from "./pages/Dashboard";
 import Entradas from "./pages/Entradas";
@@ -15,6 +16,7 @@ const ABAS = [
   { para: "/entradas", rotulo: "Entradas" },
   { para: "/metas", rotulo: "Metas" },
   { para: "/calendario", rotulo: "Calendário" },
+  { para: "/config", rotulo: "IA" },
 ];
 
 export default function App() {
@@ -42,6 +44,7 @@ export default function App() {
           <Route path="/entradas" element={<Entradas />} />
           <Route path="/metas" element={<Metas />} />
           <Route path="/calendario" element={<Calendario />} />
+          <Route path="/config" element={<Config />} />
         </Routes>
       </main>
     </div>

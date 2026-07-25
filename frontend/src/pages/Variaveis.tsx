@@ -19,6 +19,7 @@ export default function Variaveis() {
   const [data, setData] = useState(hojeISO());
   const [forma, setForma] = useState("pix");
   const [anexoId, setAnexoId] = useState<number | null>(null);
+  const [extraindo, setExtraindo] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(() => {
@@ -59,6 +60,25 @@ export default function Variaveis() {
     carregar();
   }
 
+  async function extrair() {
+    if (!anexoId) return;
+    setErro(null);
+    setExtraindo(true);
+    try {
+      const d = await api<{ valor_cents: number | null; descricao: string | null; vencimento: string | null }>(
+        `/ia/extrair/${anexoId}`,
+        { method: "POST", body: "{}" }
+      );
+      if (d.valor_cents != null) setValor((d.valor_cents / 100).toFixed(2).replace(".", ","));
+      if (d.descricao) setDescricao(d.descricao);
+      if (d.vencimento) setData(d.vencimento);
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setExtraindo(false);
+    }
+  }
+
   return (
     <>
       <h2>Gastos variáveis <small>(total: {brl(total)})</small></h2>
@@ -74,6 +94,11 @@ export default function Variaveis() {
           <option value="boleto">Boleto</option>
         </select>
         <AnexoCampo anexoId={anexoId} onChange={setAnexoId} />
+        {anexoId && (
+          <button type="button" onClick={extrair} disabled={extraindo}>
+            {extraindo ? "Lendo…" : "✨ extrair do anexo"}
+          </button>
+        )}
         <button type="submit">Adicionar</button>
       </form>
       {erro && <p className="erro">{erro}</p>}
