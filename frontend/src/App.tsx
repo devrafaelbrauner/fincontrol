@@ -3,13 +3,14 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
 import {
-  IcAnalises, IcCalendario, IcConfig, IcEntradas, IcExpandir, IcFixas, IcGrip, IcLua, IcMais, IcMetas,
+  IcAnalises, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcLua, IcMais, IcMenu, IcMetas,
   IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
 import { definirOrdem, useOrdem } from "./ordem";
 import { useTema } from "./tema";
 import Analises from "./pages/Analises";
+import Assistente from "./pages/Assistente";
 import Calendario from "./pages/Calendario";
 import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
@@ -22,6 +23,7 @@ import Variaveis from "./pages/Variaveis";
 const ABAS: { para: string; rotulo: string; icone: ReactNode }[] = [
   { para: "/", rotulo: "Visão geral", icone: <IcVisao /> },
   { para: "/analises", rotulo: "Análises", icone: <IcAnalises /> },
+  { para: "/assistente", rotulo: "Assistente", icone: <IcChat /> },
   { para: "/fixas", rotulo: "Contas fixas", icone: <IcFixas /> },
   { para: "/variaveis", rotulo: "Variáveis", icone: <IcVariaveis /> },
   { para: "/entradas", rotulo: "Entradas", icone: <IcEntradas /> },
@@ -51,6 +53,7 @@ export default function App() {
   const [tema, alternarTema] = useTema();
   const [recolhido, setRecolhido] = useState(false);
   const [addAberto, setAddAberto] = useState(false);
+  const [maisAberto, setMaisAberto] = useState(false);
   const { competencia, setCompetencia } = useCompetencia();
 
   const ordem = reconciliar(useOrdem());
@@ -153,6 +156,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/analises" element={<Analises />} />
+            <Route path="/assistente" element={<Assistente />} />
             <Route path="/fixas" element={<ContasFixas />} />
             <Route path="/variaveis" element={<Variaveis />} />
             <Route path="/entradas" element={<Entradas />} />
@@ -164,13 +168,38 @@ export default function App() {
       </div>
 
       <nav className="bottom-nav" aria-label="Navegação principal">
-        {abas.slice(0, 5).map((a) => (
+        {abas.slice(0, 4).map((a) => (
           <NavLink key={a.para} to={a.para} end={a.para === "/"}>
             {a.icone}
             <span>{a.rotulo.split(" ")[0]}</span>
           </NavLink>
         ))}
+        {abas.length > 4 && (
+          <button type="button" onClick={() => setMaisAberto(true)} aria-label="Mais páginas">
+            <IcMenu /><span>Mais</span>
+          </button>
+        )}
       </nav>
+
+      {maisAberto && (
+        <div className="overlay sheet-overlay" onMouseDown={(e) => e.target === e.currentTarget && setMaisAberto(false)}>
+          <div className="glass glass-forte sheet" role="dialog" aria-label="Todas as páginas">
+            <div className="sheet-topo">
+              <strong>Navegar</strong>
+              <button className="btn btn-icone" onClick={() => setMaisAberto(false)} aria-label="Fechar"><IcFechar /></button>
+            </div>
+            <div className="sheet-grade">
+              {abas.map((a) => (
+                <NavLink key={a.para} to={a.para} end={a.para === "/"} onClick={() => setMaisAberto(false)} className="sheet-item">
+                  {a.icone}<span>{a.rotulo}</span>
+                </NavLink>
+              ))}
+              <button className="sheet-item" onClick={() => { setMaisAberto(false); logout(); }}><IcSair /><span>Sair</span></button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button className="fab" onClick={() => setAddAberto(true)} aria-label="Adicionar transação"><IcMais /></button>
 
       <AddTransacaoModal aberto={addAberto} aoFechar={() => setAddAberto(false)} />

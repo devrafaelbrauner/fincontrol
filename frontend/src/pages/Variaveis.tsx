@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, brl } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
-import { IcBusca, IcExtrair, IcVariaveis } from "../components/icones";
+import { IcBusca, IcExportar, IcExtrair, IcVariaveis } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -43,6 +43,28 @@ export default function Variaveis() {
   useEffect(carregar, [carregar, versao]);
 
   const semCategoria = itens.filter((i) => i.categoria_id == null).length;
+
+  function exportarCSV() {
+    const nomeCat = new Map(categorias.map((c) => [c.id, c.nome] as const));
+    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const linhas = [
+      ["Data", "Descrição", "Categoria", "Forma", "Valor (R$)"].join(";"),
+      ...filtrados.map((i) => [
+        i.data,
+        esc(i.descricao),
+        esc(i.categoria_id != null ? nomeCat.get(i.categoria_id) ?? "" : ""),
+        i.forma_pagamento ?? "",
+        (i.valor_cents / 100).toFixed(2).replace(".", ","),
+      ].join(";")),
+    ];
+    const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `variaveis-${competencia}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   async function categorizarTudo() {
     setCategorizando(true);
@@ -95,6 +117,9 @@ export default function Variaveis() {
           <button className="btn" onClick={categorizarTudo} disabled={categorizando} title="Categorizar com IA os gastos sem categoria">
             <IcExtrair />{categorizando ? "Categorizando…" : `Categorizar ${semCategoria} com IA`}
           </button>
+        )}
+        {filtrados.length > 0 && (
+          <button className="btn" onClick={exportarCSV} title="Exportar para CSV"><IcExportar />CSV</button>
         )}
       </div>
       {erro && <p className="erro">{erro}</p>}

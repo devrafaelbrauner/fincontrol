@@ -221,6 +221,28 @@ input[aria-invalid="true"] { border-color: var(--vermelho); }
 /* Caixa de entrada por IA (linguagem natural / extração de anexo) no modal */
 .ia-box { padding: 0.8rem 0.9rem; display: flex; flex-direction: column; gap: 0.6rem; }
 
+/* Assistente / chat */
+.chat { min-height: 320px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; font-family: system-ui, sans-serif; }
+.chat-vazio { margin: auto; text-align: center; color: var(--texto-2); display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.chat-sugestoes { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; max-width: 420px; }
+.chat-sugestoes .chip { cursor: pointer; }
+.bolha { max-width: 80%; padding: 0.6rem 0.85rem; border-radius: 16px; line-height: 1.45; white-space: pre-wrap; }
+.bolha.voce { align-self: flex-end; background: color-mix(in srgb, var(--acento) 88%, transparent); color: #fff; border-bottom-right-radius: 5px; }
+.bolha.ia { align-self: flex-start; background: var(--vidro-forte); border: 1px solid var(--vidro-borda); border-bottom-left-radius: 5px; }
+.bolha.pensando { opacity: 0.7; font-style: italic; }
+
+/* Sheet "Mais" (mobile) */
+.sheet-overlay { align-items: flex-end; }
+.sheet { width: 100%; max-width: 100%; border-radius: 22px 22px 0 0; padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom)); animation: surgir var(--dur) var(--ease); }
+.sheet-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.sheet-grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.sheet-item {
+  display: flex; flex-direction: column; align-items: center; gap: 0.35rem; text-align: center;
+  padding: 0.9rem 0.5rem; border-radius: 16px; background: var(--vidro); border: 1px solid var(--vidro-borda);
+  color: var(--texto); font-family: system-ui, sans-serif; font-size: 0.72rem; cursor: pointer;
+}
+.sheet-item.active { border-color: var(--acento); color: var(--acento); }
+
 /* ============================================================
    Tabelas
    ============================================================ */
@@ -568,10 +590,11 @@ tbody tr:hover { background: var(--vidro); }
     backdrop-filter: blur(20px) saturate(1.4);
     -webkit-backdrop-filter: blur(20px) saturate(1.4);
   }
-  .bottom-nav a {
+  .bottom-nav a, .bottom-nav button {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     padding: 0.35rem 0.5rem; border-radius: 12px; color: var(--texto-3);
     font-family: system-ui, sans-serif; font-size: 0.62rem;
+    background: none; border: none; cursor: pointer;
   }
   .bottom-nav a.active { color: var(--acento); }
 
