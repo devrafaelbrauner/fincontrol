@@ -7,6 +7,7 @@ import {
   IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
+import { definirOrdem, useOrdem } from "./ordem";
 import { useTema } from "./tema";
 import Analises from "./pages/Analises";
 import Calendario from "./pages/Calendario";
@@ -37,18 +38,12 @@ function saudacao(): string {
 }
 
 const NOME = localStorage.getItem("nome") || "Rafael";
-const CHAVE_ORDEM = "ordem-abas";
 
-/** Ordem salva reconciliada com as abas atuais (novas abas entram no fim). */
-function ordemInicial(): string[] {
+/** Ordem salva reconciliada com as abas atuais (novas/desconhecidas ao fim). */
+function reconciliar(salvo: string[]): string[] {
   const padrao = ABAS.map((a) => a.para);
-  try {
-    const salvo = JSON.parse(localStorage.getItem(CHAVE_ORDEM) || "[]") as string[];
-    const validos = salvo.filter((p) => padrao.includes(p));
-    return [...validos, ...padrao.filter((p) => !validos.includes(p))];
-  } catch {
-    return padrao;
-  }
+  const validos = salvo.filter((p) => padrao.includes(p));
+  return [...validos, ...padrao.filter((p) => !validos.includes(p))];
 }
 
 export default function App() {
@@ -58,24 +53,21 @@ export default function App() {
   const [addAberto, setAddAberto] = useState(false);
   const { competencia, setCompetencia } = useCompetencia();
 
-  const [ordem, setOrdem] = useState<string[]>(ordemInicial);
+  const ordem = reconciliar(useOrdem());
   const arrastando = useRef<number | null>(null);
   const [arrastandoIdx, setArrastandoIdx] = useState<number | null>(null);
   const gripsRef = useRef<Record<string, HTMLButtonElement | null>>({});
   const [focoPath, setFocoPath] = useState<string | null>(null);
 
-  useEffect(() => { localStorage.setItem(CHAVE_ORDEM, JSON.stringify(ordem)); }, [ordem]);
   // Refoca a alça do item movido por teclado, após o re-render.
   useEffect(() => { if (focoPath) { gripsRef.current[focoPath]?.focus(); setFocoPath(null); } }, [focoPath]);
 
   function mover(de: number, para: number) {
     if (de === para || para < 0 || para >= ordem.length) return;
-    setOrdem((o) => {
-      const n = [...o];
-      const [x] = n.splice(de, 1);
-      n.splice(para, 0, x);
-      return n;
-    });
+    const n = [...ordem];
+    const [x] = n.splice(de, 1);
+    n.splice(para, 0, x);
+    definirOrdem(n);
   }
 
   const abas = ordem.map((p) => ABAS.find((a) => a.para === p)).filter((a): a is (typeof ABAS)[number] => !!a);

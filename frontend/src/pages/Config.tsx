@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { resetarOrdem } from "../ordem";
 
 type IaConfig = { configurada: boolean; modelo: string };
 type PushConfig = { habilitado: boolean; vapid_public: string | null };
@@ -23,6 +24,7 @@ export default function Config() {
   const [erro, setErro] = useState<string | null>(null);
   const [push, setPush] = useState<PushConfig | null>(null);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const [ordemMsg, setOrdemMsg] = useState<string | null>(null);
 
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
@@ -140,6 +142,15 @@ export default function Config() {
         ) : (
           <p className="sub">Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
         )}
+      </section>
+
+      <section className="glass card surgir secao" style={{ maxWidth: 560 }}>
+        <h3>Barra lateral</h3>
+        <p className="sub">Você pode reordenar os itens do menu arrastando pela alça (ou com ↑/↓ pelo teclado). Para voltar ao layout original:</p>
+        <button className="btn" onClick={() => { resetarOrdem(); setOrdemMsg("Ordem padrão restaurada."); }}>
+          Restaurar ordem padrão
+        </button>
+        {ordemMsg && <p className="positivo" style={{ marginTop: "0.5rem" }}>{ordemMsg}</p>}
       </section>
     </>
   );
