@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, hojeISO, paraCents } from "../api";
 import { ProgressRing } from "../components/graficos";
-import { IcMais, IcMetas } from "../components/icones";
+import { IcExtrair, IcMais, IcMetas } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
@@ -13,6 +13,7 @@ type Meta = {
   valor_atual_cents: number;
   valor_mensal_necessario_cents: number;
   prazo: string;
+  estrategia_texto: string | null;
 };
 
 export default function Metas() {
@@ -31,12 +32,48 @@ export default function Metas() {
   const [valorAporte, setValorAporte] = useState("");
   const [dataAporte, setDataAporte] = useState(hojeISO());
 
+  const [editMeta, setEditMeta] = useState<Meta | null>(null);
+  const [estrategiaId, setEstrategiaId] = useState<number | null>(null);
+
   const carregar = useCallback(() => {
     setCarregando(true);
     api<Meta[]>("/metas").then(setMetas).catch((e) => setErro(e.message)).finally(() => setCarregando(false));
   }, []);
 
   useEffect(carregar, [carregar, versao]);
+
+  async function gerarEstrategia(m: Meta) {
+    setEstrategiaId(m.id);
+    try {
+      await api(`/ia/estrategia-meta/${m.id}`, { method: "POST", body: "{}" });
+      toast("Estratégia gerada pela IA.");
+      carregar();
+    } catch (e) { toast((e as Error).message, "erro"); }
+    finally { setEstrategiaId(null); }
+  }
+
+  async function excluir(m: Meta) {
+    if (!confirm(`Excluir a meta "${m.nome}" e seus aportes?`)) return;
+    try {
+      await api(`/metas/${m.id}`, { method: "DELETE" });
+      toast("Meta excluída.");
+      carregar();
+    } catch (e) { toast((e as Error).message, "erro"); }
+  }
+
+  async function salvarEdicao(e: FormEvent) {
+    e.preventDefault();
+    if (!editMeta) return;
+    try {
+      await api(`/metas/${editMeta.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ nome: editMeta.nome, valor_total_cents: editMeta.valor_total_cents, prazo: editMeta.prazo }),
+      });
+      toast("Meta atualizada.");
+      setEditMeta(null);
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
 
   async function criar(e: FormEvent) {
     e.preventDefault();
@@ -91,7 +128,17 @@ export default function Metas() {
                   </div>
                 </div>
                 <div className="chip" style={{ alignSelf: "flex-start" }}>Sugestão: {brl(m.valor_mensal_necessario_cents)}/mês</div>
-                <button className="btn btn-primario" onClick={() => { setAporteMeta(m); setValorAporte(""); }}><IcMais />Aporte</button>
+                {m.estrategia_texto && (
+                  <div className="insights-sugestao"><strong>Estratégia da IA:</strong> {m.estrategia_texto}</div>
+                )}
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button className="btn btn-primario" onClick={() => { setAporteMeta(m); setValorAporte(""); }}><IcMais />Aporte</button>
+                  <button className="btn" onClick={() => gerarEstrategia(m)} disabled={estrategiaId === m.id}>
+                    <IcExtrair />{estrategiaId === m.id ? "Gerando…" : m.estrategia_texto ? "Refazer estratégia" : "Estratégia IA"}
+                  </button>
+                  <button className="btn btn-icone" onClick={() => setEditMeta(m)} aria-label="Editar meta" title="Editar">✎</button>
+                  <button className="btn btn-icone btn-perigo" onClick={() => excluir(m)} aria-label="Excluir meta" title="Excluir">×</button>
+                </div>
               </article>
             );
           })}
@@ -105,6 +152,21 @@ export default function Metas() {
           <div className="campo"><label htmlFor="m-prazo">Prazo</label><input id="m-prazo" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} required /></div>
           <div className="acoes-modal"><button className="btn btn-primario" type="submit">Criar</button><button className="btn" type="button" onClick={() => setNovaAberta(false)}>Cancelar</button></div>
         </form>
+      </Modal>
+
+      <Modal titulo="Editar meta" aberto={!!editMeta} aoFechar={() => setEditMeta(null)}>
+        {editMeta && (
+          <form onSubmit={salvarEdicao} className="campos">
+            <div className="campo"><label htmlFor="e-nome">Nome</label>
+              <input id="e-nome" value={editMeta.nome} onChange={(e) => setEditMeta({ ...editMeta, nome: e.target.value })} required autoFocus /></div>
+            <div className="campo"><label htmlFor="e-valor">Valor total (R$)</label>
+              <input id="e-valor" inputMode="decimal" value={(editMeta.valor_total_cents / 100).toFixed(2).replace(".", ",")}
+                onChange={(e) => setEditMeta({ ...editMeta, valor_total_cents: paraCents(e.target.value) || 0 })} required /></div>
+            <div className="campo"><label htmlFor="e-prazo">Prazo</label>
+              <input id="e-prazo" type="date" value={editMeta.prazo} onChange={(e) => setEditMeta({ ...editMeta, prazo: e.target.value })} required /></div>
+            <div className="acoes-modal"><button className="btn btn-primario" type="submit">Salvar</button><button className="btn" type="button" onClick={() => setEditMeta(null)}>Cancelar</button></div>
+          </form>
+        )}
       </Modal>
 
       <Modal titulo={`Aporte — ${aporteMeta?.nome ?? ""}`} aberto={!!aporteMeta} aoFechar={() => setAporteMeta(null)}>

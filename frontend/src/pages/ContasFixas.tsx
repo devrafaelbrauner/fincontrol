@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, brl } from "../api";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { api, brl, paraCents } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
+import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 
 type Lancamento = {
   id: number;
+  conta_fixa_id: number;
   nome: string;
   valor_cents: number;
+  dia_vencimento: number;
   vencimento: string;
   status: "pago" | "pendente" | "atrasado";
   anexo_id: number | null;
 };
+type Edicao = { conta_id: number; nome: string; dia: string; valor: string };
 
 export default function ContasFixas() {
   const toast = useToast();
@@ -20,6 +24,7 @@ export default function ContasFixas() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [edicao, setEdicao] = useState<Edicao | null>(null);
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -43,6 +48,29 @@ export default function ContasFixas() {
   async function definirAnexo(id: number, anexoId: number | null) {
     await api(`/contas-fixas/lancamentos/${id}/anexo`, { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }) });
     carregar();
+  }
+
+  async function excluirConta(l: Lancamento) {
+    if (!confirm(`Excluir a conta fixa "${l.nome}" e todo o histórico dela?`)) return;
+    try {
+      await api(`/contas-fixas/${l.conta_fixa_id}`, { method: "DELETE" });
+      toast("Conta fixa excluída.");
+      carregar();
+    } catch (e) { toast((e as Error).message, "erro"); }
+  }
+
+  async function salvarEdicao(e: FormEvent) {
+    e.preventDefault();
+    if (!edicao) return;
+    try {
+      await api(`/contas-fixas/${edicao.conta_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ nome: edicao.nome, dia_vencimento: Number(edicao.dia), valor_estimado_cents: paraCents(edicao.valor) }),
+      });
+      toast("Conta fixa atualizada.");
+      setEdicao(null);
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   const totalMes = lancamentos.reduce((s, l) => s + l.valor_cents, 0);
@@ -73,10 +101,12 @@ export default function ContasFixas() {
                   <td className="num">{brl(l.valor_cents)}</td>
                   <td><span className={`badge ${l.status}`}>{l.status}</span></td>
                   <td><AnexoCampo anexoId={l.anexo_id} onChange={(a) => definirAnexo(l.id, a)} /></td>
-                  <td>
+                  <td style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                     <button className={`btn ${l.status === "pago" ? "" : "btn-primario"}`} onClick={() => alternarPago(l)}>
                       {l.status === "pago" ? "Desfazer" : "Pagar"}
                     </button>
+                    <button className="btn btn-icone" onClick={() => setEdicao({ conta_id: l.conta_fixa_id, nome: l.nome, dia: String(l.dia_vencimento), valor: (l.valor_cents / 100).toFixed(2).replace(".", ",") })} aria-label="Editar conta" title="Editar">✎</button>
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluirConta(l)} aria-label="Excluir conta" title="Excluir">×</button>
                   </td>
                 </tr>
               ))}
@@ -84,6 +114,20 @@ export default function ContasFixas() {
           </table>
         </div>
       )}
+
+      <Modal titulo="Editar conta fixa" aberto={!!edicao} aoFechar={() => setEdicao(null)}>
+        {edicao && (
+          <form onSubmit={salvarEdicao} className="campos">
+            <div className="campo"><label htmlFor="cf-nome">Nome</label>
+              <input id="cf-nome" value={edicao.nome} onChange={(e) => setEdicao({ ...edicao, nome: e.target.value })} required autoFocus /></div>
+            <div className="campo"><label htmlFor="cf-dia">Dia de vencimento</label>
+              <input id="cf-dia" type="number" min={1} max={31} value={edicao.dia} onChange={(e) => setEdicao({ ...edicao, dia: e.target.value })} required /></div>
+            <div className="campo"><label htmlFor="cf-valor">Valor estimado (R$)</label>
+              <input id="cf-valor" inputMode="decimal" value={edicao.valor} onChange={(e) => setEdicao({ ...edicao, valor: e.target.value })} required /></div>
+            <div className="acoes-modal"><button className="btn btn-primario" type="submit">Salvar</button><button className="btn" type="button" onClick={() => setEdicao(null)}>Cancelar</button></div>
+          </form>
+        )}
+      </Modal>
     </>
   );
 }
