@@ -31,6 +31,10 @@ class PagamentoIn(BaseModel):
     valor_cents: int | None = Field(default=None, ge=0)
 
 
+class AnexoLancamentoIn(BaseModel):
+    anexo_id: int | None = None
+
+
 @router.get("")
 def listar(db: sqlite3.Connection = Depends(get_db)):
     return [dict(r) for r in db.execute("SELECT * FROM contas_fixas ORDER BY dia_vencimento, nome")]
@@ -97,6 +101,17 @@ def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depend
             "UPDATE lancamentos_fixos SET data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
             (data, lancamento_id),
         )
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Lançamento não encontrado")
+    return {"ok": True}
+
+
+@router.patch("/lancamentos/{lancamento_id}/anexo")
+def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection = Depends(get_db)):
+    cur = db.execute(
+        "UPDATE lancamentos_fixos SET anexo_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        (body.anexo_id, lancamento_id),
+    )
     if cur.rowcount == 0:
         raise HTTPException(404, "Lançamento não encontrado")
     return {"ok": True}
