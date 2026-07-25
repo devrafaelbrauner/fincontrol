@@ -325,6 +325,20 @@ tbody tr:hover { background: var(--vidro); }
 .sidebar nav a:hover { background: var(--vidro); color: var(--texto); }
 .sidebar nav a.active { background: var(--vidro-forte); color: var(--texto); }
 .sidebar nav a.active svg { color: var(--acento); }
+
+/* Item reordenável (alça de arrastar) */
+.nav-item { display: flex; align-items: center; border-radius: 13px; }
+.nav-item > a { flex: 1; min-width: 0; }
+.nav-item.arrastando { opacity: 0.45; }
+.nav-item .grip {
+  flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 30px;
+  background: none; border: none; color: var(--texto-3); cursor: grab; opacity: 0;
+  border-radius: 8px; transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.nav-item:hover .grip, .nav-item .grip:focus-visible { opacity: 1; }
+.nav-item .grip:hover { color: var(--texto); }
+.nav-item .grip:active { cursor: grabbing; }
+.app.recolhido .nav-item .grip { display: none; }
 .app.recolhido .sidebar .rotulo { display: none; }
 .app.recolhido .sidebar .marca { justify-content: center; }
 

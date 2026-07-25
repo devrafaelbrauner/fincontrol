@@ -1,9 +1,9 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
 import {
-  IcAnalises, IcCalendario, IcConfig, IcEntradas, IcExpandir, IcFixas, IcLua, IcMais, IcMetas,
+  IcAnalises, IcCalendario, IcConfig, IcEntradas, IcExpandir, IcFixas, IcGrip, IcLua, IcMais, IcMetas,
   IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
@@ -37,6 +37,19 @@ function saudacao(): string {
 }
 
 const NOME = localStorage.getItem("nome") || "Rafael";
+const CHAVE_ORDEM = "ordem-abas";
+
+/** Ordem salva reconciliada com as abas atuais (novas abas entram no fim). */
+function ordemInicial(): string[] {
+  const padrao = ABAS.map((a) => a.para);
+  try {
+    const salvo = JSON.parse(localStorage.getItem(CHAVE_ORDEM) || "[]") as string[];
+    const validos = salvo.filter((p) => padrao.includes(p));
+    return [...validos, ...padrao.filter((p) => !validos.includes(p))];
+  } catch {
+    return padrao;
+  }
+}
 
 export default function App() {
   const { pathname } = useLocation();
@@ -44,6 +57,28 @@ export default function App() {
   const [recolhido, setRecolhido] = useState(false);
   const [addAberto, setAddAberto] = useState(false);
   const { competencia, setCompetencia } = useCompetencia();
+
+  const [ordem, setOrdem] = useState<string[]>(ordemInicial);
+  const arrastando = useRef<number | null>(null);
+  const [arrastandoIdx, setArrastandoIdx] = useState<number | null>(null);
+  const gripsRef = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [focoPath, setFocoPath] = useState<string | null>(null);
+
+  useEffect(() => { localStorage.setItem(CHAVE_ORDEM, JSON.stringify(ordem)); }, [ordem]);
+  // Refoca a alça do item movido por teclado, após o re-render.
+  useEffect(() => { if (focoPath) { gripsRef.current[focoPath]?.focus(); setFocoPath(null); } }, [focoPath]);
+
+  function mover(de: number, para: number) {
+    if (de === para || para < 0 || para >= ordem.length) return;
+    setOrdem((o) => {
+      const n = [...o];
+      const [x] = n.splice(de, 1);
+      n.splice(para, 0, x);
+      return n;
+    });
+  }
+
+  const abas = ordem.map((p) => ABAS.find((a) => a.para === p)).filter((a): a is (typeof ABAS)[number] => !!a);
 
   if (!getToken() && pathname !== "/login") return <Navigate to="/login" replace />;
   if (pathname === "/login") return <Login />;
@@ -62,11 +97,33 @@ export default function App() {
           <span className="titulo rotulo">FinControl</span>
         </div>
         <nav>
-          {ABAS.map((a) => (
-            <NavLink key={a.para} to={a.para} end={a.para === "/"} title={a.rotulo}>
-              {a.icone}
-              <span className="rotulo">{a.rotulo}</span>
-            </NavLink>
+          {abas.map((a, idx) => (
+            <div key={a.para} className={`nav-item${arrastandoIdx === idx ? " arrastando" : ""}`}
+              draggable
+              onDragStart={(e) => { arrastando.current = idx; setArrastandoIdx(idx); e.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (arrastando.current != null && arrastando.current !== idx) {
+                  mover(arrastando.current, idx);
+                  arrastando.current = idx;
+                  setArrastandoIdx(idx);
+                }
+              }}
+              onDragEnd={() => { arrastando.current = null; setArrastandoIdx(null); }}
+            >
+              <button type="button" className="grip" aria-label={`Reordenar ${a.rotulo} (use as setas ↑ ↓)`}
+                ref={(el) => { gripsRef.current[a.para] = el; }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowUp") { e.preventDefault(); mover(idx, idx - 1); setFocoPath(a.para); }
+                  else if (e.key === "ArrowDown") { e.preventDefault(); mover(idx, idx + 1); setFocoPath(a.para); }
+                }}>
+                <IcGrip />
+              </button>
+              <NavLink to={a.para} end={a.para === "/"} title={a.rotulo} draggable={false}>
+                {a.icone}
+                <span className="rotulo">{a.rotulo}</span>
+              </NavLink>
+            </div>
           ))}
         </nav>
         <div className="usuario">
@@ -115,7 +172,7 @@ export default function App() {
       </div>
 
       <nav className="bottom-nav" aria-label="Navegação principal">
-        {ABAS.slice(0, 5).map((a) => (
+        {abas.slice(0, 5).map((a) => (
           <NavLink key={a.para} to={a.para} end={a.para === "/"}>
             {a.icone}
             <span>{a.rotulo.split(" ")[0]}</span>
