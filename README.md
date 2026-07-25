@@ -34,9 +34,16 @@ Acesse http://localhost:5173 e faça login com a senha definida no setup.
 
 - VPS com Caddy (HTTPS automático) → `uvicorn app.main:app`
 - `FINCONTROL_SECRET_KEY` obrigatória no ambiente (assina os JWT)
+- `FINCONTROL_FERNET_KEY` recomendada (criptografa a chave do OpenRouter; se ausente, é derivada do SECRET_KEY)
+- `FINCONTROL_COOKIE_SECURE=1` em produção (marca o cookie de refresh como Secure — só HTTPS)
+- `FINCONTROL_CORS_ORIGINS` opcional (origens extras separadas por vírgula; dispensável se o frontend é servido no mesmo host)
 - `FINCONTROL_DATA` opcional (diretório do SQLite; padrão `backend/data/`)
 - Frontend: `npm run build` → servir `frontend/dist/` pelo Caddy
 - Backup diário do SQLite + `uploads/` para fora da VPS
+
+**Auth:** access token JWT curto (30 min) via `Authorization: Bearer` + refresh token
+em cookie httpOnly (30 dias, rota `/api/auth/refresh`, rotacionado a cada uso).
+`POST /api/auth/logout` invalida todos os refresh tokens. Login tem rate limit (5/min por IP).
 
 ## Estrutura
 

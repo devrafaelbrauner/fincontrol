@@ -1,5 +1,5 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { getToken } from "./api";
+import { getToken, logout } from "./api";
 import Calendario from "./pages/Calendario";
 import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
@@ -34,6 +34,7 @@ export default function App() {
               {a.rotulo}
             </NavLink>
           ))}
+          <button type="button" className="sair" onClick={logout}>Sair</button>
         </nav>
       </header>
       <main>

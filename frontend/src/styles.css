@@ -50,6 +50,7 @@ nav a {
   color: var(--texto);
 }
 nav a.active { background: var(--acento); color: #fff; }
+nav .sair { margin-left: auto; background: none; color: var(--vermelho); border: 1px solid var(--borda); }
 
 h2 small { font-weight: normal; opacity: 0.7; }
 

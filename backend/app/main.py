@@ -1,7 +1,11 @@
+import os
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
-from .auth import require_auth
+from .auth import limiter, require_auth
 from .auth import router as auth_router
 from .db import migrate
 from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, variaveis
@@ -10,10 +14,17 @@ migrate()
 
 app = FastAPI(title="FinControl API", version="0.1.0")
 
-# Em produção o frontend é servido pelo mesmo host (Caddy) — CORS só para o dev server do Vite.
+# Rate limiting (slowapi) — protege o login de brute force.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS: em produção o frontend é servido pelo mesmo host (Caddy) e CORS é dispensável;
+# origens extras (ex. dev server do Vite) via FINCONTROL_CORS_ORIGINS (separadas por vírgula).
+origens = os.environ.get("FINCONTROL_CORS_ORIGINS", "http://localhost:5173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[o.strip() for o in origens.split(",") if o.strip()],
+    allow_credentials=True,  # necessário para o cookie httpOnly de refresh
     allow_methods=["*"],
     allow_headers=["*"],
 )
