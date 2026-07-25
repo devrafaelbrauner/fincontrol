@@ -3,11 +3,12 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
 import {
-  IcCalendario, IcConfig, IcEntradas, IcExpandir, IcFixas, IcLua, IcMais, IcMetas,
+  IcAnalises, IcCalendario, IcConfig, IcEntradas, IcExpandir, IcFixas, IcLua, IcMais, IcMetas,
   IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
 import { useTema } from "./tema";
+import Analises from "./pages/Analises";
 import Calendario from "./pages/Calendario";
 import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
@@ -19,6 +20,7 @@ import Variaveis from "./pages/Variaveis";
 
 const ABAS: { para: string; rotulo: string; icone: ReactNode }[] = [
   { para: "/", rotulo: "Visão geral", icone: <IcVisao /> },
+  { para: "/analises", rotulo: "Análises", icone: <IcAnalises /> },
   { para: "/fixas", rotulo: "Contas fixas", icone: <IcFixas /> },
   { para: "/variaveis", rotulo: "Variáveis", icone: <IcVariaveis /> },
   { para: "/entradas", rotulo: "Entradas", icone: <IcEntradas /> },
@@ -101,6 +103,7 @@ export default function App() {
         <main className="pagina">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/analises" element={<Analises />} />
             <Route path="/fixas" element={<ContasFixas />} />
             <Route path="/variaveis" element={<Variaveis />} />
             <Route path="/entradas" element={<Entradas />} />

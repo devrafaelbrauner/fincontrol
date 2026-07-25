@@ -12,12 +12,15 @@ type Variavel = {
   data: string;
   forma_pagamento: string | null;
   anexo_id: number | null;
+  categoria_id: number | null;
 };
+type Categoria = { id: number; nome: string; tipo: string };
 
 export default function Variaveis() {
   const toast = useToast();
   const { versao, atualizar } = useAtualizacao();
   const [itens, setItens] = useState<Variavel[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [total, setTotal] = useState(0);
   const [busca, setBusca] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -29,6 +32,7 @@ export default function Variaveis() {
       .then((r) => { setItens(r.itens); setTotal(r.total_cents); })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
+    api<Categoria[]>("/categorias").then((cs) => setCategorias(cs.filter((c) => c.tipo === "variavel"))).catch(() => {});
   }, []);
 
   useEffect(carregar, [carregar, versao]);
@@ -52,6 +56,14 @@ export default function Variaveis() {
     carregar();
   }
 
+  async function definirCategoria(id: number, categoriaId: number | null) {
+    setItens((l) => l.map((i) => (i.id === id ? { ...i, categoria_id: categoriaId } : i)));
+    try {
+      await api(`/variaveis/${id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+      atualizar();
+    } catch (e) { toast((e as Error).message, "erro"); carregar(); }
+  }
+
   return (
     <>
       <h2>Gastos variáveis</h2>
@@ -70,12 +82,19 @@ export default function Variaveis() {
       ) : (
         <div className="glass card" style={{ padding: 0 }}>
           <table>
-            <thead><tr><th>Data</th><th>Descrição</th><th>Forma</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead>
+            <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>
               {filtrados.map((i) => (
                 <tr key={i.id}>
                   <td>{new Date(i.data + "T00:00").toLocaleDateString("pt-BR")}</td>
                   <td><span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}><IcVariaveis /> {i.descricao}</span></td>
+                  <td>
+                    <select value={i.categoria_id ?? ""} onChange={(e) => definirCategoria(i.id, e.target.value ? Number(e.target.value) : null)}
+                      aria-label={`Categoria de ${i.descricao}`} style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}>
+                      <option value="">—</option>
+                      {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </td>
                   <td>{i.forma_pagamento && <span className="chip">{i.forma_pagamento}</span>}</td>
                   <td className="num negativo">{brl(i.valor_cents)}</td>
                   <td><AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a)} /></td>

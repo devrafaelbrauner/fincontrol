@@ -91,7 +91,65 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
   );
 }
 
+export type BarraMes = { rotulo: string; entradas: number; gastos: number };
+
+/** Barras agrupadas: entradas (verde) × gastos (vermelho) por mês. */
+export function BarChart({ dados }: { dados: BarraMes[] }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 640, H = 240, padY = 22, padX = 12;
+  if (dados.length === 0) return <p className="sub">Sem dados no período.</p>;
+  const max = Math.max(...dados.flatMap((d) => [d.entradas, d.gastos]), 1);
+  const y = (v: number) => H - padY - (v / max) * (H - padY * 2);
+  const grupoW = (W - padX * 2) / dados.length;
+  const barW = Math.min(22, grupoW / 3);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Entradas e gastos por mês" onMouseLeave={() => setHover(null)}>
+        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--vidro-borda)" />
+        {dados.map((d, i) => {
+          const cx = padX + grupoW * i + grupoW / 2;
+          return (
+            <g key={i} onMouseEnter={() => setHover(i)}>
+              <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--verde)" opacity={hover === null || hover === i ? 1 : 0.5} />
+              <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--vermelho)" opacity={hover === null || hover === i ? 1 : 0.5} />
+              <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--texto-3)" fontFamily="system-ui">{d.rotulo}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {hover !== null && (
+        <div className="glass glass-forte" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontFamily: "system-ui", fontSize: "0.78rem", pointerEvents: "none" }}>
+          <strong>{dados[hover].rotulo}</strong>
+          <div style={{ color: "var(--verde)" }}>Entradas {brl(dados[hover].entradas)}</div>
+          <div style={{ color: "var(--vermelho)" }}>Gastos {brl(dados[hover].gastos)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export type FatiaDonut = { rotulo: string; valor: number; cor: string };
+
+/** Lista de barras horizontais ranqueadas (ex.: gastos por categoria). */
+export function BarrasRank({ fatias }: { fatias: FatiaDonut[] }) {
+  const max = Math.max(...fatias.map((f) => f.valor), 1);
+  if (fatias.length === 0) return <p className="sub">Sem dados.</p>;
+  return (
+    <div className="legenda" style={{ gap: "0.7rem" }}>
+      {fatias.map((f) => (
+        <div key={f.rotulo}>
+          <div className="item" style={{ marginBottom: "0.25rem" }}>
+            <span className="ponto" style={{ background: f.cor }} />
+            <span>{f.rotulo}</span>
+            <span className="pct">{brl(f.valor)}</span>
+          </div>
+          <div className="progresso"><i style={{ width: `${(f.valor / max) * 100}%`, background: f.cor }} /></div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Donut de distribuição por categoria + legenda com percentual e valor. */
 export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
