@@ -110,3 +110,6 @@ td, th { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--borda); text-ali
 .cal-ajuda ul { margin: 0.5rem 0; padding-left: 1.2rem; }
 .cal-ajuda li { margin: 0.35rem 0; }
 .cal-aviso { color: var(--amarelo); font-size: 0.9rem; }
+
+.insights-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 1.5rem; flex-wrap: wrap; }
+.insights-texto { white-space: pre-wrap; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; }

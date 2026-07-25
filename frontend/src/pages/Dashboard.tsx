@@ -13,10 +13,26 @@ type Dash = {
 export default function Dashboard() {
   const [dash, setDash] = useState<Dash | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [insights, setInsights] = useState<string | null>(null);
+  const [carregandoIa, setCarregandoIa] = useState(false);
+  const [erroIa, setErroIa] = useState<string | null>(null);
 
   useEffect(() => {
     api<Dash>(`/dashboard/${competenciaAtual()}`).then(setDash).catch((e) => setErro(e.message));
   }, []);
+
+  async function pedirInsights() {
+    setErroIa(null);
+    setCarregandoIa(true);
+    try {
+      const r = await api<{ insights: string }>(`/ia/insights/${competenciaAtual()}`, { method: "POST", body: "{}" });
+      setInsights(r.insights);
+    } catch (e) {
+      setErroIa((e as Error).message);
+    } finally {
+      setCarregandoIa(false);
+    }
+  }
 
   if (erro) return <p className="erro">{erro}</p>;
   if (!dash) return <p>Carregando…</p>;
@@ -42,6 +58,15 @@ export default function Dashboard() {
           <strong>{brl(dash.variaveis_cents)}</strong>
         </div>
       </div>
+
+      <div className="insights-cabecalho">
+        <h3>Insights de IA</h3>
+        <button onClick={pedirInsights} disabled={carregandoIa}>
+          {carregandoIa ? "Analisando…" : "✨ analisar mês"}
+        </button>
+      </div>
+      {erroIa && <p className="erro">{erroIa}</p>}
+      {insights && <div className="insights-texto">{insights}</div>}
 
       <h3>Próximos vencimentos</h3>
       {dash.proximos_vencimentos.length === 0 ? (

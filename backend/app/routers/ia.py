@@ -15,9 +15,44 @@ from ..cripto import criptografar
 from ..db import get_db
 from ..openrouter import OpenRouterError
 from ..routers.anexos import EXTENSAO_PARA_CONTENT_TYPE, UPLOADS_DIR
+from ..util import gerar_lancamentos_fixos, validar_competencia
 from pathlib import Path
 
 router = APIRouter(prefix="/ia", tags=["ia"])
+
+
+def _competencias_anteriores(competencia: str, n: int) -> list[str]:
+    ano, mes = int(competencia[:4]), int(competencia[5:7])
+    out = []
+    for _ in range(n):
+        out.append(f"{ano:04d}-{mes:02d}")
+        mes -= 1
+        if mes == 0:
+            mes, ano = 12, ano - 1
+    return out
+
+
+def _resumo_mes(db: sqlite3.Connection, competencia: str) -> str:
+    gerar_lancamentos_fixos(db, competencia)
+    prefixo = competencia + "-%"
+    entradas = db.execute("SELECT COALESCE(SUM(valor_cents),0) t FROM entradas WHERE data LIKE ?", (prefixo,)).fetchone()["t"]
+    fixas = db.execute("SELECT COALESCE(SUM(valor_cents),0) t FROM lancamentos_fixos WHERE competencia = ?", (competencia,)).fetchone()["t"]
+    variaveis = db.execute("SELECT COALESCE(SUM(valor_cents),0) t FROM lancamentos_variaveis WHERE data LIKE ?", (prefixo,)).fetchone()["t"]
+    por_cat = db.execute(
+        """SELECT COALESCE(c.nome, 'sem categoria') nome, SUM(v.valor_cents) t
+           FROM lancamentos_variaveis v LEFT JOIN categorias c ON c.id = v.categoria_id
+           WHERE v.data LIKE ? GROUP BY c.nome ORDER BY t DESC LIMIT 5""",
+        (prefixo,),
+    ).fetchall()
+    reais = lambda c: f"R$ {c/100:.2f}"
+    linhas = [
+        f"Mês {competencia}: entradas {reais(entradas)}, contas fixas {reais(fixas)}, "
+        f"gastos variáveis {reais(variaveis)}, saldo {reais(entradas - fixas - variaveis)}."
+    ]
+    if por_cat:
+        cats = "; ".join(f"{r['nome']} {reais(r['t'])}" for r in por_cat)
+        linhas.append(f"  Top categorias variáveis: {cats}.")
+    return "\n".join(linhas)
 
 
 class ConfigIn(BaseModel):
@@ -78,6 +113,20 @@ def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
         (json.dumps(dados, ensure_ascii=False), anexo_id),
     )
     return dados
+
+
+@router.post("/insights/{competencia}")
+def insights(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+    try:
+        validar_competencia(competencia)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    resumo = "\n".join(_resumo_mes(db, c) for c in _competencias_anteriores(competencia, 3))
+    try:
+        texto = openrouter.gerar_insights(db, resumo)
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    return {"insights": texto}
 
 
 @router.post("/categorizar")

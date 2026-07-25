@@ -45,6 +45,11 @@ Acesse http://localhost:5173 e faça login com a senha definida no setup.
 em cookie httpOnly (30 dias, rota `/api/auth/refresh`, rotacionado a cada uso).
 `POST /api/auth/logout` invalida todos os refresh tokens. Login tem rate limit (5/min por IP).
 
+**Push (opcional, Fase 4):** gere as chaves com `.venv/bin/python -m app.gerar_vapid` e
+exporte `FINCONTROL_VAPID_PUBLIC` / `FINCONTROL_VAPID_PRIVATE` / `FINCONTROL_VAPID_SUBJECT`
+(mailto:). Sem elas, o push fica desabilitado e o calendário assinado segue como
+lembrete principal. iOS exige a PWA instalada na tela inicial (≥ 16.4).
+
 ## Estrutura
 
 ```
@@ -63,8 +68,8 @@ frontend/src/
 └── pages/             # Login, Dashboard, ContasFixas, Variaveis, Entradas, Metas
 ```
 
-## Próximas fases
+## Fases
 
-- **Fase 2:** anexos (upload de PDF/foto) — tabela `anexos` já existe no schema
-- **Fase 3:** feed `.ics` (`webcal://`) + IA via OpenRouter
-- **Fase 4:** push notifications; Tauri/Capacitor só se a PWA não bastar
+- **Fases 0–3:** ✅ fundação, MVP, anexos, metas, calendário `.ics`, IA (OpenRouter).
+- **Fase 4:** ✅ insights mensais de IA + push notifications (PWA instalada).
+  Tauri/Capacitor ficam de fora enquanto a PWA bastar.

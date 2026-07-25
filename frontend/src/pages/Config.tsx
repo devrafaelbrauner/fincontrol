@@ -2,6 +2,18 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 
 type IaConfig = { configurada: boolean; modelo: string };
+type PushConfig = { habilitado: boolean; vapid_public: string | null };
+
+/** base64url (chave VAPID) → Uint8Array para o applicationServerKey. */
+function base64urlParaBytes(base64url: string): Uint8Array<ArrayBuffer> {
+  const base64 = (base64url + "=".repeat((4 - (base64url.length % 4)) % 4))
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
 
 export default function Config() {
   const [cfg, setCfg] = useState<IaConfig | null>(null);
@@ -9,6 +21,8 @@ export default function Config() {
   const [modelo, setModelo] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [push, setPush] = useState<PushConfig | null>(null);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
 
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
@@ -17,9 +31,41 @@ export default function Config() {
         setModelo(c.modelo);
       })
       .catch((e) => setErro(e.message));
+    api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
   }, []);
 
   useEffect(carregar, [carregar]);
+
+  async function ativarPush() {
+    setPushMsg(null);
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        throw new Error("Este navegador não suporta notificações push.");
+      }
+      if (!push?.vapid_public) throw new Error("Push não está configurado no servidor.");
+      const permissao = await Notification.requestPermission();
+      if (permissao !== "granted") throw new Error("Permissão de notificação negada.");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64urlParaBytes(push.vapid_public),
+      });
+      await api("/push/subscribe", { method: "POST", body: JSON.stringify(sub.toJSON()) });
+      setPushMsg("Notificações ativadas neste aparelho.");
+    } catch (e) {
+      setPushMsg((e as Error).message);
+    }
+  }
+
+  async function testarPush() {
+    setPushMsg(null);
+    try {
+      const r = await api<{ enviados: number }>("/push/testar", { method: "POST", body: "{}" });
+      setPushMsg(`Enviado para ${r.enviados} aparelho(s).`);
+    } catch (e) {
+      setPushMsg((e as Error).message);
+    }
+  }
 
   async function salvar(e: FormEvent) {
     e.preventDefault();
@@ -77,6 +123,20 @@ export default function Config() {
       )}
       {msg && <p className="positivo">{msg}</p>}
       {erro && <p className="erro">{erro}</p>}
+
+      <h2 style={{ marginTop: "2rem" }}>Notificações push</h2>
+      {push?.habilitado ? (
+        <>
+          <p>Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
+          <div className="linha-form">
+            <button onClick={ativarPush}>Ativar notificações</button>
+            <button onClick={testarPush}>Enviar teste</button>
+          </div>
+          {pushMsg && <p>{pushMsg}</p>}
+        </>
+      ) : (
+        <p>Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
+      )}
     </>
   );
 }

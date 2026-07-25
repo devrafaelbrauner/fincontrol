@@ -93,6 +93,21 @@ def extrair_de_anexo(db: sqlite3.Connection, conteudo: bytes, mime: str, tipo: s
         raise OpenRouterError(f"Modelo não retornou JSON válido: {texto[:300]}") from e
 
 
+def gerar_insights(db: sqlite3.Connection, resumo: str) -> str:
+    """Comentário curto e acionável sobre as finanças do mês vs. meses anteriores."""
+    instrucao = (
+        "Você é um consultor financeiro pessoal, direto e prático. Com base no resumo "
+        "(valores em reais), escreva de 3 a 5 observações curtas em markdown (bullets): "
+        "tendências vs. meses anteriores, categorias que mais pesaram, e uma sugestão "
+        "concreta. Sem preâmbulo, sem repetir os números crus linha a linha."
+    )
+    mensagens = [
+        {"role": "system", "content": instrucao},
+        {"role": "user", "content": resumo},
+    ]
+    return chamar(db, mensagens, espera_json=False)
+
+
 def categorizar(db: sqlite3.Connection, descricao: str, categorias: list[str]) -> str | None:
     """Sugere uma categoria (dentre as existentes) para uma descrição de gasto."""
     instrucao = (

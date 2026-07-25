@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from .auth import limiter, require_auth
 from .auth import router as auth_router
 from .db import migrate
-from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, variaveis
+from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
 
 migrate()
 
@@ -30,7 +30,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
-for r in (categorias.router, contas_fixas.router, variaveis.router, entradas.router, metas.router, dashboard.router, anexos.router, calendario.router, ia.router):
+for r in (categorias.router, contas_fixas.router, variaveis.router, entradas.router, metas.router, dashboard.router, anexos.router, calendario.router, ia.router, push.router):
     app.include_router(r, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Feed .ics é público (autenticado só pelo token secreto na URL) — fora do require_auth e do /api.
