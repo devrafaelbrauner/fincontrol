@@ -20,6 +20,11 @@ class VariavelIn(BaseModel):
 
 class VariavelPatch(BaseModel):
     anexo_id: int | None = None
+    categoria_id: int | None = None
+    descricao: str | None = None
+    valor_cents: int | None = Field(default=None, ge=0)
+    data: str | None = None
+    forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = None
 
 
 @router.get("")
@@ -61,9 +66,13 @@ def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
 
 @router.patch("/{lancamento_id}")
 def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db)):
+    campos = body.model_dump(exclude_unset=True)  # atualização parcial (anexo e/ou categoria)
+    if not campos:
+        raise HTTPException(400, "Nada para atualizar")
+    sets = ", ".join(f"{c} = ?" for c in campos)
     cur = db.execute(
-        "UPDATE lancamentos_variaveis SET anexo_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
-        (body.anexo_id, lancamento_id),
+        f"UPDATE lancamentos_variaveis SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        (*campos.values(), lancamento_id),
     )
     if cur.rowcount == 0:
         raise HTTPException(404, "Lançamento não encontrado")

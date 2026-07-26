@@ -16,6 +16,14 @@ class MetaIn(BaseModel):
     estrategia_texto: str | None = None
 
 
+class MetaPatch(BaseModel):
+    nome: str | None = None
+    valor_total_cents: int | None = Field(default=None, gt=0)
+    prazo: str | None = None
+    estrategia_texto: str | None = None
+    ativa: bool | None = None
+
+
 class AporteIn(BaseModel):
     valor_cents: int = Field(gt=0)
     data: str | None = None  # default: hoje
@@ -51,6 +59,32 @@ def criar(body: MetaIn, db: sqlite3.Connection = Depends(get_db)):
         (body.nome, body.valor_total_cents, body.prazo, body.estrategia_texto),
     )
     return {"id": cur.lastrowid}
+
+
+@router.patch("/{meta_id}")
+def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_db)):
+    campos = body.model_dump(exclude_unset=True)
+    if not campos:
+        raise HTTPException(400, "Nada para atualizar")
+    if "ativa" in campos:
+        campos["ativa"] = 1 if campos["ativa"] else 0
+    sets = ", ".join(f"{c} = ?" for c in campos)
+    cur = db.execute(
+        f"UPDATE metas SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        (*campos.values(), meta_id),
+    )
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Meta não encontrada")
+    return {"ok": True}
+
+
+@router.delete("/{meta_id}")
+def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    if not db.execute("SELECT 1 FROM metas WHERE id = ?", (meta_id,)).fetchone():
+        raise HTTPException(404, "Meta não encontrada")
+    db.execute("DELETE FROM metas_aportes WHERE meta_id = ?", (meta_id,))
+    db.execute("DELETE FROM metas WHERE id = ?", (meta_id,))
+    return {"ok": True}
 
 
 @router.post("/{meta_id}/aportes", status_code=201)

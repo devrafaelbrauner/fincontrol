@@ -65,6 +65,15 @@ def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends
     return {"ok": True}
 
 
+@router.delete("/{conta_id}")
+def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    if not db.execute("SELECT 1 FROM contas_fixas WHERE id = ?", (conta_id,)).fetchone():
+        raise HTTPException(404, "Conta fixa não encontrada")
+    db.execute("DELETE FROM lancamentos_fixos WHERE conta_fixa_id = ?", (conta_id,))
+    db.execute("DELETE FROM contas_fixas WHERE id = ?", (conta_id,))
+    return {"ok": True}
+
+
 @router.get("/lancamentos/{competencia}")
 def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db)):
     try:
