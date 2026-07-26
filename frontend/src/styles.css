@@ -4,9 +4,9 @@
    ============================================================ */
 
 :root {
-  /* Tipografia: New York é fonte do sistema Apple; cai em Georgia no resto. */
-  --fonte: "New York", "New York Small", Georgia, "Times New Roman", serif;
-  --fonte-num: "SF Pro Display", "New York", Georgia, serif;
+  /* Tipografia: sans-serif do sistema (SF Pro no Apple, Segoe/Inter no resto). */
+  --fonte: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", "Inter", Roboto, system-ui, sans-serif;
+  --fonte-num: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
 
   /* Raios e profundidade */
   --raio-sm: 14px;
@@ -18,13 +18,14 @@
   --dur: 220ms;
   --dur-lento: 420ms;
 
-  /* Cores funcionais (compartilhadas entre temas) */
-  --verde: #34d399;
-  --vermelho: #f87171;
-  --azul: #60a5fa;
-  --laranja: #fbbf24;
-  --verde-forte: #10b981;
-  --vermelho-forte: #ef4444;
+  /* Cores funcionais (compartilhadas entre temas) — direção "mockup":
+     azul = positivo/entradas, vermelho = saídas, laranja = alerta/metas. Sem verde. */
+  --verde: #3b82f6;          /* "positivo" agora é azul (mantém o nome por compatibilidade) */
+  --vermelho: #f6564a;
+  --azul: #3b82f6;
+  --laranja: #ff9f2e;
+  --verde-forte: #0a6cff;    /* azul forte para gradientes/realces */
+  --vermelho-forte: #ef3d33;
 }
 
 /* ---------- Tema ESCURO (padrão) ---------- */
@@ -47,8 +48,9 @@
   --sombra-sm: 0 6px 20px -8px rgba(0, 0, 0, 0.6);
   --acento: var(--azul);
 
-  --halo-1: rgba(96, 165, 250, 0.16);
-  --halo-2: rgba(251, 191, 36, 0.10);
+  --halo-1: rgba(59, 130, 246, 0.20);
+  --halo-2: rgba(255, 159, 46, 0.13);
+  --halo-3: rgba(255, 59, 48, 0.12);
 
   /* Paleta categórica validada (passos escuros) — ver dataviz/palette. */
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
@@ -73,10 +75,11 @@
   --reflexo: rgba(255, 255, 255, 0.9);
   --sombra: 0 16px 40px -18px rgba(20, 25, 45, 0.28);
   --sombra-sm: 0 8px 20px -12px rgba(20, 25, 45, 0.22);
-  --acento: #2563eb;
+  --acento: #0a6cff;
 
-  --halo-1: rgba(37, 99, 235, 0.12);
-  --halo-2: rgba(251, 146, 60, 0.10);
+  --halo-1: rgba(10, 108, 255, 0.14);
+  --halo-2: rgba(255, 138, 0, 0.12);
+  --halo-3: rgba(255, 59, 48, 0.09);
 
   /* Paleta categórica validada (passos claros). */
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
@@ -95,10 +98,11 @@ body {
   font-family: var(--fonte);
   color: var(--texto);
   background: var(--bg-1);
-  /* Halos de cor por trás do vidro, para os reflexos terem o que refratar. */
+  /* Blobs de cor desfocados por trás do vidro, para os reflexos terem o que refratar. */
   background-image:
-    radial-gradient(60vw 60vw at 12% -10%, var(--halo-1), transparent 60%),
-    radial-gradient(50vw 50vw at 100% 0%, var(--halo-2), transparent 55%);
+    radial-gradient(55vw 55vw at 10% -8%, var(--halo-1), transparent 60%),
+    radial-gradient(48vw 48vw at 102% 4%, var(--halo-2), transparent 58%),
+    radial-gradient(46vw 46vw at 60% 108%, var(--halo-3), transparent 60%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -428,7 +432,7 @@ tbody tr:hover { background: var(--vidro); }
   background: var(--vidro-forte);
 }
 .stat .rotulo { font-size: 0.82rem; color: var(--texto-2); font-family: system-ui, sans-serif; }
-.stat .valor { font-size: 1.7rem; font-weight: 600; }
+.stat .valor { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; }
 .stat .variacao { font-size: 0.8rem; font-family: system-ui, sans-serif; display: inline-flex; align-items: center; gap: 0.25rem; }
 .stat .spark { margin-top: 0.2rem; }
 
