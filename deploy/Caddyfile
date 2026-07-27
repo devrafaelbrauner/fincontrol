@@ -16,13 +16,25 @@
 	# Restante: PWA (SPA) — serve os arquivos estáticos e faz fallback para index.html.
 	handle {
 		root * {$FINCONTROL_FRONTEND_DIST}
+
+		# Assets com hash no nome: imutáveis, cache longo.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# Shell do PWA e manifest: sempre revalidar para não servir versão velha.
+		@shell path /index.html /sw.js /manifest.webmanifest /registerSW.js
+		header @shell Cache-Control "no-cache"
+
 		try_files {path} /index.html
 		file_server
 	}
 
-	# O uvicorn já marca o cookie de refresh como httpOnly/SameSite; o Caddy garante o HTTPS.
+	# O uvicorn marca o cookie de refresh como httpOnly/SameSite; o Caddy garante o HTTPS.
+	# HSTS é essencial: o refresh cookie é Secure e o app depende de HTTPS.
 	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		Referrer-Policy strict-origin-when-cross-origin
 		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		-Server
 	}
 }

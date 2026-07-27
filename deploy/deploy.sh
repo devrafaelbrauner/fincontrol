@@ -28,6 +28,16 @@ npm run build
 echo "==> Reiniciando backend e recarregando Caddy"
 # As migrations rodam no startup do app (migrate() em app.main).
 sudo systemctl restart fincontrol
+
+# Readiness: se a migration ou os segredos falharem, o backend não sobe —
+# aborta com log em vez de declarar sucesso com o site fora do ar.
+sleep 2
+if ! systemctl is-active --quiet fincontrol; then
+	echo "FALHA: o backend não subiu após o restart. Últimas linhas do log:" >&2
+	journalctl -u fincontrol -n 30 --no-pager >&2 || true
+	exit 1
+fi
+
 sudo systemctl reload caddy 2>/dev/null || sudo systemctl restart caddy
 
 echo "==> Pronto."

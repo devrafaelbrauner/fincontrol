@@ -18,10 +18,17 @@ sudo -u fincontrol git clone https://github.com/rafaelbrauner22-bit/fincontrol.g
 
 # 2. Ambiente do backend
 cd /opt/fincontrol/backend
+# Diretório de dados (SQLite + uploads) — precisa existir ANTES do serviço subir,
+# porque o systemd monta ReadWritePaths sobre ele (ProtectSystem=strict).
+sudo -u fincontrol mkdir -p /opt/fincontrol/backend/data/uploads
 sudo -u fincontrol cp ../deploy/.env.example .env
-sudo -u fincontrol nano .env          # preencha SECRET_KEY, FERNET_KEY, COOKIE_SECURE=1, ...
+# Gere segredos fortes prontos para colar (SECRET_KEY + FERNET_KEY):
+/opt/fincontrol/deploy/preflight.sh gen
+sudo -u fincontrol nano .env          # FINCONTROL_ENV=production, SECRET_KEY, FERNET_KEY, COOKIE_SECURE=1
 sudo -u fincontrol python3 -m venv .venv
 sudo -u fincontrol .venv/bin/pip install -r requirements.txt
+# Valide o .env antes de prosseguir (produção recusa subir com defaults):
+/opt/fincontrol/deploy/preflight.sh check
 
 # 3. Defina a senha (e 2FA) do usuário único
 sudo -u fincontrol .venv/bin/python -m app.setup_user
