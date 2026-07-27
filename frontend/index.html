@@ -3,20 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0d0d12" />
+    <meta name="description" content="FinControl — controle financeiro pessoal" />
+
+    <!-- theme-color base declarativo por tema (fallback caso o script abaixo falhe). -->
+    <meta name="theme-color" content="#f2f4f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d0d12" media="(prefers-color-scheme: dark)" />
+
+    <!-- Ícones -->
     <link rel="icon" href="/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />
+
+    <!-- Instalação como app no iOS/iPadOS/macOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FinControl" />
+
     <title>FinControl</title>
     <script>
       // Aplica o tema antes da 1ª pintura para evitar flash.
+      // As metas theme-color acima (com media) são o fallback caso este script falhe;
+      // quando ele roda, assume o controle com uma meta única e autoritativa (sem media),
+      // para que o tema manual do usuário também mande na cor da barra do sistema.
       (function () {
         try {
           var t = localStorage.getItem("tema");
           if (t !== "dark" && t !== "light") t = "dark";
           document.documentElement.setAttribute("data-theme", t);
           document
-            .querySelector('meta[name="theme-color"]')
-            .setAttribute("content", t === "dark" ? "#0d0d12" : "#f2f4f8");
+            .querySelectorAll('meta[name="theme-color"]')
+            .forEach(function (m) { m.parentNode.removeChild(m); });
+          var meta = document.createElement("meta");
+          meta.setAttribute("name", "theme-color");
+          meta.setAttribute("content", t === "dark" ? "#0d0d12" : "#f2f4f8");
+          document.head.appendChild(meta);
         } catch (e) {}
       })();
     </script>

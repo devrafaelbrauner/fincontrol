@@ -29,7 +29,9 @@ def enviar(arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
         raise HTTPException(415, "Tipo de arquivo não suportado (use PDF, JPEG, PNG, HEIC ou WEBP)")
     tipo, extensao = info
 
-    conteudo = arquivo.file.read()
+    # Lê no máximo o limite + 1 byte: se vier mais, o arquivo excede 15 MB e é
+    # rejeitado sem carregar gigabytes na memória do processo.
+    conteudo = arquivo.file.read(TAMANHO_MAXIMO_BYTES + 1)
     if len(conteudo) > TAMANHO_MAXIMO_BYTES:
         raise HTTPException(413, "Arquivo maior que 15 MB")
     if not conteudo:

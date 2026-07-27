@@ -13,13 +13,20 @@ from slowapi.util import get_remote_address
 
 from .db import get_db
 
-SECRET_KEY = os.environ.get("FINCONTROL_SECRET_KEY", "dev-insecure-troque-em-producao")
+# Ambiente: "dev" (padrão, permite rodar sem configuração) ou "production".
+# Em produção, main.py exige segredos próprios e recusa subir com os defaults.
+ENV = os.environ.get("FINCONTROL_ENV", "dev").strip().lower()
+IS_PROD = ENV in ("production", "prod")
+
+SECRET_KEY_DEFAULT = "dev-insecure-troque-em-producao"
+SECRET_KEY = os.environ.get("FINCONTROL_SECRET_KEY", SECRET_KEY_DEFAULT)
 ACCESS_TTL_SEGUNDOS = 30 * 60           # JWT de acesso, curto
 REFRESH_TTL_SEGUNDOS = 30 * 24 * 60 * 60  # refresh token, longo (cookie httpOnly)
 COOKIE_NOME = "fincontrol_refresh"
 COOKIE_PATH = "/api/auth"
 # Em produção (HTTPS) o cookie deve ser Secure; em dev via http, não.
-COOKIE_SECURE = os.environ.get("FINCONTROL_COOKIE_SECURE", "0") == "1"
+# Secure por padrão quando FINCONTROL_ENV=production; opt-out explícito só em dev.
+COOKIE_SECURE = os.environ.get("FINCONTROL_COOKIE_SECURE", "1" if IS_PROD else "0") == "1"
 
 ph = PasswordHasher()
 limiter = Limiter(key_func=get_remote_address)

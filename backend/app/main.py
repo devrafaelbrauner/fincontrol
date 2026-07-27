@@ -6,21 +6,44 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from .auth import limiter, require_auth
+from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
 from .auth import router as auth_router
 from .db import migrate
 from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
 
+_log = logging.getLogger("uvicorn.error")
+
 migrate()
 
-# Aviso de segurança: sem FERNET_KEY própria, a chave do OpenRouter é criptografada
-# sob um segredo derivado do SECRET_KEY — inseguro se o SECRET_KEY também for o default.
-if not os.environ.get("FINCONTROL_FERNET_KEY") and \
-        os.environ.get("FINCONTROL_SECRET_KEY", "dev-insecure-troque-em-producao") == "dev-insecure-troque-em-producao":
-    logging.getLogger("uvicorn.error").warning(
-        "FINCONTROL_FERNET_KEY e FINCONTROL_SECRET_KEY ausentes: a chave do OpenRouter será "
-        "criptografada sob um segredo público de desenvolvimento. Defina-os em produção."
-    )
+
+def _validar_ambiente() -> None:
+    """Falha rápido em produção se os segredos forem os defaults inseguros.
+
+    Sem isto, um .env incompleto sobe o app com um SECRET_KEY público (do repo),
+    permitindo forjar JWTs válidos e burlar senha+2FA. Ver deploy/README.md.
+    """
+    tem_fernet = bool(os.environ.get("FINCONTROL_FERNET_KEY"))
+    if IS_PROD:
+        problemas = []
+        if SECRET_KEY == SECRET_KEY_DEFAULT or len(SECRET_KEY) < 32:
+            problemas.append("FINCONTROL_SECRET_KEY ausente, curta (<32) ou igual ao default")
+        if not tem_fernet:
+            problemas.append("FINCONTROL_FERNET_KEY ausente (obrigatória em produção)")
+        if not COOKIE_SECURE:
+            problemas.append("FINCONTROL_COOKIE_SECURE deve ser 1 em produção (HTTPS)")
+        if problemas:
+            raise RuntimeError(
+                "Configuração de produção inválida — corrija o backend/.env: "
+                + "; ".join(problemas)
+            )
+    elif SECRET_KEY == SECRET_KEY_DEFAULT and not tem_fernet:
+        _log.warning(
+            "Rodando com SECRET_KEY de desenvolvimento (público). OK para dev local; "
+            "em produção defina FINCONTROL_ENV=production, FINCONTROL_SECRET_KEY e FINCONTROL_FERNET_KEY."
+        )
+
+
+_validar_ambiente()
 
 app = FastAPI(title="FinControl API", version="0.1.0")
 

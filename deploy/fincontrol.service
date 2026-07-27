@@ -12,16 +12,27 @@ User=fincontrol
 Group=fincontrol
 WorkingDirectory=/opt/fincontrol/backend
 EnvironmentFile=/opt/fincontrol/backend/.env
-ExecStart=/opt/fincontrol/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+# --proxy-headers + --forwarded-allow-ips: confia no X-Forwarded-For do Caddy (127.0.0.1)
+# para que o rate limit do login (slowapi) seja por cliente real, não global.
+ExecStart=/opt/fincontrol/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure
 RestartSec=3
 
-# Endurecimento básico.
+# Endurecimento.
+# ReadWritePaths exige que o diretório JÁ exista no start (ver deploy/README.md,
+# passo de provisionamento: mkdir -p .../backend/data/uploads).
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/opt/fincontrol/backend/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+LimitNOFILE=4096
 
 [Install]
 WantedBy=multi-user.target
