@@ -8,6 +8,7 @@ let urlApp = URL(string: "http://127.0.0.1:8000")!
 class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var janela: NSWindow!
     var webView: WKWebView!
+    var janelasExtras: [NSWindow] = []  // janelas de window.open (ex.: visualizar anexo)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         criarMenu()
@@ -72,6 +73,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
 
     @objc func recarregar(_ sender: Any?) {
         webView.reloadFromOrigin()
+    }
+
+    /// window.open (ex.: "ver anexo") → nova janela nativa com WKWebView.
+    /// Sem este delegate o WKWebView ignora window.open silenciosamente. A view
+    /// DEVE usar a configuration recebida (blob: URLs vivem no processo da página).
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        let visao = WKWebView(frame: .zero, configuration: configuration)
+        visao.uiDelegate = self  // sem navigationDelegate: o retry do shell não pertence a esta janela
+        let nova = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 720),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        nova.title = "Anexo — FinControl"
+        nova.contentView = visao
+        nova.center()
+        nova.isReleasedWhenClosed = false
+        nova.makeKeyAndOrderFront(nil)
+        janelasExtras.append(nova)
+        return visao
     }
 
     /// Painel nativo de arquivos para <input type=file> (upload de PDFs/fotos).
