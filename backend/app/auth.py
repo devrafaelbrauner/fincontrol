@@ -81,6 +81,13 @@ def _set_cookie(resp: Response, token: str) -> None:
     )
 
 
+def _cliente_nativo(request: Request) -> bool:
+    """App Capacitor (iOS/macOS/Android). Como o WebView roda cross-origin, o
+    cookie de refresh não trafega: o app recebe o refresh token no corpo e o
+    reenvia no header X-Refresh-Token. O web (same-origin) nunca manda X-Client."""
+    return request.headers.get("X-Client") == "native"
+
+
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Connection = Depends(get_db)):
@@ -95,13 +102,19 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
     if totp_secret:
         if not body.codigo_totp or not pyotp.TOTP(totp_secret).verify(body.codigo_totp, valid_window=1):
             raise HTTPException(401, "Senha ou código incorretos")
-    _set_cookie(response, _emitir_refresh(db))
-    return {"token": _emitir_access()}
+    refresh_token = _emitir_refresh(db)
+    _set_cookie(response, refresh_token)
+    resposta = {"token": _emitir_access()}
+    if _cliente_nativo(request):
+        resposta["refresh_token"] = refresh_token
+    return resposta
 
 
 @router.post("/refresh")
-def refresh(request: Request, response: Response, db: sqlite3.Connection = Depends(get_db)):
-    cookie = request.cookies.get(COOKIE_NOME)
+def refresh(request: Request, response: Response, db: sqlite3.Connection = Depends(get_db),
+            x_refresh_token: str | None = Header(default=None)):
+    # Web: refresh token no cookie httpOnly. Nativo: no header X-Refresh-Token.
+    cookie = request.cookies.get(COOKIE_NOME) or x_refresh_token
     if not cookie:
         raise HTTPException(401, "Sem refresh token")
     try:
@@ -110,8 +123,12 @@ def refresh(request: Request, response: Response, db: sqlite3.Connection = Depen
         raise HTTPException(401, "Refresh token inválido ou expirado")
     if dados.get("type") != "refresh" or dados.get("ver") != _refresh_version(db):
         raise HTTPException(401, "Refresh token revogado")
-    _set_cookie(response, _emitir_refresh(db))  # rotação
-    return {"token": _emitir_access()}
+    novo = _emitir_refresh(db)  # rotação
+    _set_cookie(response, novo)
+    resposta = {"token": _emitir_access()}
+    if _cliente_nativo(request):
+        resposta["refresh_token"] = novo
+    return resposta
 
 
 @router.post("/logout")

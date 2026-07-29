@@ -1,6 +1,14 @@
+import { Capacitor } from "@capacitor/core";
+
 // Base da API. Vazio no web (same-origin, Caddy faz o proxy de /api).
 // Nos builds nativos (Capacitor), defina VITE_API_BASE com a URL absoluta do backend.
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+
+// No web, o refresh token vive num cookie httpOnly gerenciado pelo backend.
+// No app nativo (WebView cross-origin), o cookie não trafega: guardamos o refresh
+// token localmente e o enviamos por header. O backend identifica o cliente por X-Client.
+const NATIVE = Capacitor.isNativePlatform();
+const CHAVE_REFRESH = "refresh_token";
 
 export function getToken(): string | null {
   return localStorage.getItem("token");
@@ -11,18 +19,58 @@ export function setToken(token: string | null) {
   else localStorage.removeItem("token");
 }
 
+function getRefresh(): string | null {
+  return NATIVE ? localStorage.getItem(CHAVE_REFRESH) : null;
+}
+
+function setRefresh(token: string | null) {
+  if (!NATIVE) return; // no web o refresh fica no cookie httpOnly, não no JS
+  if (token) localStorage.setItem(CHAVE_REFRESH, token);
+  else localStorage.removeItem(CHAVE_REFRESH);
+}
+
+/** Cabeçalhos que identificam o cliente nativo (e opcionalmente carregam o refresh token). */
+function headersNativos(comRefresh = false): Record<string, string> {
+  if (!NATIVE) return {};
+  const h: Record<string, string> = { "X-Client": "native" };
+  const r = comRefresh ? getRefresh() : null;
+  if (r) h["X-Refresh-Token"] = r;
+  return h;
+}
+
+/** Login: autentica e guarda o access token (e, no nativo, o refresh token). */
+export async function login(senha: string, codigo_totp: string | null): Promise<void> {
+  const res = await fetch(API_BASE + "/api/auth/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...headersNativos() },
+    body: JSON.stringify({ senha, codigo_totp }),
+  });
+  const corpo = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(corpo?.detail ?? res.statusText);
+  const { token, refresh_token } = corpo as { token: string; refresh_token?: string };
+  setToken(token);
+  if (refresh_token) setRefresh(refresh_token);
+}
+
 function irParaLogin(): never {
   setToken(null);
+  setRefresh(null);
   window.location.href = "/login";
   throw new Error("Não autenticado");
 }
 
-/** Tenta renovar o access token usando o refresh cookie httpOnly. Retorna o novo token ou null. */
+/** Renova o access token: web usa o cookie httpOnly; nativo manda o refresh token por header. */
 async function renovar(): Promise<string | null> {
-  const res = await fetch(API_BASE + "/api/auth/refresh", { method: "POST", credentials: "include" });
+  const res = await fetch(API_BASE + "/api/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+    headers: headersNativos(true),
+  });
   if (!res.ok) return null;
-  const { token } = (await res.json()) as { token: string };
+  const { token, refresh_token } = (await res.json()) as { token: string; refresh_token?: string };
   setToken(token);
+  if (refresh_token) setRefresh(refresh_token);
   return token;
 }
 
@@ -87,8 +135,13 @@ export async function abrirAnexo(anexoId: number): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(API_BASE + "/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+  await fetch(API_BASE + "/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
+    headers: headersNativos(),
+  }).catch(() => {});
   setToken(null);
+  setRefresh(null);
   window.location.href = "/login";
 }
 

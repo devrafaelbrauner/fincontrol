@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { api, setToken } from "../api";
+import { login } from "../api";
 
 export default function Login() {
   const [senha, setSenha] = useState("");
@@ -12,11 +12,7 @@ export default function Login() {
     setErro(null);
     setEntrando(true);
     try {
-      const { token } = await api<{ token: string }>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ senha, codigo_totp: codigo || null }),
-      });
-      setToken(token);
+      await login(senha, codigo || null);
       window.location.href = "/";
     } catch (err) {
       setErro((err as Error).message);
