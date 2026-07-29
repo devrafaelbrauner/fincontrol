@@ -1,0 +1,29 @@
+# Projeto Xcode gerado com XcodeGen: `xcodegen generate` neste diretório.
+name: FinControl
+options:
+  createIntermediateGroups: true
+targets:
+  FinControl:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: br.com.rafaelbrauner.fincontrol
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_IDENTITY: "-"
+        SWIFT_VERSION: "5.9"
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: FinControl
+        CFBundleIconFile: AppIcon
+        NSHighResolutionCapable: true
+        # O app fala com o backend local em http:// — ATS libera só rede local.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true

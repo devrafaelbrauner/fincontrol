@@ -1,8 +1,12 @@
 import logging
 import os
 
-from fastapi import Depends, FastAPI
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -72,3 +76,20 @@ app.include_router(calendario.feed_router)
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+# Serve o frontend buildado quando frontend/dist existe (app nativo macOS e teste
+# local sem Caddy; em produção o Caddy serve o dist diretamente — deploy/Caddyfile).
+# Registrado por último: o feed .ics e o /api têm precedência por ordem de registro.
+DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+
+    @app.get("/{caminho:path}", include_in_schema=False)
+    def spa(caminho: str):
+        if caminho.startswith("api/"):
+            raise HTTPException(404)
+        arquivo = (DIST / caminho).resolve()
+        if caminho and arquivo.is_file() and arquivo.is_relative_to(DIST):
+            return FileResponse(arquivo)
+        return FileResponse(DIST / "index.html")

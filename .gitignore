@@ -8,3 +8,7 @@ node_modules/
 frontend/dist/
 frontend/dev-dist/
 .DS_Store
+
+# App nativo macOS (gerados — recriar com xcodegen/xcodebuild)
+macos/build/
+macos/FinControl.xcodeproj/
