@@ -85,11 +85,15 @@ DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if DIST.is_dir():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
+    # index.html nunca deve ser cacheado (aponta para os bundles com hash, esses sim
+    # cacheáveis) — sem isto a WKWebView do app nativo pode reter o shell antigo.
+    SEM_CACHE = {"Cache-Control": "no-cache"}
+
     @app.get("/{caminho:path}", include_in_schema=False)
     def spa(caminho: str):
         if caminho.startswith("api/"):
             raise HTTPException(404)
         arquivo = (DIST / caminho).resolve()
         if caminho and arquivo.is_file() and arquivo.is_relative_to(DIST):
-            return FileResponse(arquivo)
-        return FileResponse(DIST / "index.html")
+            return FileResponse(arquivo, headers=SEM_CACHE if arquivo.suffix == ".html" else None)
+        return FileResponse(DIST / "index.html", headers=SEM_CACHE)
