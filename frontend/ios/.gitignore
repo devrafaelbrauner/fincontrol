@@ -5,6 +5,9 @@ App/App/public
 DerivedData
 xcuserdata
 
+# Estado local do SwiftPM (o Xcode recria ao resolver os pacotes)
+App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
 # Cordova plugins for Capacitor
 capacitor-cordova-ios-plugins
 
