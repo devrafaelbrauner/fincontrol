@@ -13,8 +13,6 @@ from .routers import anexos, calendario, categorias, contas_fixas, dashboard, en
 
 _log = logging.getLogger("uvicorn.error")
 
-migrate()
-
 
 def _validar_ambiente() -> None:
     """Falha rápido em produção se os segredos forem os defaults inseguros.
@@ -43,7 +41,8 @@ def _validar_ambiente() -> None:
         )
 
 
-_validar_ambiente()
+_validar_ambiente()  # valida os segredos ANTES de tocar no banco
+migrate()
 
 app = FastAPI(title="FinControl API", version="0.1.0")
 
