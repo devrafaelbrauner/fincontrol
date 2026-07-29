@@ -1,3 +1,7 @@
+// Base da API. Vazio no web (same-origin, Caddy faz o proxy de /api).
+// Nos builds nativos (Capacitor), defina VITE_API_BASE com a URL absoluta do backend.
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+
 export function getToken(): string | null {
   return localStorage.getItem("token");
 }
@@ -15,7 +19,7 @@ function irParaLogin(): never {
 
 /** Tenta renovar o access token usando o refresh cookie httpOnly. Retorna o novo token ou null. */
 async function renovar(): Promise<string | null> {
-  const res = await fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
+  const res = await fetch(API_BASE + "/api/auth/refresh", { method: "POST", credentials: "include" });
   if (!res.ok) return null;
   const { token } = (await res.json()) as { token: string };
   setToken(token);
@@ -24,11 +28,11 @@ async function renovar(): Promise<string | null> {
 
 /** fetch com Bearer atual; em 401 (fora de /auth) tenta renovar uma vez e repete. */
 async function comAuth(path: string, montar: (token: string | null) => RequestInit): Promise<Response> {
-  let res = await fetch("/api" + path, { credentials: "include", ...montar(getToken()) });
+  let res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(getToken()) });
   if (res.status === 401 && !path.startsWith("/auth")) {
     const novo = await renovar();
     if (!novo) irParaLogin();
-    res = await fetch("/api" + path, { credentials: "include", ...montar(novo) });
+    res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(novo) });
     if (res.status === 401) irParaLogin();
   }
   return res;
@@ -83,7 +87,7 @@ export async function abrirAnexo(anexoId: number): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+  await fetch(API_BASE + "/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   setToken(null);
   window.location.href = "/login";
 }
