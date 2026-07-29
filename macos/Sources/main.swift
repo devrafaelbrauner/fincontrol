@@ -2,21 +2,34 @@ import Cocoa
 import WebKit
 
 /// Wrapper nativo mínimo: uma janela com WKWebView apontando para o backend
-/// local, que serve o frontend buildado (frontend/dist) na porta 8000.
-let porta = 8000
-/// `FINCONTROL_URL` aponta o wrapper para outro servidor (ex.: a VPS por HTTPS).
+/// local, que serve o frontend buildado (frontend/dist).
+///
+/// Ajustes vêm de `defaults write br.com.rafaelbrauner.fincontrol <chave> <valor>`
+/// ou da variável `FINCONTROL_<CHAVE>`. O env ganha, mas só existe quando o app é
+/// lançado pelo terminal — aberto pelo Finder, quem vale é o `defaults`.
+func ajuste(_ chave: String) -> String? {
+    if let v = ProcessInfo.processInfo.environment["FINCONTROL_" + chave.uppercased()], !v.isEmpty {
+        return v
+    }
+    let v = UserDefaults.standard.string(forKey: chave)
+    return (v?.isEmpty ?? true) ? nil : v
+}
+
+/// Porta do backend local. Configurável para conviver com outros serviços na 8000.
+let porta = ajuste("porta").flatMap(Int.init) ?? 8000
+/// `url` aponta o wrapper para outro servidor (ex.: a VPS por HTTPS).
 /// Quem aponta um servidor assume o controle dele: só gerenciamos o uvicorn no
 /// caminho padrão — inclusive se a URL for local, pode ser um servidor de outro dono.
-let urlEnv = ProcessInfo.processInfo.environment["FINCONTROL_URL"].flatMap { URL(string: $0) }
+let urlEnv = ajuste("url").flatMap { URL(string: $0) }
 let urlApp = urlEnv ?? URL(string: "http://127.0.0.1:\(porta)")!
 let servidorLocal = urlEnv == nil
 
-/// Diretório `backend/` do repositório, com venv pronto. `FINCONTROL_HOME` permite
+/// Diretório `backend/` do repositório, com venv pronto. `home` permite
 /// apontar para um checkout fora do caminho padrão.
 func acharBackend() -> URL? {
     let fm = FileManager.default
     var candidatos: [URL] = []
-    if let home = ProcessInfo.processInfo.environment["FINCONTROL_HOME"], !home.isEmpty {
+    if let home = ajuste("home") {
         candidatos.append(URL(fileURLWithPath: (home as NSString).expandingTildeInPath))
     }
     candidatos.append(fm.homeDirectoryForCurrentUser.appendingPathComponent("Projects/fincontrol"))
@@ -152,8 +165,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
                     corpo: morreu
                         ? "O servidor local encerrou logo após iniciar — a porta \(porta) pode estar em uso por outro app."
                         : "Iniciei o servidor local, mas ele não atendeu em \(urlApp.absoluteString).",
-                    instrucoes: "Rode <code>.venv/bin/uvicorn app.main:app</code> em <code>backend/</code> "
-                        + "para ver o erro, e use ⌘R para tentar de novo."
+                    instrucoes: morreu
+                        ? "Para o FinControl usar outra porta:<br>"
+                            + "<code>defaults write br.com.rafaelbrauner.fincontrol porta -int 8010</code><br>"
+                            + "Depois reabra o app."
+                        : "Rode <code>.venv/bin/uvicorn app.main:app</code> em <code>backend/</code> "
+                            + "para ver o erro, e use ⌘R para tentar de novo."
                 )
                 return
             }

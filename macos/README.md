@@ -39,14 +39,24 @@ Exportar CSV e salvar anexos gravam em `~/Downloads` e revelam o arquivo no Find
 (o wrapper não tem lista de downloads própria). Nada é sobrescrito: um nome repetido
 vira `arquivo (2).csv`.
 
-## Apontar para outro servidor
+## Configuração
 
-Quando a VPS estiver no ar, `FINCONTROL_URL` transforma o wrapper em cliente do
-servidor real — sem recompilar:
+Aberto pelo Finder, o app não enxerga variáveis de ambiente do shell — por isso os
+ajustes ficam em `defaults` (a variável `FINCONTROL_<CHAVE>` também funciona e tem
+precedência, mas só quando o app é lançado pelo terminal).
 
-```bash
-FINCONTROL_URL=https://seu-dominio /Applications/FinControl.app/Contents/MacOS/FinControl
-```
+| Chave | Para quê | Exemplo |
+|---|---|---|
+| `porta` | Porta do backend local (padrão 8000) | `defaults write br.com.rafaelbrauner.fincontrol porta -int 8010` |
+| `url` | Aponta o wrapper para outro servidor, ex. a VPS | `defaults write br.com.rafaelbrauner.fincontrol url https://seu-dominio` |
+| `home` | Checkout fora de `~/Projects/fincontrol` | `defaults write br.com.rafaelbrauner.fincontrol home ~/dev/fincontrol` |
 
-Com `FINCONTROL_URL` definida o app não gerencia backend nenhum (quem aponta um
-servidor é dono dele); sem ela, vale o comportamento padrão descrito acima.
+Para voltar ao padrão: `defaults delete br.com.rafaelbrauner.fincontrol <chave>`.
+
+Trocar a **porta** resolve conflito com outro serviço que já use a 8000 — o app
+sobe o próprio backend na porta configurada. Atenção: o app do iPhone (build
+Capacitor com `VITE_API_BASE`) e o `fincontrol-backend.command` continuam
+apontando para a porta que você definiu neles; se mudar aqui, ajuste lá também.
+
+Com `url` definida o app vira só cliente e não gerencia backend nenhum — quem
+aponta um servidor é dono dele.
