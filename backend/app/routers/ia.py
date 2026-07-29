@@ -105,12 +105,34 @@ def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
     if not caminho.exists():
         raise HTTPException(404, "Arquivo não encontrado no disco")
     mime = EXTENSAO_PARA_CONTENT_TYPE.get(Path(row["caminho_arquivo"]).suffix, "application/octet-stream")
+    cats = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1")]
     try:
-        dados = openrouter.extrair_de_anexo(db, caminho.read_bytes(), mime, row["tipo"])
+        dados = openrouter.extrair_de_anexo(db, caminho.read_bytes(), mime, row["tipo"], cats)
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
     db.execute("UPDATE anexos SET extraido_por_ia = 1, dados_extraidos_json = ? WHERE id = ?",
                (json.dumps(dados, ensure_ascii=False), anexo_id))
+    return dados
+
+
+@router.post("/extrair-itens/{anexo_id}")
+def extrair_itens(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Extração itemizada: lê os lançamentos individuais do documento (fatura, extrato)."""
+    row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Anexo não encontrado")
+    caminho = UPLOADS_DIR / row["caminho_arquivo"]
+    if not caminho.exists():
+        raise HTTPException(404, "Arquivo não encontrado no disco")
+    mime = EXTENSAO_PARA_CONTENT_TYPE.get(Path(row["caminho_arquivo"]).suffix, "application/octet-stream")
+    cats = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1 AND tipo = 'variavel'")]
+    try:
+        dados = openrouter.extrair_itens_de_anexo(db, caminho.read_bytes(), mime, row["tipo"], cats)
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    itens = dados.get("itens")
+    if not isinstance(itens, list):
+        raise HTTPException(502, "A IA não retornou a lista de itens esperada")
     return dados
 
 

@@ -618,3 +618,23 @@ tbody tr:hover { background: var(--vidro); }
 @media (max-width: 400px) {
   .grid-stats { grid-template-columns: 1fr; }
 }
+
+/* ---- Importar documentos ---- */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.2rem 1.2rem;
+  border: 2px dashed var(--vidro-borda-forte);
+  border-radius: var(--raio-lg);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.dropzone svg { width: 32px; height: 32px; color: var(--azul); }
+.dropzone:hover, .dropzone:focus-visible { border-color: var(--azul); }
+.dropzone.ativo { border-color: var(--azul); background: var(--vidro-forte); transform: scale(1.01); }
+.importar-lista { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 1rem; }
+.importar-item.confirmado { opacity: 0.65; }
+.importar-topo { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; min-width: 0; }
