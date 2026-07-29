@@ -4,6 +4,13 @@
 <dict>
     <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Permite HTTP apenas para hosts locais (ex.: http://localhost:8000 em dev).
+		     Não afeta produção, que fala com o backend por HTTPS. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
