@@ -3,8 +3,8 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
 import {
-  IcAnalises, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcLua, IcMais, IcMenu, IcMetas,
-  IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
+  IcAnalises, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
+  IcMetas, IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
 import { definirOrdem, useOrdem } from "./ordem";
@@ -16,6 +16,7 @@ import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
 import Dashboard from "./pages/Dashboard";
 import Entradas from "./pages/Entradas";
+import Importar from "./pages/Importar";
 import Login from "./pages/Login";
 import Metas from "./pages/Metas";
 import Variaveis from "./pages/Variaveis";
@@ -24,6 +25,7 @@ const ABAS: { para: string; rotulo: string; icone: ReactNode }[] = [
   { para: "/", rotulo: "Visão geral", icone: <IcVisao /> },
   { para: "/analises", rotulo: "Análises", icone: <IcAnalises /> },
   { para: "/assistente", rotulo: "Assistente", icone: <IcChat /> },
+  { para: "/importar", rotulo: "Importar", icone: <IcImportar /> },
   { para: "/fixas", rotulo: "Contas fixas", icone: <IcFixas /> },
   { para: "/variaveis", rotulo: "Variáveis", icone: <IcVariaveis /> },
   { para: "/entradas", rotulo: "Entradas", icone: <IcEntradas /> },
@@ -157,6 +159,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/analises" element={<Analises />} />
             <Route path="/assistente" element={<Assistente />} />
+            <Route path="/importar" element={<Importar />} />
             <Route path="/fixas" element={<ContasFixas />} />
             <Route path="/variaveis" element={<Variaveis />} />
             <Route path="/entradas" element={<Entradas />} />

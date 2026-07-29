@@ -15,7 +15,9 @@ import httpx
 from .cripto import descriptografar
 
 URL = "https://openrouter.ai/api/v1/chat/completions"
+URL_OPENAI = "https://api.openai.com/v1/chat/completions"
 MODELO_PADRAO = "anthropic/claude-sonnet-4.5"
+MODELO_PADRAO_OPENAI = "gpt-4o"  # multimodal; usado quando a chave é da OpenAI
 TIMEOUT = 60.0
 TENTATIVAS = 3                       # tentativas totais em falhas transitórias
 STATUS_RETENTAVEL = {429, 500, 502, 503, 504}
@@ -64,8 +66,16 @@ def chamar(db: sqlite3.Connection, mensagens: list[dict], espera_json: bool = Tr
     """Chamada única ao OpenRouter, com retry/backoff em falhas transitórias."""
     chave = api_key(db)
     if not chave:
-        raise OpenRouterError("Chave do OpenRouter não configurada")
-    corpo: dict = {"model": modelo_preferido(db), "messages": mensagens, "max_tokens": max_tokens}
+        raise OpenRouterError("Chave de IA não configurada (OpenRouter ou OpenAI)")
+    # Detecção por prefixo: sk-or-… é OpenRouter; qualquer outra sk-… é tratada como
+    # chave da OpenAI (mesma API chat/completions, endpoint e nomes de modelo próprios).
+    if chave.startswith("sk-or-"):
+        url, provedor, modelo = URL, "OpenRouter", modelo_preferido(db)
+    else:
+        url, provedor, modelo = URL_OPENAI, "OpenAI", modelo_preferido(db)
+        if "/" in modelo:  # nome no formato do OpenRouter ("anthropic/…") não existe na OpenAI
+            modelo = MODELO_PADRAO_OPENAI
+    corpo: dict = {"model": modelo, "messages": mensagens, "max_tokens": max_tokens}
     if espera_json:
         corpo["response_format"] = {"type": "json_object"}
     headers = {"Authorization": f"Bearer {chave}", "Content-Type": "application/json"}
@@ -73,36 +83,45 @@ def chamar(db: sqlite3.Connection, mensagens: list[dict], espera_json: bool = Tr
     ultimo_erro = ""
     for tentativa in range(TENTATIVAS):
         try:
-            resp = httpx.post(URL, headers=headers, json=corpo, timeout=TIMEOUT)
+            resp = httpx.post(url, headers=headers, json=corpo, timeout=TIMEOUT)
         except httpx.HTTPError as e:
-            ultimo_erro = f"Falha de rede ao chamar OpenRouter: {e}"
+            ultimo_erro = f"Falha de rede ao chamar {provedor}: {e}"
         else:
             if resp.status_code == 200:
                 dados = resp.json()
                 try:
                     return dados["choices"][0]["message"]["content"]
                 except (KeyError, IndexError) as e:
-                    raise OpenRouterError(f"Resposta inesperada do OpenRouter: {dados}") from e
-            ultimo_erro = f"OpenRouter retornou {resp.status_code}: {resp.text[:300]}"
+                    raise OpenRouterError(f"Resposta inesperada do {provedor}: {dados}") from e
+            ultimo_erro = f"{provedor} retornou {resp.status_code}: {resp.text[:300]}"
             if resp.status_code not in STATUS_RETENTAVEL:
                 break  # 401/400 etc. não adianta repetir
         if tentativa < TENTATIVAS - 1:
             time.sleep(0.6 * (2 ** tentativa))  # backoff: 0.6s, 1.2s
-    raise OpenRouterError(ultimo_erro or "Falha ao chamar OpenRouter")
+    raise OpenRouterError(ultimo_erro or f"Falha ao chamar {provedor}")
 
 
 def chamar_json(db: sqlite3.Connection, mensagens: list[dict], max_tokens: int = 1500) -> dict:
     return extrair_json(chamar(db, mensagens, espera_json=True, max_tokens=max_tokens))
 
 
-def extrair_de_anexo(db: sqlite3.Connection, conteudo: bytes, mime: str, tipo: str) -> dict:
+def extrair_de_anexo(
+    db: sqlite3.Connection, conteudo: bytes, mime: str, tipo: str, categorias: list[str] | None = None
+) -> dict:
     """Pede ao modelo multimodal os campos de um boleto/comprovante."""
+    cats = ", ".join(f'"{c}"' for c in (categorias or []))
     instrucao = (
-        "Você extrai dados de boletos e comprovantes brasileiros. Responda SOMENTE com um "
-        "objeto JSON com as chaves: valor_cents (inteiro, valor em centavos, ex: 1200 para "
-        "R$ 12,00), vencimento (YYYY-MM-DD ou null), descricao (texto curto), fornecedor "
-        "(texto ou null), confianca (0 a 1, sua confiança na extração). Use null quando não "
-        "encontrar o campo."
+        "Você extrai dados de boletos, notas fiscais, recibos e comprovantes brasileiros. "
+        "Responda SOMENTE com um objeto JSON com as chaves: "
+        "tipo ('variavel' para gasto/compra/pagamento avulso, 'entrada' para valor recebido, "
+        "'fixa' para boleto de conta recorrente como luz/água/internet/aluguel/assinatura, ou null); "
+        "descricao (texto curto e útil, ex: 'Supermercado Zaffari'); fornecedor (texto ou null); "
+        "valor_cents (inteiro, valor em centavos, ex: 1200 para R$ 12,00); "
+        "data (YYYY-MM-DD — data do pagamento ou emissão — ou null); "
+        "vencimento (YYYY-MM-DD ou null); "
+        "forma_pagamento ('pix', 'credito', 'debito', 'dinheiro', 'boleto' ou null); "
+        + (f"categoria (a mais adequada dentre: {cats}; ou null); " if cats else "")
+        + "confianca (0 a 1, sua confiança na extração). Use null quando não encontrar o campo."
     )
     if tipo == "pdf":
         parte = {"type": "file", "file": {"filename": "anexo.pdf", "file_data": _data_url(conteudo, mime)}}
@@ -113,6 +132,36 @@ def extrair_de_anexo(db: sqlite3.Connection, conteudo: bytes, mime: str, tipo: s
         {"role": "user", "content": [{"type": "text", "text": "Extraia os dados deste documento."}, parte]},
     ]
     return chamar_json(db, mensagens)
+
+
+def extrair_itens_de_anexo(
+    db: sqlite3.Connection, conteudo: bytes, mime: str, tipo: str, categorias: list[str] | None = None
+) -> dict:
+    """Extrai os lançamentos individuais de um documento com vários itens
+    (fatura de cartão, extrato, nota de supermercado)."""
+    cats = ", ".join(f'"{c}"' for c in (categorias or []))
+    instrucao = (
+        "Você extrai TODOS os lançamentos individuais de documentos financeiros brasileiros "
+        "(faturas de cartão de crédito, extratos bancários, notas com vários itens). "
+        "Responda SOMENTE com um objeto JSON com as chaves: "
+        "fornecedor (emissor do documento, ou null); "
+        "total_cents (total do documento em centavos, ou null); "
+        '"itens": lista de objetos {descricao (texto curto), valor_cents (inteiro, centavos), '
+        "data (YYYY-MM-DD ou null; se o documento não trouxer o ano, deduza pelo período/vencimento)"
+        + (f", categoria (a mais adequada dentre: {cats}; ou null)" if cats else "")
+        + "}; confianca (0 a 1). "
+        "Liste apenas cobranças/gastos: ignore pagamentos recebidos, créditos e estornos. "
+        "Não invente itens; se o documento tiver um único valor, retorne um único item."
+    )
+    if tipo == "pdf":
+        parte = {"type": "file", "file": {"filename": "anexo.pdf", "file_data": _data_url(conteudo, mime)}}
+    else:
+        parte = {"type": "image_url", "image_url": {"url": _data_url(conteudo, mime)}}
+    mensagens = [
+        {"role": "system", "content": instrucao},
+        {"role": "user", "content": [{"type": "text", "text": "Extraia os lançamentos deste documento."}, parte]},
+    ]
+    return chamar_json(db, mensagens, max_tokens=6000)
 
 
 def gerar_insights(db: sqlite3.Connection, resumo: str) -> dict:
