@@ -33,5 +33,20 @@ cd frontend && npm run build          # frontend que o backend vai servir
 open macos/build/Build/Products/Release/FinControl.app   # sobe o backend sozinho
 ```
 
-Quando o servidor da VPS estiver no ar, basta trocar `urlApp` em
-`Sources/main.swift` para o domínio HTTPS e o wrapper vira cliente do servidor real.
+## Downloads
+
+Exportar CSV e salvar anexos gravam em `~/Downloads` e revelam o arquivo no Finder
+(o wrapper não tem lista de downloads própria). Nada é sobrescrito: um nome repetido
+vira `arquivo (2).csv`.
+
+## Apontar para outro servidor
+
+Quando a VPS estiver no ar, `FINCONTROL_URL` transforma o wrapper em cliente do
+servidor real — sem recompilar:
+
+```bash
+FINCONTROL_URL=https://seu-dominio /Applications/FinControl.app/Contents/MacOS/FinControl
+```
+
+Com `FINCONTROL_URL` definida o app não gerencia backend nenhum (quem aponta um
+servidor é dono dele); sem ela, vale o comportamento padrão descrito acima.
