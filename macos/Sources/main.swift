@@ -210,16 +210,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDe
               /* Segue o tema do sistema: com barra de título clara, página escura destoa. */
               :root { color-scheme: light dark }
               body { margin:0; height:100vh; display:grid; place-content:center; gap:.6rem;
-                     background:#f7f7f8; color:#131316; text-align:center; padding:2rem;
+                     background:#f5f5f5; color:#111111; text-align:center; padding:2rem;
                      font:16px/1.5 -apple-system, system-ui, sans-serif }
               h1 { font-size:1.25rem; margin:0 }
-              p { margin:0; color:#6b6c74; max-width:38rem }
+              p { margin:0; color:#666666; max-width:38rem }
               .dica { font-size:.9rem }
-              code { background:#e6e6ea; padding:.1rem .3rem; border-radius:4px; color:#2e5ce6 }
+              code { background:#e0e0e0; padding:.1rem .3rem; border-radius:4px; color:#0056d6 }
               @media (prefers-color-scheme: dark) {
-                body { background:#0a0a0c; color:#f7f7f8 }
-                p { color:#9d9ea6 }
-                code { background:#18181c; color:#7a9bff }
+                body { background:#000000; color:#f5f5f5 }
+                p { color:#7f7f7f }
+                code { background:#141414; color:#3d8bff }
               }
             </style>
             <h1>\(titulo)</h1><p>\(corpo)</p>\(extra)

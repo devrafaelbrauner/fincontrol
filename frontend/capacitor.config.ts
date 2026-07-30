@@ -6,9 +6,9 @@ const config: CapacitorConfig = {
   appName: 'FinControl',
   webDir: 'dist',
   // Cor por trás do WebView (evita flash branco no boot; casa com o tema escuro padrão).
-  backgroundColor: '#0a0a0c',
+  backgroundColor: '#000000',
   ios: {
-    backgroundColor: '#0a0a0c',
+    backgroundColor: '#000000',
     // Respeita as safe areas (notch/Dynamic Island) sem cortar conteúdo.
     contentInset: 'always',
   },

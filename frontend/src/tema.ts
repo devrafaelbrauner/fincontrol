@@ -14,7 +14,7 @@ export function temaInicial(): Tema {
 export function aplicarTema(t: Tema) {
   document.documentElement.setAttribute("data-theme", t);
   // Mantém a barra do navegador/PWA em sincronia com o fundo.
-  const cor = t === "dark" ? "#0a0a0c" : "#f7f7f8";
+  const cor = t === "dark" ? "#000000" : "#f5f5f5";
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", cor);
 }
 

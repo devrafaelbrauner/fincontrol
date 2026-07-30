@@ -14,56 +14,72 @@
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: #0a0a0c;            /* fundo da página */
-  --surface: #121215;         /* cards, sidebar */
-  --surface-2: #18181c;       /* modais, popovers, sheet */
-  --surface-hover: #1e1e23;   /* hover de linhas/nav, tracks */
-  --field: #0c0c0f;           /* fundo de inputs */
-  --edge: #26262b;            /* borda 1px padrão */
-  --edge-strong: #34343b;     /* divisores fortes, dashed */
-  --content: #f7f7f8;         /* texto primário */
-  --content-2: #9d9ea6;       /* secundário */
-  --content-3: #63646c;       /* terciário/placeholder */
+  --page: #000000;            /* fundo da página (preto puro) */
+  --surface: #0d0d0d;         /* cards, sidebar */
+  --surface-2: #141414;       /* modais, popovers, sheet */
+  --surface-hover: #1c1c1c;   /* hover de linhas/nav, tracks */
+  --field: #0a0a0a;           /* fundo de inputs */
+  --edge: #282828;            /* borda 1px padrão */
+  --edge-strong: #3c3c3c;     /* divisores fortes, dashed */
+  --content: #f5f5f5;         /* texto primário */
+  --content-2: #7f7f7f;       /* secundário (cinza da paleta) */
+  --content-3: #5a5a5a;       /* terciário/placeholder */
 
-  --accent: #7a9bff;          /* links, foco, info */
-  --positive: #35c98e;        /* entradas */
-  --negative: #f4655c;        /* saídas, erros */
-  --warning: #f2a33c;         /* alertas, metas em risco */
+  --accent: #0068ff;          /* ações, links, foco, info */
+  --accent-vivid: #3d8bff;    /* accent legível como texto no escuro */
+  --positive: #2ecf0c;        /* entradas */
+  --negative: #ff0000;        /* saídas, erros */
+  --warning: #ffa119;         /* alertas, metas em risco */
 
   --shadow-card: none;        /* no escuro a borda separa */
-  --shadow-pop: 0 16px 48px -16px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 16px 48px -16px rgba(0, 0, 0, 0.75);
 
-  /* Paleta categórica validada (passos escuros). */
-  --chart-1: #3987e5; --chart-2: #d95926; --chart-3: #199e70;
-  --chart-4: #c98500; --chart-5: #d55181; --chart-6: #9085e9;
-  --chart-neutral: #565b6b;
+  /* Plano de fundo: glows nas cores da marca sobre o preto puro. */
+  --fundo:
+    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.22), transparent 62%),
+    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.10), transparent 55%),
+    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.10), transparent 60%),
+    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.09), transparent 55%),
+    var(--page);
+
+  /* Paleta categórica na família da marca. */
+  --chart-1: #0068ff; --chart-2: #ffa119; --chart-3: #2ecf0c;
+  --chart-4: #ff0000; --chart-5: #8f8f8f; --chart-6: #66a3ff;
+  --chart-neutral: #5a5a5a;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --page: #f7f7f8;
+  --page: #f5f5f5;
   --surface: #ffffff;
   --surface-2: #ffffff;
-  --surface-hover: #f0f0f2;
+  --surface-hover: #ececec;
   --field: #ffffff;
-  --edge: #e6e6ea;
-  --edge-strong: #d2d2d8;
-  --content: #131316;
-  --content-2: #6b6c74;
-  --content-3: #9a9ba2;
+  --edge: #e0e0e0;
+  --edge-strong: #c6c6c6;
+  --content: #111111;
+  --content-2: #666666;
+  --content-3: #949494;
 
-  --accent: #2e5ce6;
-  --positive: #0e8a4e;
-  --negative: #d1352b;
-  --warning: #b25e09;
+  --accent: #0068ff;
+  --accent-vivid: #0056d6;    /* accent legível como texto no claro */
+  --positive: #1f9c05;
+  --negative: #dd0000;
+  --warning: #b26400;
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow-pop: 0 12px 32px -12px rgba(16, 24, 40, 0.18);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.2);
 
-  /* Paleta categórica validada (passos claros). */
-  --chart-1: #2a78d6; --chart-2: #eb6834; --chart-3: #1baf7a;
-  --chart-4: #eda100; --chart-5: #e87ba4; --chart-6: #4a3aa7;
-  --chart-neutral: #b6bbc7;
+  --fundo:
+    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.10), transparent 62%),
+    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.05), transparent 55%),
+    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.07), transparent 60%),
+    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.06), transparent 55%),
+    var(--page);
+
+  --chart-1: #0059db; --chart-2: #e08300; --chart-3: #229f0a;
+  --chart-4: #d60000; --chart-5: #7f7f7f; --chart-6: #4d8fe6;
+  --chart-neutral: #b0b0b0;
 }
 
 /* Ponte para as utilities do Tailwind (inline = referencia a var, não o valor). */
@@ -79,6 +95,7 @@
   --color-content-2: var(--content-2);
   --color-content-3: var(--content-3);
   --color-accent: var(--accent);
+  --color-accent-vivid: var(--accent-vivid);
   --color-positive: var(--positive);
   --color-negative: var(--negative);
   --color-warning: var(--warning);
@@ -118,7 +135,9 @@
     font-family: var(--font-sans);
     font-size: 0.9375rem;
     color: var(--content);
-    background: var(--page);
+    /* Plano de fundo com glows da marca, fixo (não rola com o conteúdo). */
+    background: var(--fundo);
+    background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -144,7 +163,7 @@
    Superfícies
    ============================================================ */
 .card {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   border: 1px solid var(--edge);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
@@ -186,12 +205,12 @@ a.card:hover, button.card:hover, .card.clicavel:hover { border-color: var(--edge
 }
 .btn:hover { background: var(--surface-hover); border-color: var(--edge-strong); }
 .btn:active { transform: scale(0.98); }
-/* Ação primária monocromática: preto no claro, branco no escuro. */
+/* Ação primária no azul da marca. */
 .btn-primario {
-  background: var(--content);
-  border-color: var(--content); color: var(--page); font-weight: 600;
+  background: var(--accent);
+  border-color: var(--accent); color: #fff; font-weight: 600;
 }
-.btn-primario:hover { background: color-mix(in oklab, var(--content) 85%, var(--page)); border-color: transparent; }
+.btn-primario:hover { background: color-mix(in oklab, var(--accent) 82%, #000); border-color: transparent; }
 .btn-perigo { color: var(--negative); }
 .btn-perigo:hover { border-color: color-mix(in oklab, var(--negative) 40%, transparent); background: color-mix(in oklab, var(--negative) 8%, transparent); }
 .btn-icone { padding: 0.5rem; border-radius: 8px; }
@@ -229,8 +248,8 @@ input[aria-invalid="true"] {
 .seg { display: flex; gap: 0.3rem; padding: 0.25rem; border-radius: var(--radius-md); background: var(--surface-hover); border: 1px solid var(--edge); }
 .seg .btn { flex: 1; padding: 0.4rem 0.5rem; background: transparent; border-color: transparent; }
 .seg .btn:hover { background: var(--surface); }
-.seg .btn-primario { background: var(--content); color: var(--page); }
-.seg .btn-primario:hover { background: var(--content); }
+.seg .btn-primario { background: var(--accent); color: #fff; }
+.seg .btn-primario:hover { background: var(--accent); }
 
 /* Caixa de entrada por IA (linguagem natural / extração de anexo) no modal */
 .ia-box {
@@ -291,7 +310,7 @@ tbody tr:hover { background: var(--surface-hover); }
 .badge.pago     { color: var(--positive); background: color-mix(in oklab, var(--positive) 12%, transparent); border-color: color-mix(in oklab, var(--positive) 25%, transparent); }
 .badge.pendente { color: var(--warning);  background: color-mix(in oklab, var(--warning) 12%, transparent);  border-color: color-mix(in oklab, var(--warning) 25%, transparent); }
 .badge.atrasado { color: var(--negative); background: color-mix(in oklab, var(--negative) 12%, transparent); border-color: color-mix(in oklab, var(--negative) 25%, transparent); }
-.badge.info     { color: var(--accent);   background: color-mix(in oklab, var(--accent) 12%, transparent);   border-color: color-mix(in oklab, var(--accent) 25%, transparent); }
+.badge.info     { color: var(--accent-vivid); background: color-mix(in oklab, var(--accent) 12%, transparent); border-color: color-mix(in oklab, var(--accent) 25%, transparent); }
 
 /* ============================================================
    Barras / anéis de progresso
@@ -348,7 +367,9 @@ tbody tr:hover { background: var(--surface-hover); }
   position: sticky; top: 0; height: 100dvh;
   display: flex; flex-direction: column; gap: 0.4rem;
   padding: 1.1rem 0.8rem;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-right: 1px solid var(--edge);
   overflow: hidden;
 }
@@ -415,7 +436,9 @@ tbody tr:hover { background: var(--surface-hover); }
   position: sticky; top: 0; z-index: 5;
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
   padding: 0.9rem 1.5rem;
-  background: var(--page);
+  background: color-mix(in srgb, var(--page) 55%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--edge);
 }
 .topo .saudacao { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; }
@@ -615,7 +638,9 @@ tbody tr:hover { background: var(--surface-hover); }
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
     justify-content: space-around; align-items: center;
     padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom));
-    background: var(--surface);
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--edge);
   }
   .bottom-nav a, .bottom-nav button {
@@ -630,8 +655,9 @@ tbody tr:hover { background: var(--surface-hover); }
     display: grid; place-items: center; position: fixed; z-index: 45;
     right: 1.1rem; bottom: calc(76px + env(safe-area-inset-bottom));
     width: 56px; height: 56px; border-radius: 16px;
-    background: var(--content); color: var(--page); border: none;
-    box-shadow: var(--shadow-pop); cursor: pointer;
+    background: var(--accent); color: #fff; border: none;
+    box-shadow: 0 12px 32px -8px color-mix(in oklab, var(--accent) 55%, transparent);
+    cursor: pointer;
   }
   .modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
   .overlay { padding: 0; }
