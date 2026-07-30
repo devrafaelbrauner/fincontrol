@@ -88,9 +88,9 @@ export default function ContasFixas() {
       {carregando ? (
         <div className="skeleton" style={{ height: 220 }} />
       ) : lancamentos.length === 0 ? (
-        <p className="glass card sub">Nenhuma conta fixa. Adicione uma pelo botão “Adicionar transação”.</p>
+        <p className="card sub">Nenhuma conta fixa. Adicione uma pelo botão “Adicionar transação”.</p>
       ) : (
-        <div className="glass card" style={{ padding: 0 }}>
+        <div className="card" style={{ padding: 0 }}>
           <table>
             <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>

@@ -46,9 +46,9 @@ export default function Entradas() {
       {carregando ? (
         <div className="skeleton" style={{ height: 200 }} />
       ) : itens.length === 0 ? (
-        <p className="glass card sub">Nenhuma entrada lançada ainda.</p>
+        <p className="card sub">Nenhuma entrada lançada ainda.</p>
       ) : (
-        <div className="glass card" style={{ padding: 0 }}>
+        <div className="card" style={{ padding: 0 }}>
           <table>
             <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th></th></tr></thead>
             <tbody>

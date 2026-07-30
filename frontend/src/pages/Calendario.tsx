@@ -83,7 +83,7 @@ export default function Calendario() {
       <p className="sub">Vencimentos das contas fixas do mês. Hoje: {hoje.toLocaleDateString("pt-BR")}.</p>
       {erro && <p className="erro">{erro}</p>}
 
-      <section className="glass card surgir">
+      <section className="card surgir">
         <div className="cal-topo">
           <button className="btn btn-icone" onClick={() => passoMes(-1)} aria-label="Mês anterior"><IcRecolher /></button>
           <span className="cal-mes">{mesExtenso}</span>
@@ -122,9 +122,9 @@ export default function Calendario() {
       <section className="secao">
         <h3>Próximas contas a vencer</h3>
         {proximas.length === 0 ? (
-          <p className="glass card sub">Nada pendente {ehMesAtual ? "daqui pra frente neste mês" : "neste mês"}. 🎉</p>
+          <p className="card sub">Nada pendente {ehMesAtual ? "daqui pra frente neste mês" : "neste mês"}. 🎉</p>
         ) : (
-          <div className="glass card">
+          <div className="card">
             {proximas.map((l) => {
               const d = new Date(l.vencimento + "T00:00");
               return (
@@ -151,7 +151,7 @@ export default function Calendario() {
           {assinaturaAberta ? "Ocultar" : "Assinar em outro app (.ics)"}
         </button>
         {assinaturaAberta && feed && (
-          <div className="glass card surgir" style={{ marginTop: "0.75rem", maxWidth: 640 }}>
+          <div className="card surgir" style={{ marginTop: "0.75rem", maxWidth: 640 }}>
             <p className="sub">Assine no iPhone/Mac ou Google Calendar para receber os mesmos vencimentos com lembrete automático.</p>
             <div className="cal-url">
               <code>{feed.url}</code>

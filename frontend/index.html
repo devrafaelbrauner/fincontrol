@@ -6,8 +6,8 @@
     <meta name="description" content="FinControl — controle financeiro pessoal" />
 
     <!-- theme-color base declarativo por tema (fallback caso o script abaixo falhe). -->
-    <meta name="theme-color" content="#f2f4f8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0d0d12" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
 
     <!-- Ícones -->
     <link rel="icon" href="/icon-192.png" type="image/png" />
@@ -35,7 +35,7 @@
             .forEach(function (m) { m.parentNode.removeChild(m); });
           var meta = document.createElement("meta");
           meta.setAttribute("name", "theme-color");
-          meta.setAttribute("content", t === "dark" ? "#0d0d12" : "#f2f4f8");
+          meta.setAttribute("content", t === "dark" ? "#0a0a0c" : "#f7f7f8");
           document.head.appendChild(meta);
         } catch (e) {}
       })();

@@ -96,7 +96,7 @@ export default function Metas() {
     } catch (err) { toast((err as Error).message, "erro"); }
   }
 
-  const corPct = (p: number) => (p >= 100 ? "var(--verde)" : p >= 60 ? "var(--azul)" : "var(--laranja)");
+  const corPct = (p: number) => (p >= 100 ? "var(--positive)" : p >= 60 ? "var(--accent)" : "var(--warning)");
 
   return (
     <>
@@ -112,18 +112,18 @@ export default function Metas() {
       {carregando ? (
         <div className="grid-metas">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 150 }} />)}</div>
       ) : metas.length === 0 ? (
-        <p className="glass card sub">Nenhuma meta ainda. Crie a primeira.</p>
+        <p className="card sub">Nenhuma meta ainda. Crie a primeira.</p>
       ) : (
         <div className="grid-metas">
           {metas.map((m) => {
             const pct = Math.min((m.valor_atual_cents / m.valor_total_cents) * 100, 100);
             return (
-              <article key={m.id} className="glass card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <article key={m.id} className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ display: "flex", gap: "0.9rem", alignItems: "center" }}>
                   <ProgressRing pct={pct} cor={corPct(pct)} />
                   <div style={{ minWidth: 0 }}>
                     <strong style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}><IcMetas /> {m.nome}</strong>
-                    <div className="num" style={{ marginTop: "0.2rem" }}>{brl(m.valor_atual_cents)} <span style={{ color: "var(--texto-3)" }}>/ {brl(m.valor_total_cents)}</span></div>
+                    <div className="num" style={{ marginTop: "0.2rem" }}>{brl(m.valor_atual_cents)} <span style={{ color: "var(--content-3)" }}>/ {brl(m.valor_total_cents)}</span></div>
                     <div className="sub" style={{ fontSize: "0.8rem" }}>até {new Date(m.prazo + "T00:00").toLocaleDateString("pt-BR")}</div>
                   </div>
                 </div>

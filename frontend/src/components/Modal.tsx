@@ -3,7 +3,7 @@ import { IcFechar } from "./icones";
 
 type Props = { titulo: string; aberto: boolean; aoFechar: () => void; children: ReactNode };
 
-/** Modal de vidro (tela cheia no mobile) com Esc, clique fora e trap de foco. */
+/** Modal (tela cheia no mobile) com Esc, clique fora e trap de foco. */
 export default function Modal({ titulo, aberto, aoFechar, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -38,7 +38,7 @@ export default function Modal({ titulo, aberto, aoFechar, children }: Props) {
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && aoFechar()}>
-      <div className="glass glass-forte modal" ref={ref} role="dialog" aria-modal="true" aria-label={titulo}>
+      <div className="modal" ref={ref} role="dialog" aria-modal="true" aria-label={titulo}>
         <button className="btn btn-icone modal-fechar" onClick={aoFechar} aria-label="Fechar"><IcFechar /></button>
         <h3>{titulo}</h3>
         {children}

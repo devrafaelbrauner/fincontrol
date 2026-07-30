@@ -234,7 +234,7 @@ export default function Importar() {
       )}
 
       <div
-        className={`dropzone glass${sobre ? " ativo" : ""}`}
+        className={`dropzone${sobre ? " ativo" : ""}`}
         onDragOver={(e) => { e.preventDefault(); setSobre(true); }}
         onDragLeave={() => setSobre(false)}
         onDrop={soltar}
@@ -258,7 +258,7 @@ export default function Importar() {
 
       <div className="importar-lista">
         {itens.map((i) => (
-          <div key={i.key} className={`glass card importar-item${i.status === "confirmado" ? " confirmado" : ""}`}>
+          <div key={i.key} className={`card importar-item${i.status === "confirmado" ? " confirmado" : ""}`}>
             <div className="importar-topo">
               <span className="sub" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", minWidth: 0 }}>
                 <IcAnexo />

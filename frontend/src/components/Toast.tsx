@@ -21,7 +21,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toasts" aria-live="polite" aria-atomic="false">
         {itens.map((t) => (
-          <div key={t.id} className={`glass glass-forte toast ${t.tipo}`} role="status">
+          <div key={t.id} className={`toast ${t.tipo}`} role="status">
             <span>{t.tipo === "ok" ? "✓" : "⚠"}</span>
             <span>{t.texto}</span>
           </div>

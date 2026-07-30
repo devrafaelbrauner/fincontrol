@@ -132,28 +132,28 @@ export default function Dashboard() {
 
       <div className="grid-stats">
         <StatCard rotulo="Saldo do mês" cents={atual.saldo_cents} icone={<IcSaldo />} atraso={1}
-          cor={atual.saldo_cents < 0 ? "var(--vermelho)" : "var(--verde)"}
+          cor={atual.saldo_cents < 0 ? "var(--negative)" : "var(--positive)"}
           variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
-        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--verde)" atraso={2}
+        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--positive)" atraso={2}
           variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
-        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--vermelho)" atraso={3} menosMelhor
+        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--negative)" atraso={3} menosMelhor
           variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
-        <StatCard rotulo="Economia" cents={atual.saldo_cents} icone={<IcEconomia />} cor="var(--azul)" atraso={4}
+        <StatCard rotulo="Economia" cents={atual.saldo_cents} icone={<IcEconomia />} cor="var(--accent)" atraso={4}
           variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
       </div>
 
       <div className="grid-2 secao">
-        <section className="glass card surgir">
+        <section className="card surgir">
           <h3>Fluxo financeiro</h3>
           <AreaChart dados={fluxo} />
           <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-            <span className="item"><span className="ponto" style={{ background: "var(--verde)" }} />Receitas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--vermelho)" }} />Despesas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--azul)" }} />Saldo</span>
+            <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Receitas</span>
+            <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Despesas</span>
+            <span className="item"><span className="ponto" style={{ background: "var(--accent)" }} />Saldo</span>
           </div>
         </section>
 
-        <section className="glass card surgir">
+        <section className="card surgir">
           <h3>Distribuição de despesas</h3>
           <Donut fatias={donut} />
         </section>
@@ -162,9 +162,9 @@ export default function Dashboard() {
       <section className="secao">
         <h3>Próximos vencimentos</h3>
         {atual.proximos_vencimentos.length === 0 ? (
-          <p className="glass card sub">Nada pendente neste mês. 🎉</p>
+          <p className="card sub">Nada pendente neste mês. 🎉</p>
         ) : (
-          <div className="glass card" style={{ padding: 0 }}>
+          <div className="card" style={{ padding: 0 }}>
             <table>
               <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
               <tbody>
@@ -183,7 +183,7 @@ export default function Dashboard() {
       </section>
 
       <section className="secao">
-        <div className="insights-cabecalho">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <h3>Insights de IA</h3>
           <button className="btn btn-primario" onClick={pedirInsights} disabled={iaCarregando}>
             <IcExtrair />{iaCarregando ? "Analisando…" : insights ? "Recalcular" : "Analisar mês"}
@@ -191,19 +191,19 @@ export default function Dashboard() {
         </div>
         {iaErro && <p className="erro">{iaErro}</p>}
         {!insights && !iaCarregando && !iaErro && (
-          <p className="glass card sub">Clique em “Analisar mês” para a IA comentar suas finanças.</p>
+          <p className="card sub">Clique em “Analisar mês” para a IA comentar suas finanças.</p>
         )}
         {iaCarregando && !insights && <div className="skeleton" style={{ height: 120 }} />}
         {insights && (
-          <div className="glass card" style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+          <div className="card" style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
             {insights.destaques?.length > 0 && (
               <ul className="insights-lista">
-                {insights.destaques.map((d, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--azul)" }} />{d}</li>)}
+                {insights.destaques.map((d, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--accent)" }} />{d}</li>)}
               </ul>
             )}
             {insights.alertas?.length > 0 && (
               <ul className="insights-lista">
-                {insights.alertas.map((a, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--laranja)" }} />⚠️ {a}</li>)}
+                {insights.alertas.map((a, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--warning)" }} />⚠️ {a}</li>)}
               </ul>
             )}
             {insights.sugestao && (

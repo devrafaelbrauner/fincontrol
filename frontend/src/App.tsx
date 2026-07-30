@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
+import Logo from "./components/Logo";
 import {
   IcAnalises, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
   IcMetas, IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
@@ -90,7 +91,7 @@ export default function App() {
           {recolhido ? <IcExpandir /> : <IcRecolher />}
         </button>
         <div className="marca">
-          <span className="logo">R$</span>
+          <span className="logo"><Logo /></span>
           <span className="titulo rotulo">FinControl</span>
         </div>
         <nav>
@@ -141,7 +142,7 @@ export default function App() {
           </div>
           <div className="espaco" />
           <div className="acoes">
-            <input type="month" className="seletor-comp" value={competencia}
+            <input type="month" value={competencia}
               onChange={(e) => setCompetencia(e.target.value)} aria-label="Competência" style={{ width: "auto" }} />
             <NavLink to="/config" className="btn btn-icone" aria-label="Notificações"><IcSino /></NavLink>
             <button className="btn btn-icone" onClick={alternarTema}
@@ -186,7 +187,7 @@ export default function App() {
 
       {maisAberto && (
         <div className="overlay sheet-overlay" onMouseDown={(e) => e.target === e.currentTarget && setMaisAberto(false)}>
-          <div className="glass glass-forte sheet" role="dialog" aria-label="Todas as páginas">
+          <div className="sheet" role="dialog" aria-label="Todas as páginas">
             <div className="sheet-topo">
               <strong>Navegar</strong>
               <button className="btn btn-icone" onClick={() => setMaisAberto(false)} aria-label="Fechar"><IcFechar /></button>

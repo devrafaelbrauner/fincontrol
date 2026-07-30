@@ -109,7 +109,7 @@ export default function Variaveis() {
       <p className="sub">Total do mês: <strong className="num negativo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
 
       <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <div className="busca-wrap glass card" style={{ flex: 1, minWidth: 180, padding: "0.4rem 0.6rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div className="card" style={{ flex: 1, minWidth: 180, padding: "0.4rem 0.6rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <IcBusca /><input placeholder="Buscar por descrição…" value={busca} onChange={(e) => setBusca(e.target.value)}
             aria-label="Buscar" style={{ border: "none", background: "transparent", padding: "0.35rem 0" }} />
         </div>
@@ -127,9 +127,9 @@ export default function Variaveis() {
       {carregando ? (
         <div className="skeleton" style={{ height: 220 }} />
       ) : filtrados.length === 0 ? (
-        <p className="glass card sub">Nenhum gasto {busca ? "encontrado" : "lançado ainda"}.</p>
+        <p className="card sub">Nenhum gasto {busca ? "encontrado" : "lançado ainda"}.</p>
       ) : (
-        <div className="glass card" style={{ padding: 0 }}>
+        <div className="card" style={{ padding: 0 }}>
           <table>
             <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>

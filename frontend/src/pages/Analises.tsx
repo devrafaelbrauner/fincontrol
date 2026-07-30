@@ -113,22 +113,22 @@ export default function Analises() {
         <div className="skeleton" style={{ height: 260 }} />
       ) : (
         <>
-          <section className="glass card surgir">
+          <section className="card surgir">
             <h3>Entradas × Gastos (6 meses)</h3>
             <BarChart dados={barras} />
             <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-              <span className="item"><span className="ponto" style={{ background: "var(--verde)" }} />Entradas</span>
-              <span className="item"><span className="ponto" style={{ background: "var(--vermelho)" }} />Gastos</span>
+              <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Entradas</span>
+              <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Gastos</span>
             </div>
           </section>
 
           <div className="grid-2 secao">
-            <section className="glass card surgir">
+            <section className="card surgir">
               <h3>Gastos por categoria</h3>
               <Donut fatias={porCategoria} />
               <div style={{ marginTop: "1rem" }}><BarrasRank fatias={porCategoria} /></div>
             </section>
-            <section className="glass card surgir">
+            <section className="card surgir">
               <h3>Por forma de pagamento</h3>
               <BarrasRank fatias={porForma} />
             </section>
@@ -136,7 +136,7 @@ export default function Analises() {
         </>
       )}
 
-      <section className="glass card surgir secao">
+      <section className="card surgir secao">
         <h3>Categorias</h3>
         <p className="sub">Crie categorias para classificar seus gastos. Atribua nos gastos (aba Variáveis) ou no cadastro de transação.</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", margin: "0.75rem 0" }}>

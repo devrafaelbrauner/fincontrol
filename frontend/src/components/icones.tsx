@@ -8,7 +8,7 @@ function base(d: React.ReactNode) {
     return (
       <svg
         width="20" height="20" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
         aria-hidden={titulo ? undefined : true} role={titulo ? "img" : undefined}
         {...props}
       >

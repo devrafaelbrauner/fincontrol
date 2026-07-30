@@ -96,7 +96,7 @@ export default function Config() {
       <h2>Configurações</h2>
       <p className="sub">Integração de IA e notificações.</p>
 
-      <section className="glass card surgir" style={{ maxWidth: 560 }}>
+      <section className="card surgir" style={{ maxWidth: 560 }}>
         <h3>IA (OpenRouter)</h3>
         <p className="sub">
           A chave é criptografada no servidor e nunca volta ao navegador. Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
@@ -128,7 +128,7 @@ export default function Config() {
         {erro && <p className="erro">{erro}</p>}
       </section>
 
-      <section className="glass card surgir secao" style={{ maxWidth: 560 }}>
+      <section className="card surgir secao" style={{ maxWidth: 560 }}>
         <h3>Notificações push</h3>
         {push?.habilitado ? (
           <>
@@ -144,7 +144,7 @@ export default function Config() {
         )}
       </section>
 
-      <section className="glass card surgir secao" style={{ maxWidth: 560 }}>
+      <section className="card surgir secao" style={{ maxWidth: 560 }}>
         <h3>Barra lateral</h3>
         <p className="sub">Você pode reordenar os itens do menu arrastando pela alça (ou com ↑/↓ pelo teclado). Para voltar ao layout original:</p>
         <button className="btn" onClick={() => { resetarOrdem(); setOrdemMsg("Ordem padrão restaurada."); }}>

@@ -147,8 +147,8 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   return (
     <Modal titulo="Adicionar transação" aberto={aberto} aoFechar={aoFechar}>
       <form onSubmit={salvar} className="campos">
-        <div className="ia-box glass">
-          <label htmlFor="add-nl" style={{ fontSize: "0.8rem", color: "var(--texto-2)", fontFamily: "system-ui" }}>
+        <div className="ia-box">
+          <label htmlFor="add-nl" style={{ fontSize: "0.8rem", color: "var(--content-2)" }}>
             ✨ Descreva em uma frase, ou anexe um comprovante:
           </label>
           <div className="linha-form" style={{ alignItems: "stretch" }}>
