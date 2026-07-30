@@ -224,24 +224,34 @@ def categorizar_lote(db: sqlite3.Connection, itens: list[dict], categorias: list
     return out
 
 
-def estrategia_meta(db: sqlite3.Connection, meta: dict, resumo_gastos: str) -> str:
-    """Plano curto e realista para atingir uma meta, usando os gastos reais recentes."""
+def estrategia_meta(db: sqlite3.Connection, meta: dict, contexto: str) -> str:
+    """Análise do contexto financeiro completo + plano concreto para atingir a meta."""
     instrucao = (
-        "Você é um consultor financeiro pessoal, direto e realista. Escreva uma estratégia "
-        "curta (3 a 5 frases, sem markdown, sem preâmbulo) para a pessoa atingir a meta no "
-        "prazo, baseada nos gastos reais dos últimos meses: onde cortar, quanto guardar por "
-        "mês e um passo concreto."
+        "Você é um consultor financeiro pessoal, direto e realista. Analise o contexto "
+        "financeiro completo (entradas, contas fixas, gastos variáveis por categoria e outras "
+        "metas) e escreva um plano para atingir a meta no prazo. Sem markdown e sem preâmbulo; "
+        "responda em linhas curtas, uma por tópico, neste formato:\n"
+        "Diagnóstico: a sobra mensal real (entradas − fixas − variáveis) e se a meta cabe nela.\n"
+        "Onde economizar: 2 a 4 cortes específicos por categoria, cada um com valor em R$ "
+        "realista (reduções parciais; nunca mande zerar itens essenciais como saúde ou alimentação).\n"
+        "Renda extra: se os cortes não fecharem a conta, quanto falta ganhar a mais por mês em R$ "
+        "e uma sugestão concreta de como.\n"
+        "Aporte mensal: o valor recomendado guardar por mês.\n"
+        "Primeiro passo: uma ação executável ainda esta semana.\n"
+        "Se a meta for inviável no prazo mesmo com cortes e renda extra plausíveis, diga isso com "
+        "franqueza e proponha um prazo ou valor alternativo que feche a conta."
     )
     ctx = (
-        f"Meta: {meta['nome']} — objetivo {meta['valor_total_cents']/100:.2f}, "
-        f"já guardado {meta['valor_atual_cents']/100:.2f}, prazo {meta['prazo']}, "
-        f"precisa ~{meta['valor_mensal_necessario_cents']/100:.2f}/mês.\n\nGastos recentes:\n{resumo_gastos}"
+        f"Meta em análise: {meta['nome']} — objetivo R$ {meta['valor_total_cents']/100:.2f}, "
+        f"já guardado R$ {meta['valor_atual_cents']/100:.2f}, prazo {meta['prazo']}, "
+        f"aporte necessário ~R$ {meta['valor_mensal_necessario_cents']/100:.2f}/mês.\n\n"
+        f"Contexto financeiro:\n{contexto}"
     )
     mensagens = [
         {"role": "system", "content": instrucao},
         {"role": "user", "content": ctx},
     ]
-    return chamar(db, mensagens, espera_json=False, max_tokens=400).strip()
+    return chamar(db, mensagens, espera_json=False, max_tokens=800).strip()
 
 
 def interpretar_transacao(db: sqlite3.Connection, texto: str, hoje: str, categorias: list[str]) -> dict:

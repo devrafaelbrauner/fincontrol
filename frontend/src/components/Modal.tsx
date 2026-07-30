@@ -6,14 +6,20 @@ type Props = { titulo: string; aberto: boolean; aoFechar: () => void; children: 
 /** Modal (tela cheia no mobile) com Esc, clique fora e trap de foco. */
 export default function Modal({ titulo, aberto, aoFechar, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  // aoFechar costuma ser recriada a cada render; via ref ela não invalida o
+  // efeito de foco (que refocaria o modal a cada tecla digitada)
+  const fecharRef = useRef(aoFechar);
+  useEffect(() => { fecharRef.current = aoFechar; }, [aoFechar]);
 
   useEffect(() => {
     if (!aberto) return;
     const anterior = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
+    const alvo = ref.current?.querySelector<HTMLElement>("input, select, textarea")
+      ?? ref.current?.querySelector<HTMLElement>("button");
+    alvo?.focus();
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") aoFechar();
+      if (e.key === "Escape") fecharRef.current();
       if (e.key === "Tab" && ref.current) {
         const foca = ref.current.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -32,7 +38,7 @@ export default function Modal({ titulo, aberto, aoFechar, children }: Props) {
       document.body.style.overflow = "";
       anterior?.focus();
     };
-  }, [aberto, aoFechar]);
+  }, [aberto]);
 
   if (!aberto) return null;
 

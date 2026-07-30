@@ -153,9 +153,11 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="card surgir">
+        <section className="card surgir" style={{ display: "flex", flexDirection: "column" }}>
           <h3>Distribuição de despesas</h3>
-          <Donut fatias={donut} />
+          <div style={{ flex: 1, display: "grid", alignItems: "center" }}>
+            <Donut fatias={donut} />
+          </div>
         </section>
       </div>
 

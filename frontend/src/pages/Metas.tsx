@@ -33,6 +33,7 @@ export default function Metas() {
   const [dataAporte, setDataAporte] = useState(hojeISO());
 
   const [editMeta, setEditMeta] = useState<Meta | null>(null);
+  const [editValor, setEditValor] = useState("");
   const [estrategiaId, setEstrategiaId] = useState<number | null>(null);
 
   const carregar = useCallback(() => {
@@ -64,10 +65,12 @@ export default function Metas() {
   async function salvarEdicao(e: FormEvent) {
     e.preventDefault();
     if (!editMeta) return;
+    const cents = paraCents(editValor);
+    if (!cents || cents <= 0) { toast("Valor inválido.", "erro"); return; }
     try {
       await api(`/metas/${editMeta.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ nome: editMeta.nome, valor_total_cents: editMeta.valor_total_cents, prazo: editMeta.prazo }),
+        body: JSON.stringify({ nome: editMeta.nome, valor_total_cents: cents, prazo: editMeta.prazo }),
       });
       toast("Meta atualizada.");
       setEditMeta(null);
@@ -129,14 +132,14 @@ export default function Metas() {
                 </div>
                 <div className="chip" style={{ alignSelf: "flex-start" }}>Sugestão: {brl(m.valor_mensal_necessario_cents)}/mês</div>
                 {m.estrategia_texto && (
-                  <div className="insights-sugestao"><strong>Estratégia da IA:</strong> {m.estrategia_texto}</div>
+                  <div className="insights-sugestao" style={{ whiteSpace: "pre-line" }}><strong>Estratégia da IA:</strong> {m.estrategia_texto}</div>
                 )}
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                   <button className="btn btn-primario" onClick={() => { setAporteMeta(m); setValorAporte(""); }}><IcMais />Aporte</button>
                   <button className="btn" onClick={() => gerarEstrategia(m)} disabled={estrategiaId === m.id}>
                     <IcExtrair />{estrategiaId === m.id ? "Gerando…" : m.estrategia_texto ? "Refazer estratégia" : "Estratégia IA"}
                   </button>
-                  <button className="btn btn-icone" onClick={() => setEditMeta(m)} aria-label="Editar meta" title="Editar">✎</button>
+                  <button className="btn btn-icone" onClick={() => { setEditMeta(m); setEditValor((m.valor_total_cents / 100).toFixed(2).replace(".", ",")); }} aria-label="Editar meta" title="Editar">✎</button>
                   <button className="btn btn-icone btn-perigo" onClick={() => excluir(m)} aria-label="Excluir meta" title="Excluir">×</button>
                 </div>
               </article>
@@ -160,8 +163,8 @@ export default function Metas() {
             <div className="campo"><label htmlFor="e-nome">Nome</label>
               <input id="e-nome" value={editMeta.nome} onChange={(e) => setEditMeta({ ...editMeta, nome: e.target.value })} required autoFocus /></div>
             <div className="campo"><label htmlFor="e-valor">Valor total (R$)</label>
-              <input id="e-valor" inputMode="decimal" value={(editMeta.valor_total_cents / 100).toFixed(2).replace(".", ",")}
-                onChange={(e) => setEditMeta({ ...editMeta, valor_total_cents: paraCents(e.target.value) || 0 })} required /></div>
+              <input id="e-valor" inputMode="decimal" placeholder="0,00" value={editValor}
+                onChange={(e) => setEditValor(e.target.value)} required /></div>
             <div className="campo"><label htmlFor="e-prazo">Prazo</label>
               <input id="e-prazo" type="date" value={editMeta.prazo} onChange={(e) => setEditMeta({ ...editMeta, prazo: e.target.value })} required /></div>
             <div className="acoes-modal"><button className="btn btn-primario" type="submit">Salvar</button><button className="btn" type="button" onClick={() => setEditMeta(null)}>Cancelar</button></div>

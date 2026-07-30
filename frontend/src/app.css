@@ -445,6 +445,8 @@ tbody tr:hover { background: var(--surface-hover); }
 .topo .data { font-size: 0.8rem; color: var(--content-2); }
 .topo .espaco { flex: 1; }
 .topo .acoes { display: flex; align-items: center; gap: 0.5rem; }
+.competencia-seletor { display: flex; align-items: center; gap: 0.15rem; }
+.competencia-rotulo { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4.6em; text-align: center; font-size: 0.9rem; }
 
 .pagina { padding: 1.5rem; max-width: 1200px; width: 100%; margin: 0 auto; }
 .pagina > h2 { font-size: 1.4rem; margin-bottom: 0.25rem; }

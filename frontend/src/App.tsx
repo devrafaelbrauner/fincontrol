@@ -44,6 +44,11 @@ function saudacao(): string {
 
 const NOME = localStorage.getItem("nome") || "Rafael";
 
+function passoCompetencia(c: string, delta: number): string {
+  const d = new Date(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** Ordem salva reconciliada com as abas atuais (novas/desconhecidas ao fim). */
 function reconciliar(salvo: string[]): string[] {
   const padrao = ABAS.map((a) => a.para);
@@ -142,8 +147,11 @@ export default function App() {
           </div>
           <div className="espaco" />
           <div className="acoes">
-            <input type="month" value={competencia}
-              onChange={(e) => setCompetencia(e.target.value)} aria-label="Competência" style={{ width: "auto" }} />
+            <div className="competencia-seletor" role="group" aria-label="Competência">
+              <button className="btn btn-icone" onClick={() => setCompetencia(passoCompetencia(competencia, -1))} aria-label="Mês anterior"><IcRecolher /></button>
+              <span className="competencia-rotulo">{competencia.slice(5, 7)}/{competencia.slice(0, 4)}</span>
+              <button className="btn btn-icone" onClick={() => setCompetencia(passoCompetencia(competencia, 1))} aria-label="Próximo mês"><IcExpandir /></button>
+            </div>
             <NavLink to="/config" className="btn btn-icone" aria-label="Notificações"><IcSino /></NavLink>
             <button className="btn btn-icone" onClick={alternarTema}
               aria-label={tema === "dark" ? "Tema claro" : "Tema escuro"}>
