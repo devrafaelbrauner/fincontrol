@@ -31,11 +31,13 @@
   --negative: #ff0000;        /* saídas, erros */
   --warning: #ffa119;         /* alertas, metas em risco */
 
+  --card: color-mix(in srgb, var(--surface) 80%, transparent); /* deixa o glow tingir */
   --shadow-card: none;        /* no escuro a borda separa */
   --shadow-pop: 0 16px 48px -16px rgba(0, 0, 0, 0.75);
 
-  /* Plano de fundo: glows nas cores da marca sobre o preto puro. */
+  /* Plano de fundo: textura de pontos + glows nas cores da marca sobre o preto. */
   --fundo:
+    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1.6px) 0 0 / 26px 26px,
     radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.22), transparent 62%),
     radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.10), transparent 55%),
     radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.10), transparent 60%),
@@ -50,16 +52,16 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --page: #f5f5f5;
+  --page: #edeff4;            /* cinza-azulado: os cards brancos saltam do fundo */
   --surface: #ffffff;
   --surface-2: #ffffff;
-  --surface-hover: #ececec;
-  --field: #ffffff;
-  --edge: #e0e0e0;
-  --edge-strong: #c6c6c6;
-  --content: #111111;
-  --content-2: #666666;
-  --content-3: #949494;
+  --surface-hover: #f2f3f8;
+  --field: #f7f8fb;           /* inputs levemente tintados sobre cards brancos */
+  --edge: #e0e3eb;
+  --edge-strong: #c7ccd9;
+  --content: #101114;
+  --content-2: #626573;
+  --content-3: #9296a3;
 
   --accent: #0068ff;
   --accent-vivid: #0056d6;    /* accent legível como texto no claro */
@@ -67,14 +69,16 @@
   --negative: #dd0000;
   --warning: #b26400;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.2);
+  --card: #ffffff;            /* opaco: contraste nítido com o fundo tintado */
+  --shadow-card: 0 1px 2px rgba(16, 20, 40, 0.06), 0 6px 20px -12px rgba(16, 20, 40, 0.10);
+  --shadow-pop: 0 12px 32px -12px rgba(16, 20, 40, 0.2);
 
   --fundo:
-    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.10), transparent 62%),
-    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.05), transparent 55%),
-    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.07), transparent 60%),
-    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.06), transparent 55%),
+    radial-gradient(rgba(13, 15, 25, 0.05) 1px, transparent 1.6px) 0 0 / 26px 26px,
+    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.13), transparent 62%),
+    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.06), transparent 55%),
+    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.09), transparent 60%),
+    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.08), transparent 55%),
     var(--page);
 
   --chart-1: #0059db; --chart-2: #e08300; --chart-3: #229f0a;
@@ -109,9 +113,9 @@
 
   --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
 
   --ease-out-fast: cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -172,15 +176,27 @@
    Superfícies
    ============================================================ */
 .card {
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  background: var(--card);
   border: 1px solid var(--edge);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 1.15rem 1.25rem;
-  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+    transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 a.card, button.card, .card.clicavel { cursor: pointer; }
-a.card:hover, button.card:hover, .card.clicavel:hover { border-color: var(--edge-strong); }
+a.card:hover, button.card:hover, .card.clicavel:hover {
+  border-color: var(--edge-strong);
+  transform: translateY(-1px);
+}
+
+/* Filete da marca nos títulos de card/seção. */
+.card > h3, .secao > h3 { display: flex; align-items: center; gap: 0.55rem; }
+.card > h3::before, .secao > h3::before {
+  content: "";
+  width: 4px; height: 15px; border-radius: 2px; flex: 0 0 4px;
+  background: linear-gradient(180deg, var(--accent), var(--positive));
+}
 
 /* Popover (tooltips de gráfico etc.) */
 .pop {
@@ -207,7 +223,7 @@ a.card:hover, button.card:hover, .card.clicavel:hover { border-color: var(--edge
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
   font-size: 0.875rem; font-weight: 500;
-  padding: 0.5rem 0.9rem; border-radius: 8px; cursor: pointer;
+  padding: 0.5rem 0.9rem; border-radius: 10px; cursor: pointer;
   border: 1px solid var(--edge); background: var(--surface);
   color: var(--content);
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
@@ -222,7 +238,7 @@ a.card:hover, button.card:hover, .card.clicavel:hover { border-color: var(--edge
 .btn-primario:hover { background: color-mix(in oklab, var(--accent) 82%, #000); border-color: transparent; }
 .btn-perigo { color: var(--negative); }
 .btn-perigo:hover { border-color: color-mix(in oklab, var(--negative) 40%, transparent); background: color-mix(in oklab, var(--negative) 8%, transparent); }
-.btn-icone { padding: 0.5rem; border-radius: 8px; }
+.btn-icone { padding: 0.5rem; border-radius: 10px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ============================================================
@@ -231,8 +247,8 @@ a.card:hover, button.card:hover, .card.clicavel:hover { border-color: var(--edge
 .campo { display: flex; flex-direction: column; gap: 0.35rem; }
 .campo > label { font-size: 0.8rem; font-weight: 500; color: var(--content-2); }
 input, select, textarea {
-  padding: 0.55rem 0.75rem; border-radius: 8px;
-  border: 1px solid var(--edge); background: var(--field);
+  padding: 0.55rem 0.75rem; border-radius: 10px;
+  border: 1px solid var(--edge-strong); background: var(--field);
   color: var(--content); width: 100%;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
@@ -271,7 +287,7 @@ input[aria-invalid="true"] {
 .chat-vazio { margin: auto; text-align: center; color: var(--content-2); display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .chat-sugestoes { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; max-width: 420px; }
 .chat-sugestoes .chip { cursor: pointer; }
-.bolha { max-width: 80%; padding: 0.6rem 0.85rem; border-radius: 12px; line-height: 1.45; white-space: pre-wrap; }
+.bolha { max-width: 80%; padding: 0.6rem 0.85rem; border-radius: 14px; line-height: 1.45; white-space: pre-wrap; }
 .bolha.voce { align-self: flex-end; background: var(--surface-hover); border: 1px solid var(--edge); border-bottom-right-radius: 4px; }
 .bolha.ia { align-self: flex-start; background: var(--surface); border: 1px solid var(--edge); border-bottom-left-radius: 4px; }
 .bolha.pensando { opacity: 0.7; font-style: italic; }
@@ -304,6 +320,7 @@ table { width: 100%; border-collapse: collapse; }
 thead th {
   text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--content-3); padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--edge-strong);
 }
 tbody td { padding: 0.65rem 0.75rem; border-top: 1px solid var(--edge); vertical-align: middle; }
 tbody tr { transition: background var(--dur) var(--ease); }
@@ -395,7 +412,7 @@ tbody tr:hover { background: var(--surface-hover); }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .sidebar nav a {
   display: flex; align-items: center; gap: 0.7rem;
-  padding: 0.55rem 0.6rem; border-radius: 8px;
+  padding: 0.55rem 0.6rem; border-radius: 10px;
   color: var(--content-2); font-size: 0.9rem;
   white-space: nowrap;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
@@ -405,7 +422,7 @@ tbody tr:hover { background: var(--surface-hover); }
 .sidebar nav a.active { background: var(--surface-hover); color: var(--content); font-weight: 550; }
 
 /* Item reordenável (alça de arrastar) */
-.nav-item { display: flex; align-items: center; border-radius: 8px; }
+.nav-item { display: flex; align-items: center; border-radius: 10px; }
 .nav-item > a { flex: 1; min-width: 0; }
 .nav-item.arrastando { opacity: 0.45; }
 .nav-item .grip {
@@ -666,7 +683,7 @@ tbody tr:hover { background: var(--surface-hover); }
   .fab {
     display: grid; place-items: center; position: fixed; z-index: 45;
     right: 1.1rem; bottom: calc(76px + env(safe-area-inset-bottom));
-    width: 56px; height: 56px; border-radius: 16px;
+    width: 56px; height: 56px; border-radius: 18px;
     background: var(--accent); color: #fff; border: none;
     box-shadow: 0 12px 32px -8px color-mix(in oklab, var(--accent) 55%, transparent);
     cursor: pointer;
