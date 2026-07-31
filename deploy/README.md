@@ -116,6 +116,16 @@ valida e recarrega o Caddy e testa o `/api/health`.
   `fincontrol.db` do backup para `$FINCONTROL_DATA`, extrair `uploads.tar.gz` no
   mesmo lugar, `systemctl start fincontrol`.
 
+## Ícones e splash (regenerar sob demanda)
+
+Os PNGs gerados estão versionados. Para regenerar a partir de `frontend/assets/`
+(logo.svg/splash.png), rode sob demanda — o pacote não fica em devDependencies
+porque a cadeia dele (tar/sharp antigos) concentrava as vulnerabilidades do npm audit:
+
+```bash
+cd frontend && npx @capacitor/assets generate --ios --pwa
+```
+
 ## App iOS (Capacitor) apontando para a VPS
 
 O build nativo precisa da URL da API **em build time** e o backend precisa aceitar a
