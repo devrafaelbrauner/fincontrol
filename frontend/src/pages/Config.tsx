@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import QRCode from "qrcode";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { resetarOrdem } from "../ordem";
@@ -27,6 +28,12 @@ export default function Config() {
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [ordemMsg, setOrdemMsg] = useState<string | null>(null);
 
+  const [mfaAtivo, setMfaAtivo] = useState<boolean | null>(null);
+  const [mfaQr, setMfaQr] = useState<string | null>(null);
+  const [mfaSecret, setMfaSecret] = useState("");
+  const [mfaCodigo, setMfaCodigo] = useState("");
+  const [mfaMsg, setMfaMsg] = useState<string | null>(null);
+
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
       .then((c) => {
@@ -35,7 +42,35 @@ export default function Config() {
       })
       .catch((e) => setErro(e.message));
     api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
+    api<{ ativo: boolean }>("/auth/mfa").then((m) => setMfaAtivo(m.ativo)).catch(() => setMfaAtivo(null));
   }, []);
+
+  async function iniciarMfa() {
+    setMfaMsg(null);
+    try {
+      const d = await api<{ secret: string; otpauth_uri: string }>("/auth/mfa/iniciar", { method: "POST", body: "{}" });
+      setMfaSecret(d.secret);
+      setMfaQr(await QRCode.toDataURL(d.otpauth_uri, { margin: 1, width: 200 }));
+    } catch (e) { setMfaMsg((e as Error).message); }
+  }
+
+  async function confirmarMfa(e: FormEvent) {
+    e.preventDefault();
+    setMfaMsg(null);
+    try {
+      await api("/auth/mfa/confirmar", { method: "POST", body: JSON.stringify({ codigo: mfaCodigo }) });
+      setMfaAtivo(true); setMfaQr(null); setMfaCodigo(""); setMfaMsg("MFA ativado. O código será exigido no próximo login.");
+    } catch (e) { setMfaMsg((e as Error).message); }
+  }
+
+  async function desativarMfa(e: FormEvent) {
+    e.preventDefault();
+    setMfaMsg(null);
+    try {
+      await api("/auth/mfa/desativar", { method: "POST", body: JSON.stringify({ codigo: mfaCodigo }) });
+      setMfaAtivo(false); setMfaCodigo(""); setMfaMsg("MFA desativado.");
+    } catch (e) { setMfaMsg((e as Error).message); }
+  }
 
   useEffect(carregar, [carregar]);
 
@@ -127,6 +162,39 @@ export default function Config() {
         </form>
         {msg && <p className="positivo">{msg}</p>}
         {erro && <p className="erro">{erro}</p>}
+      </section>
+
+      <section className="card surgir secao" style={{ maxWidth: 560 }}>
+        <h3>Segurança (MFA)</h3>
+        {mfaAtivo === null && <p className="sub">Carregando…</p>}
+        {mfaAtivo === false && !mfaQr && (
+          <>
+            <p className="sub">Adicione um segundo fator (app autenticador) — mesmo com a senha vazada, ninguém entra sem o código.</p>
+            <button className="btn btn-primario" onClick={iniciarMfa}>Ativar MFA</button>
+          </>
+        )}
+        {mfaAtivo === false && mfaQr && (
+          <form onSubmit={confirmarMfa} className="campos">
+            <p className="sub">Escaneie com o Google Authenticator, 1Password ou similar e confirme o código.</p>
+            <img src={mfaQr} alt="QR code do autenticador" style={{ alignSelf: "flex-start", borderRadius: 8, background: "#fff", padding: 6 }} />
+            <p className="sub" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>Chave manual: <code>{mfaSecret}</code></p>
+            <div className="campo"><label htmlFor="cfg-mfa">Código do app</label>
+              <input id="cfg-mfa" inputMode="numeric" autoComplete="one-time-code" value={mfaCodigo} onChange={(e) => setMfaCodigo(e.target.value)} required /></div>
+            <div className="acoes-modal">
+              <button className="btn btn-primario" type="submit">Confirmar e ativar</button>
+              <button className="btn" type="button" onClick={() => { setMfaQr(null); setMfaCodigo(""); }}>Cancelar</button>
+            </div>
+          </form>
+        )}
+        {mfaAtivo === true && (
+          <form onSubmit={desativarMfa} className="campos">
+            <p className="sub">MFA <strong style={{ color: "var(--positive)" }}>ativo</strong> — o login exige o código do autenticador.</p>
+            <div className="campo"><label htmlFor="cfg-mfa-off">Código atual (para desativar)</label>
+              <input id="cfg-mfa-off" inputMode="numeric" autoComplete="one-time-code" value={mfaCodigo} onChange={(e) => setMfaCodigo(e.target.value)} required /></div>
+            <button className="btn btn-perigo" type="submit" style={{ alignSelf: "flex-start" }}>Desativar MFA</button>
+          </form>
+        )}
+        {mfaMsg && <p style={{ marginTop: "0.5rem" }}>{mfaMsg}</p>}
       </section>
 
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
