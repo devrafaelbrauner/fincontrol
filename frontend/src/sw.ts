@@ -1,12 +1,27 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from "workbox-precaching";
+import { clientsClaim } from "workbox-core";
+import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
+import { NavigationRoute, registerRoute } from "workbox-routing";
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: { url: string; revision: string | null }[];
 };
 
+// Em injectManifest o Workbox NÃO injeta skipWaiting/clientsClaim — sem eles o
+// SW novo fica em "waiting" e a PWA instalada continua no shell antigo para
+// sempre após um deploy (o registerType: "autoUpdate" seria decorativo).
+self.skipWaiting();
+clientsClaim();
+cleanupOutdatedCaches();
+
 // Precache do app shell (injetado pelo vite-plugin-pwa no build).
 precacheAndRoute(self.__WB_MANIFEST);
+
+// Navegação offline: deep links (/metas, /config) caem no index.html do
+// precache. API e feed .ics nunca são interceptados.
+registerRoute(new NavigationRoute(createHandlerBoundToURL("/index.html"), {
+  denylist: [/^\/api\//, /^\/calendar\//],
+}));
 
 // Notificação recebida do backend (Web Push).
 self.addEventListener("push", (event) => {

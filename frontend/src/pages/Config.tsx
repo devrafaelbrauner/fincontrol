@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { resetarOrdem } from "../ordem";
@@ -128,7 +129,9 @@ export default function Config() {
         {erro && <p className="erro">{erro}</p>}
       </section>
 
-      <section className="card surgir secao" style={{ maxWidth: 560 }}>
+      {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
+          instalada pela tela de início (iOS ≥ 16.4). */}
+      {!Capacitor.isNativePlatform() && <section className="card surgir secao" style={{ maxWidth: 560 }}>
         <h3>Notificações push</h3>
         {push?.habilitado ? (
           <>
@@ -142,7 +145,7 @@ export default function Config() {
         ) : (
           <p className="sub">Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
         )}
-      </section>
+      </section>}
 
       <section className="card surgir secao" style={{ maxWidth: 560 }}>
         <h3>Barra lateral</h3>

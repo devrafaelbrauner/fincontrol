@@ -1,8 +1,14 @@
 import { Capacitor } from "@capacitor/core";
 
 // Base da API. Vazio no web (same-origin, Caddy faz o proxy de /api).
-// Nos builds nativos (Capacitor), defina VITE_API_BASE com a URL absoluta do backend.
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+// Nos builds nativos (Capacitor), defina VITE_API_BASE com a URL absoluta do backend:
+//   VITE_API_BASE=https://seu-dominio npm run ios
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
+if (Capacitor.isNativePlatform() && !API_BASE) {
+  // Sem a base, todo request cairia no asset handler do Capacitor (index.html)
+  // e o login quebraria com erro de JSON. Falha alto e cedo.
+  throw new Error("Build nativo sem VITE_API_BASE — rode: VITE_API_BASE=https://seu-dominio npm run ios");
+}
 
 // No web, o refresh token vive num cookie httpOnly gerenciado pelo backend.
 // No app nativo (WebView cross-origin), o cookie não trafega: guardamos o refresh
