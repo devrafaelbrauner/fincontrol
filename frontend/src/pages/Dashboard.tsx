@@ -15,7 +15,7 @@ type Dash = {
 };
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
-type Insights = { destaques: string[]; alertas: string[]; sugestao: string };
+type Insights = { destaques: string[]; alertas: string[]; acoes?: string[]; sugestao: string };
 
 
 /** Lista de N competências terminando em `fim` (inclusive), da mais antiga à mais nova. */
@@ -206,6 +206,11 @@ export default function Dashboard() {
             {insights.alertas?.length > 0 && (
               <ul className="insights-lista">
                 {insights.alertas.map((a, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--warning)" }} />⚠️ {a}</li>)}
+              </ul>
+            )}
+            {insights.acoes && insights.acoes.length > 0 && (
+              <ul className="insights-lista">
+                {insights.acoes.map((a, i) => <li key={i}><span className="ponto-in" style={{ background: "var(--positive)" }} />{a}</li>)}
               </ul>
             )}
             {insights.sugestao && (
