@@ -1,0 +1,12 @@
+[Unit]
+Description=Backup diário do FinControl
+
+[Timer]
+# 03h30 local, com jitter para não coincidir com outras cargas; Persistent
+# recupera execuções perdidas (VPS desligada/reiniciando no horário).
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

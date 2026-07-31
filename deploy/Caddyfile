@@ -10,6 +10,11 @@
 	# API e feed de calendário (.ics) vão para o backend (uvicorn).
 	@backend path /api/* /calendar/*
 	handle @backend {
+		# Teto do corpo na borda: o multipart é parseado antes da checagem de
+		# auth no backend — sem isto, um anônimo encheria o disco via upload.
+		request_body {
+			max_size 25MB
+		}
 		reverse_proxy 127.0.0.1:8000
 	}
 
@@ -21,8 +26,13 @@
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
 		# Shell do PWA e manifest: sempre revalidar para não servir versão velha.
-		@shell path /index.html /sw.js /manifest.webmanifest /registerSW.js
+		# O "/" precisa estar no matcher: header roda antes de try_files, então a
+		# raiz (a URL mais acessada) não casaria com /index.html.
+		@shell path / /index.html /sw.js /manifest.webmanifest /registerSW.js
 		header @shell Cache-Control "no-cache"
+		# MIME correto independente do /etc/mime.types da VPS — sem
+		# application/manifest+json o Chrome descarta o manifest (PWA não instala).
+		header /manifest.webmanifest Content-Type "application/manifest+json"
 
 		try_files {path} /index.html
 		file_server
@@ -35,6 +45,10 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
+		# CSP: reduz o impacto de XSS/dependência comprometida. style 'unsafe-inline'
+		# é exigido pelos estilos inline do React; o resto é tudo same-origin.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		Permissions-Policy "geolocation=(), microphone=(), interest-cohort=()"
 		-Server
 	}
 }

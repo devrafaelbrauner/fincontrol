@@ -37,7 +37,7 @@ Acesse http://localhost:5173 e faça login com a senha definida no setup.
 
 - VPS com Caddy (HTTPS automático) → `uvicorn app.main:app`
 - `FINCONTROL_SECRET_KEY` obrigatória no ambiente (assina os JWT)
-- `FINCONTROL_FERNET_KEY` recomendada (criptografa a chave do OpenRouter; se ausente, é derivada do SECRET_KEY)
+- `FINCONTROL_FERNET_KEY` **obrigatória em produção** (criptografa a chave do OpenRouter; o app recusa subir sem ela — a derivação a partir do SECRET_KEY vale só em dev)
 - `FINCONTROL_COOKIE_SECURE=1` em produção (marca o cookie de refresh como Secure — só HTTPS)
 - `FINCONTROL_CORS_ORIGINS` opcional (origens extras separadas por vírgula; dispensável se o frontend é servido no mesmo host)
 - `FINCONTROL_DATA` opcional (diretório do SQLite; padrão `backend/data/`)
