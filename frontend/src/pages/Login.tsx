@@ -254,6 +254,7 @@ export default function Login() {
           <button className="auth-entrar" type="submit" disabled={ocupado}>
             {ocupado ? "Criando…" : "Criar conta"}
           </button>
+          <p className="auth-troca">Já tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("login"); }}>Entrar</a></p>
         </form>
       </Shell>
     );
@@ -295,6 +296,7 @@ export default function Login() {
         <button className="auth-entrar" type="submit" disabled={ocupado}>
           {ocupado ? "Entrando…" : "Entrar"}
         </button>
+        <p className="auth-troca">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("cadastro"); }}>Criar conta</a></p>
       </form>
     </Shell>
   );

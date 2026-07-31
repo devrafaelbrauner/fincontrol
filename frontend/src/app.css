@@ -665,6 +665,8 @@ tbody tr:hover { background: var(--surface-hover); }
 .auth-form .chip { border-color: #e5e8ed; color: #6b7280; }
 .auth-form .chip.ok { border-color: #16a34a; color: #16a34a; }
 .auth-qr { align-self: center; border-radius: 8px; background: #fff; padding: 6px; border: 1px solid #e5e8ed; }
+.auth-troca { text-align: center; font-size: 0.88rem; color: #6b7280; margin-top: 0.25rem; }
+.auth-troca a { font-size: 0.88rem; font-weight: 700; }
 
 /* Telas médias: o hero encolhe os mockups; estreitas: só o formulário */
 @media (max-width: 1240px) { .auth-mockups { transform: scale(0.82); } }
