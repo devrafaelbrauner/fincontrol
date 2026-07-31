@@ -185,7 +185,7 @@ export default function Dashboard() {
       </section>
 
       <section className="secao">
-        <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="insights-cabecalho">
           <h3>Insights de IA</h3>
           <button className="btn btn-primario" onClick={pedirInsights} disabled={iaCarregando}>
             <IcExtrair />{iaCarregando ? "Analisando…" : insights ? "Recalcular" : "Analisar mês"}

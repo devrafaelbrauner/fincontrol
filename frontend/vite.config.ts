@@ -22,6 +22,7 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
+        // Mesma cor em: src/tema.ts, index.html e capacitor.config.ts.
         theme_color: "#000000",
         background_color: "#000000",
         icons: [

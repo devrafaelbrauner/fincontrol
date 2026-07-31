@@ -152,6 +152,10 @@ export const brl = (cents: number) =>
 export const paraCents = (texto: string) =>
   Math.round(parseFloat(texto.replace(/[^\d,.-]/g, "").replace(",", ".")) * 100);
 
-export const competenciaAtual = () => new Date().toISOString().slice(0, 7);
+/** Data local (não UTC): à noite o toISOString() já viraria o dia/mês seguinte. */
+export const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
-export const hojeISO = () => new Date().toISOString().slice(0, 10);
+export const competenciaAtual = () => hojeISO().slice(0, 7);

@@ -70,8 +70,11 @@ def _contexto_financeiro(db: sqlite3.Connection, competencia: str, excluir_meta_
     if fixas:
         partes.append("Contas fixas ativas: " + "; ".join(
             f"{f['nome']} {reais(f['valor_estimado_cents'])} (vence dia {f['dia_vencimento']})" for f in fixas) + ".")
+    # Uma linha por descrição (o valor da mais recente) — o salário lançado todo
+    # mês como recorrente apareceria repetido no contexto.
     rec = db.execute(
-        "SELECT descricao, valor_cents FROM entradas WHERE recorrente = 1 ORDER BY data DESC LIMIT 10"
+        """SELECT descricao, valor_cents, MAX(data) ultima FROM entradas
+           WHERE recorrente = 1 GROUP BY descricao ORDER BY ultima DESC LIMIT 10"""
     ).fetchall()
     if rec:
         partes.append("Entradas recorrentes: " + "; ".join(f"{r['descricao']} {reais(r['valor_cents'])}" for r in rec) + ".")

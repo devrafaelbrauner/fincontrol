@@ -66,7 +66,7 @@ export default function Metas() {
     e.preventDefault();
     if (!editMeta) return;
     const cents = paraCents(editValor);
-    if (!cents || cents <= 0) { toast("Valor inválido.", "erro"); return; }
+    if (!(cents > 0)) { toast("Valor inválido.", "erro"); return; }
     try {
       await api(`/metas/${editMeta.id}`, {
         method: "PATCH",
