@@ -38,7 +38,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class LoginBody(BaseModel):
     senha: str
+    email: str | None = None
     codigo_totp: str | None = None
+    lembrar: bool = True  # False → cookie de sessão (morre ao fechar o navegador)
 
 
 class CadastroBody(BaseModel):
@@ -147,10 +149,11 @@ def _emitir_refresh(db: sqlite3.Connection, substituir_jti: str | None = None) -
     )
 
 
-def _set_cookie(resp: Response, token: str) -> None:
+def _set_cookie(resp: Response, token: str, persistente: bool = True) -> None:
     resp.set_cookie(
         COOKIE_NOME, token,
-        max_age=REFRESH_TTL_SEGUNDOS, httponly=True, secure=COOKIE_SECURE,
+        max_age=REFRESH_TTL_SEGUNDOS if persistente else None,  # None = cookie de sessão
+        httponly=True, secure=COOKIE_SECURE,
         samesite="lax", path=COOKIE_PATH,
     )
 
@@ -241,15 +244,22 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
     try:
         ph.verify(senha_hash, body.senha)
     except VerificationError:  # inclui mismatch e hash corrompido/inválido no banco
-        raise HTTPException(401, "Senha ou código incorretos")
+        raise HTTPException(401, "E-mail ou senha incorretos")
+    # E-mail confere com o do perfil (contas antigas, sem perfil_email, pulam a checagem).
+    email_perfil = config_get(db, "perfil_email")
+    if email_perfil and (body.email or "").strip().lower() != email_perfil.lower():
+        raise HTTPException(401, "E-mail ou senha incorretos")
     totp_secret = config_get(db, "totp_secret")
     if totp_secret:
-        if not body.codigo_totp or not pyotp.TOTP(totp_secret).verify(body.codigo_totp, valid_window=1):
-            raise HTTPException(401, "Senha ou código incorretos")
+        if not body.codigo_totp:
+            # Senha ok, falta o segundo fator: o frontend troca para a tela do código.
+            raise HTTPException(401, "codigo_totp_necessario")
+        if not pyotp.TOTP(totp_secret).verify(body.codigo_totp, valid_window=1):
+            raise HTTPException(401, "Código incorreto — confira o app autenticador")
         if _totp_ja_usado(db, body.codigo_totp):
-            raise HTTPException(401, "Senha ou código incorretos")
+            raise HTTPException(401, "Código incorreto — confira o app autenticador")
     refresh_token = _emitir_refresh(db)
-    _set_cookie(response, refresh_token)
+    _set_cookie(response, refresh_token, persistente=body.lembrar)
     resposta = {"token": _emitir_access(), "nome": config_get(db, "perfil_nome")}
     if _cliente_nativo(request):
         resposta["refresh_token"] = refresh_token

@@ -63,8 +63,8 @@ async function postAuth(path: string, body: unknown): Promise<void> {
 }
 
 /** Login: autentica e guarda o access token (e, no nativo, o refresh token). */
-export const login = (senha: string, codigo_totp: string | null) =>
-  postAuth("login", { senha, codigo_totp });
+export const login = (dados: { email: string; senha: string; codigo_totp?: string | null; lembrar?: boolean }) =>
+  postAuth("login", dados);
 
 /** Cadastro (primeiro uso): cria a conta única e já entra logado. */
 export const cadastrar = (dados: { nome: string; telefone: string; email: string; senha: string }) =>
