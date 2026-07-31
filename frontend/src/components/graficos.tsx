@@ -1,15 +1,15 @@
 import { useId, useState } from "react";
 import { brl } from "../api";
 
-/** Paleta categórica validada (dataviz) — cores via tokens temáticos --series-*. */
+/** Paleta categórica validada (dataviz) — cores via tokens temáticos --chart-*. */
 export const PALETA_SERIES = [
-  "var(--series-1)", "var(--series-2)", "var(--series-3)",
-  "var(--series-4)", "var(--series-5)", "var(--series-6)",
+  "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
+  "var(--chart-4)", "var(--chart-5)", "var(--chart-6)",
 ];
-export const COR_SEM_CATEGORIA = "var(--series-neutro)";
+export const COR_SEM_CATEGORIA = "var(--chart-neutral)";
 
 /** Sparkline minimalista (linha) sobre uma série de valores. */
-export function Sparkline({ valores, cor = "var(--acento)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
+export function Sparkline({ valores, cor = "var(--accent)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
   const larg = 100;
   if (valores.length < 2) return <svg width="100%" height={altura} aria-hidden="true" />;
   const min = Math.min(...valores);
@@ -52,9 +52,9 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
 
   const serie = (sel: (d: SerieMes) => number) => dados.map((d, i) => `${x(i).toFixed(1)},${y(sel(d)).toFixed(1)}`).join(" ");
   const linhas: [string, string, (d: SerieMes) => number][] = [
-    ["Receitas", "var(--verde)", (d) => d.entradas],
-    ["Despesas", "var(--vermelho)", (d) => d.despesas],
-    ["Saldo", "var(--azul)", (d) => d.saldo],
+    ["Receitas", "var(--positive)", (d) => d.entradas],
+    ["Despesas", "var(--negative)", (d) => d.despesas],
+    ["Saldo", "var(--accent)", (d) => d.saldo],
   ];
   const idFill = useId();
 
@@ -65,11 +65,11 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
         onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id={idFill} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--azul)" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="var(--azul)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--vidro-borda)" strokeDasharray="3 4" />
+        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" strokeDasharray="3 4" />
         {modo === "area" && (
           <polygon points={`${x(0)},${y(0)} ${serie((d) => d.saldo)} ${x(dados.length - 1)},${y(0)}`} fill={`url(#${idFill})`} />
         )}
@@ -78,20 +78,20 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
         ))}
         {dados.map((d, i) => (
           <g key={i}>
-            {hover === i && <line x1={x(i)} y1={padY} x2={x(i)} y2={H - padY} stroke="var(--vidro-borda-forte)" />}
+            {hover === i && <line x1={x(i)} y1={padY} x2={x(i)} y2={H - padY} stroke="var(--edge-strong)" />}
             {linhas.map(([, cor, sel]) => hover === i && <circle key={cor} cx={x(i)} cy={y(sel(d))} r="3.2" fill={cor} />)}
             <rect x={x(i) - (W / dados.length) / 2} y="0" width={W / dados.length} height={H} fill="transparent"
               onMouseEnter={() => setHover(i)} />
-            <text x={x(i)} y={H - 3} textAnchor="middle" fontSize="10" fill="var(--texto-3)" fontFamily="system-ui">{d.rotulo}</text>
+            <text x={x(i)} y={H - 3} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
           </g>
         ))}
       </svg>
       {hover !== null && (
-        <div className="glass glass-forte" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontFamily: "system-ui", fontSize: "0.78rem", pointerEvents: "none" }}>
+        <div className="pop" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontSize: "0.78rem", pointerEvents: "none" }}>
           <strong>{dados[hover].rotulo}</strong>
-          <div style={{ color: "var(--verde)" }}>Receitas {brl(dados[hover].entradas)}</div>
-          <div style={{ color: "var(--vermelho)" }}>Despesas {brl(dados[hover].despesas)}</div>
-          <div style={{ color: "var(--azul)" }}>Saldo {brl(dados[hover].saldo)}</div>
+          <div style={{ color: "var(--positive)" }}>Receitas {brl(dados[hover].entradas)}</div>
+          <div style={{ color: "var(--negative)" }}>Despesas {brl(dados[hover].despesas)}</div>
+          <div style={{ color: "var(--accent)" }}>Saldo {brl(dados[hover].saldo)}</div>
         </div>
       )}
     </div>
@@ -113,23 +113,23 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
   return (
     <div style={{ position: "relative" }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Entradas e gastos por mês" onMouseLeave={() => setHover(null)}>
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--vidro-borda)" />
+        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" />
         {dados.map((d, i) => {
           const cx = padX + grupoW * i + grupoW / 2;
           return (
             <g key={i} onMouseEnter={() => setHover(i)}>
-              <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--verde)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--vermelho)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--texto-3)" fontFamily="system-ui">{d.rotulo}</text>
+              <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--positive)" opacity={hover === null || hover === i ? 1 : 0.5} />
+              <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--negative)" opacity={hover === null || hover === i ? 1 : 0.5} />
+              <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
             </g>
           );
         })}
       </svg>
       {hover !== null && (
-        <div className="glass glass-forte" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontFamily: "system-ui", fontSize: "0.78rem", pointerEvents: "none" }}>
+        <div className="pop" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontSize: "0.78rem", pointerEvents: "none" }}>
           <strong>{dados[hover].rotulo}</strong>
-          <div style={{ color: "var(--verde)" }}>Entradas {brl(dados[hover].entradas)}</div>
-          <div style={{ color: "var(--vermelho)" }}>Gastos {brl(dados[hover].gastos)}</div>
+          <div style={{ color: "var(--positive)" }}>Entradas {brl(dados[hover].entradas)}</div>
+          <div style={{ color: "var(--negative)" }}>Gastos {brl(dados[hover].gastos)}</div>
         </div>
       )}
     </div>
@@ -200,14 +200,14 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
             </circle>
           ))}
         </g>
-        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--texto-3)" fontFamily="system-ui">
+        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" fontFamily="var(--font-sans)">
           {foco ? foco.rotulo : "Total"}
         </text>
-        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--texto)" fontFamily="system-ui" fontWeight="700">
+        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--content)" fontFamily="var(--font-sans)" fontWeight="700">
           {brl(foco ? foco.valor : total)}
         </text>
         {foco && (
-          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--texto-3)" fontFamily="system-ui">
+          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" fontFamily="var(--font-sans)">
             {pct(foco.valor)}% do total
           </text>
         )}
@@ -230,16 +230,16 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
 }
 
 /** Anel de progresso para metas. */
-export function ProgressRing({ pct, cor = "var(--verde)", tamanho = 72 }: { pct: number; cor?: string; tamanho?: number }) {
+export function ProgressRing({ pct, cor = "var(--positive)", tamanho = 72 }: { pct: number; cor?: string; tamanho?: number }) {
   const r = 30, C = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(1, pct / 100));
   return (
     <svg width={tamanho} height={tamanho} viewBox="0 0 72 72" role="img" aria-label={`${Math.round(pct)}% concluído`}>
-      <circle cx="36" cy="36" r={r} fill="none" stroke="var(--vidro-forte)" strokeWidth="7" />
+      <circle cx="36" cy="36" r={r} fill="none" stroke="var(--surface-hover)" strokeWidth="7" />
       <circle cx="36" cy="36" r={r} fill="none" stroke={cor} strokeWidth="7" strokeLinecap="round"
         strokeDasharray={C} strokeDashoffset={(C * (1 - p)).toFixed(1)} transform="rotate(-90 36 36)"
-        style={{ transition: "stroke-dashoffset var(--dur-lento) var(--ease)" }} />
-      <text x="36" y="40" textAnchor="middle" fontSize="15" fill="var(--texto)" fontFamily="system-ui" fontWeight="600">{Math.round(pct)}%</text>
+        style={{ transition: "stroke-dashoffset 400ms var(--ease)" }} />
+      <text x="36" y="40" textAnchor="middle" fontSize="15" fill="var(--content)" fontFamily="var(--font-sans)" fontWeight="600">{Math.round(pct)}%</text>
     </svg>
   );
 }

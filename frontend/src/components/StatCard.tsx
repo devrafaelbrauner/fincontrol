@@ -15,11 +15,11 @@ type Props = {
   atraso?: 1 | 2 | 3 | 4;
 };
 
-export default function StatCard({ rotulo, cents, icone, cor = "var(--acento)", variacao, menosMelhor, serie, atraso }: Props) {
+export default function StatCard({ rotulo, cents, icone, cor = "var(--accent)", variacao, menosMelhor, serie, atraso }: Props) {
   const bom = variacao == null ? null : menosMelhor ? variacao <= 0 : variacao >= 0;
-  const corVar = bom == null ? "var(--texto-3)" : bom ? "var(--verde)" : "var(--vermelho)";
+  const corVar = bom == null ? "var(--content-3)" : bom ? "var(--positive)" : "var(--negative)";
   return (
-    <article className={`glass card stat surgir${atraso ? " surgir-" + atraso : ""}`}>
+    <article className={`card stat surgir${atraso ? " surgir-" + atraso : ""}`}>
       <div className="topo-stat">
         <span className="icone" style={{ color: cor }}>{icone}</span>
         {variacao != null && (
@@ -30,7 +30,7 @@ export default function StatCard({ rotulo, cents, icone, cor = "var(--acento)", 
       </div>
       <span className="rotulo">{rotulo}</span>
       <span className="valor" style={{ color: cor }}><AnimatedNumber cents={cents} /></span>
-      {variacao != null && <span className="rotulo" style={{ fontSize: "0.72rem", color: "var(--texto-3)" }}>vs. mês anterior</span>}
+      {variacao != null && <span className="rotulo" style={{ fontSize: "0.72rem", color: "var(--content-3)" }}>vs. mês anterior</span>}
       {serie && serie.length > 1 && <div className="spark"><Sparkline valores={serie} cor={cor} /></div>}
     </article>
   );

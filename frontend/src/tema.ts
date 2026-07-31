@@ -13,8 +13,10 @@ export function temaInicial(): Tema {
 
 export function aplicarTema(t: Tema) {
   document.documentElement.setAttribute("data-theme", t);
-  // Mantém a barra do navegador/PWA em sincronia com o fundo.
-  const cor = t === "dark" ? "#0d0d12" : "#f2f4f8";
+  // Mantém a barra do navegador/PWA em sincronia com o fundo (--page do app.css).
+  // Ao mudar, atualizar também: index.html (meta + script), vite.config.ts
+  // (manifest) e capacitor.config.ts.
+  const cor = t === "dark" ? "#000000" : "#f5f5f5";
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", cor);
 }
 

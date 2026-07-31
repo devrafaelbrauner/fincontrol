@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="FinControl — controle financeiro pessoal" />
 
-    <!-- theme-color base declarativo por tema (fallback caso o script abaixo falhe). -->
-    <meta name="theme-color" content="#f2f4f8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0d0d12" media="(prefers-color-scheme: dark)" />
+    <!-- theme-color base declarativo por tema (fallback caso o script abaixo falhe).
+         Mesma cor em: src/tema.ts, vite.config.ts (manifest) e capacitor.config.ts. -->
+    <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
 
     <!-- Ícones -->
     <link rel="icon" href="/icon-192.png" type="image/png" />
@@ -35,7 +36,7 @@
             .forEach(function (m) { m.parentNode.removeChild(m); });
           var meta = document.createElement("meta");
           meta.setAttribute("name", "theme-color");
-          meta.setAttribute("content", t === "dark" ? "#0d0d12" : "#f2f4f8");
+          meta.setAttribute("content", t === "dark" ? "#000000" : "#f5f5f5");
           document.head.appendChild(meta);
         } catch (e) {}
       })();

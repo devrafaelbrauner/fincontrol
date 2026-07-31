@@ -60,6 +60,37 @@ def _resumo_3meses(db: sqlite3.Connection, competencia: str) -> str:
     return "\n".join(_resumo_mes(db, c) for c in _competencias_anteriores(competencia, 3))
 
 
+def _contexto_financeiro(db: sqlite3.Connection, competencia: str, excluir_meta_id: int | None = None) -> str:
+    """Fotografia completa: meses recentes, fixas, entradas recorrentes e metas concorrentes."""
+    reais = lambda c: f"R$ {c/100:.2f}"
+    partes = ["Resumo dos últimos 3 meses:", _resumo_3meses(db, competencia)]
+    fixas = db.execute(
+        "SELECT nome, valor_estimado_cents, dia_vencimento FROM contas_fixas WHERE ativa = 1 ORDER BY valor_estimado_cents DESC"
+    ).fetchall()
+    if fixas:
+        partes.append("Contas fixas ativas: " + "; ".join(
+            f"{f['nome']} {reais(f['valor_estimado_cents'])} (vence dia {f['dia_vencimento']})" for f in fixas) + ".")
+    # Uma linha por descrição (o valor da mais recente) — o salário lançado todo
+    # mês como recorrente apareceria repetido no contexto.
+    rec = db.execute(
+        """SELECT descricao, valor_cents, MAX(data) ultima FROM entradas
+           WHERE recorrente = 1 GROUP BY descricao ORDER BY ultima DESC LIMIT 10"""
+    ).fetchall()
+    if rec:
+        partes.append("Entradas recorrentes: " + "; ".join(f"{r['descricao']} {reais(r['valor_cents'])}" for r in rec) + ".")
+    metas = db.execute(
+        """SELECT m.id, m.nome, m.valor_total_cents, m.prazo, COALESCE(SUM(a.valor_cents),0) atual
+           FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
+           WHERE m.ativa = 1 GROUP BY m.id""",
+    ).fetchall()
+    outras = [m for m in metas if m["id"] != excluir_meta_id]
+    if outras:
+        partes.append("Outras metas ativas (disputam o mesmo orçamento): " + "; ".join(
+            f"{m['nome']} (guardado {reais(m['atual'])} de {reais(m['valor_total_cents'])}, prazo {m['prazo']})"
+            for m in outras) + ".")
+    return "\n".join(partes)
+
+
 # ---------- config ----------
 
 class ConfigIn(BaseModel):
@@ -237,7 +268,7 @@ def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
     }
     comp = f"{h.year:04d}-{h.month:02d}"
     try:
-        texto = openrouter.estrategia_meta(db, meta, _resumo_3meses(db, comp))
+        texto = openrouter.estrategia_meta(db, meta, _contexto_financeiro(db, comp, meta_id))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
     db.execute("UPDATE metas SET estrategia_texto = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (texto, meta_id))
