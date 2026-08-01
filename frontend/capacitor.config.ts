@@ -13,6 +13,12 @@ const config: CapacitorConfig = {
     // Respeita as safe areas (notch/Dynamic Island) sem cortar conteúdo.
     contentInset: 'always',
   },
+  android: {
+    // SÓ PARA TESTE em rede local: a página (https://localhost) consome a API em
+    // http://<ip-do-mac>, e o WebView bloqueia mixed content por padrão.
+    // Remover quando o app apontar para a VPS com HTTPS.
+    allowMixedContent: true,
+  },
 };
 
 export default config;

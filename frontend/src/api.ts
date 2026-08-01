@@ -72,9 +72,15 @@ export const cadastrar = (dados: { nome: string; telefone: string; email: string
 
 /** Público: existe conta configurada? Decide entre tela de login e de cadastro. */
 export async function contaConfigurada(): Promise<boolean> {
-  const res = await fetch(API_BASE + "/api/auth/status", { credentials: "include" });
-  if (!res.ok) return true; // na dúvida, mostra o login (o cadastro daria 409 mesmo)
-  return ((await res.json()) as { configurado: boolean }).configurado;
+  try {
+    const res = await fetch(API_BASE + "/api/auth/status", { credentials: "include" });
+    if (!res.ok) return true; // na dúvida, mostra o login (o cadastro daria 409 mesmo)
+    return ((await res.json()) as { configurado: boolean }).configurado;
+  } catch {
+    // Backend inalcançável: mostrar o login (com erro claro ao submeter) é
+    // melhor que deixar o skeleton de carregamento para sempre.
+    return true;
+  }
 }
 
 function irParaLogin(): never {
