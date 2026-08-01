@@ -277,6 +277,37 @@ def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
     return {"estrategia": texto}
 
 
+@router.post("/planejar-meta/{meta_id}")
+def planejar_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Sugere itens de planejamento para a meta (sem gravar — o usuário aceita os que quiser)."""
+    row = db.execute(
+        """SELECT m.*, COALESCE(SUM(a.valor_cents), 0) AS valor_atual_cents
+           FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
+           WHERE m.id = ? GROUP BY m.id""",
+        (meta_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Meta não encontrada")
+    itens = [dict(r) for r in db.execute(
+        "SELECT nome, valor_cents, descricao FROM metas_itens WHERE meta_id = ? ORDER BY id", (meta_id,)
+    )]
+    meta = {"nome": row["nome"], "valor_total_cents": row["valor_total_cents"],
+            "valor_atual_cents": row["valor_atual_cents"], "prazo": row["prazo"]}
+    h = hoje()
+    comp = f"{h.year:04d}-{h.month:02d}"
+    try:
+        dados = openrouter.planejar_meta(db, meta, itens, _contexto_financeiro(db, comp, meta_id))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    sugestoes = [
+        {"nome": str(i.get("nome", "")).strip(),
+         "valor_cents": int(i["valor_cents"]) if isinstance(i.get("valor_cents"), (int, float)) else 0,
+         "descricao": (str(i["descricao"]).strip() or None) if i.get("descricao") else None}
+        for i in dados.get("itens", []) if isinstance(i, dict) and str(i.get("nome", "")).strip()
+    ]
+    return {"itens": sugestoes, "analise": str(dados.get("analise", "")).strip()}
+
+
 # ---------- linguagem natural → transação ----------
 
 class InterpretarIn(BaseModel):

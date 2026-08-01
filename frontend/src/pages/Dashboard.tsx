@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import { AreaChart, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, SerieMes } from "../components/graficos";
-import { IcEconomia, IcEntradas, IcExtrair, IcSaldo, IcVariaveis } from "../components/icones";
+import { IcEconomia, IcEntradas, IcExtrair, IcMetas, IcVariaveis } from "../components/icones";
 import StatCard from "../components/StatCard";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -16,6 +17,34 @@ type Dash = {
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
 type Insights = { destaques: string[]; alertas: string[]; acoes?: string[]; sugestao: string };
+type MetaResumo = { id: number; nome: string; valor_total_cents: number; valor_atual_cents: number; prazo: string };
+
+/** O mês contado numa única barra: entradas consumidas por fixas e variáveis; o que resta é a sobra. */
+function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {
+  const despesas = fixas + variaveis;
+  const base = Math.max(entradas, despesas, 1);
+  const sobra = entradas - despesas;
+  const pct = (v: number) => `${((v / base) * 100).toFixed(2)}%`;
+  return (
+    <div className="fio">
+      <div className="fio-barra" role="img"
+        aria-label={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "sobra" : "excedente"} ${brl(Math.abs(sobra))}`}>
+        {fixas > 0 && <span className="seg fixas" style={{ width: pct(fixas) }} />}
+        {variaveis > 0 && <span className="seg variaveis" style={{ width: pct(variaveis) }} />}
+        {sobra > 0 && <span className="seg sobra" style={{ width: pct(sobra) }} />}
+      </div>
+      <div className="fio-legenda">
+        <span><i className="entradas" />Entradas <b className="num">{brl(entradas)}</b></span>
+        <span><i className="fixas" />Fixas <b className="num">{brl(fixas)}</b></span>
+        <span><i className="variaveis" />Variáveis <b className="num">{brl(variaveis)}</b></span>
+        <span><i className={sobra >= 0 ? "sobra" : "excede"} />{sobra >= 0 ? "Sobra" : "Excedente"} <b className="num">{brl(Math.abs(sobra))}</b></span>
+      </div>
+      {entradas === 0 && despesas > 0 && (
+        <p className="sub" style={{ fontSize: "0.78rem" }}>Sem entradas neste mês — registre suas receitas para o fio fazer sentido.</p>
+      )}
+    </div>
+  );
+}
 
 
 /** Lista de N competências terminando em `fim` (inclusive), da mais antiga à mais nova. */
@@ -41,6 +70,7 @@ export default function Dashboard() {
   const { versao } = useAtualizacao();
   const [meses, setMeses] = useState<Dash[]>([]);
   const [donut, setDonut] = useState<FatiaDonut[]>([]);
+  const [metas, setMetas] = useState<MetaResumo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -59,10 +89,12 @@ export default function Dashboard() {
 
       const [ano, mes] = competencia.split("-");
       const ate = new Date(Number(ano), Number(mes), 0).getDate();
-      const [vars, cats] = await Promise.all([
+      const [vars, cats, listaMetas] = await Promise.all([
         api<{ itens: Variavel[] }>(`/variaveis?de=${competencia}-01&ate=${competencia}-${String(ate).padStart(2, "0")}`),
         api<Categoria[]>("/categorias"),
+        api<MetaResumo[]>("/metas"),
       ]);
+      setMetas(listaMetas);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
       const soma = new Map<string, { valor: number; cor: string | null }>();
       for (const v of vars.itens) {
@@ -125,21 +157,43 @@ export default function Dashboard() {
   const serie = (sel: (d: Dash) => number) => meses.map(sel);
   const fluxo: SerieMes[] = meses.map((d) => ({ rotulo: mesCurto(d.competencia), entradas: d.entradas_cents, despesas: despesas(d), saldo: d.saldo_cents }));
 
+  // Gasto médio por dia: no mês corrente divide pelos dias já decorridos.
+  const [anoC, mesC] = competencia.split("-").map(Number);
+  const agora = new Date();
+  const ehMesAtual = agora.getFullYear() === anoC && agora.getMonth() + 1 === mesC;
+  const diasBase = ehMesAtual ? agora.getDate() : new Date(anoC, mesC, 0).getDate();
+  const mediaDia = Math.round(despesas(atual) / Math.max(diasBase, 1));
+  const varSaldo = ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null;
+
   return (
     <>
       <h2>Visão geral</h2>
       <p className="sub">Resumo de {mesCurto(competencia)} de {competencia.slice(0, 4)}</p>
 
-      <div className="grid-stats">
-        <StatCard rotulo="Saldo do mês" cents={atual.saldo_cents} icone={<IcSaldo />} atraso={1}
-          cor={atual.saldo_cents < 0 ? "var(--negative)" : "var(--positive)"}
-          variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
-        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--positive)" atraso={2}
+      <section className="card hero-mes surgir">
+        <div className="hero-topo">
+          <div>
+            <span className="eyebrow">{atual.saldo_cents >= 0 ? "Sobra do mês" : "Faltando no mês"}</span>
+            <div className="hero-valor num" style={{ color: atual.saldo_cents >= 0 ? "var(--positive)" : "var(--negative)" }}>
+              {brl(atual.saldo_cents)}
+            </div>
+          </div>
+          {varSaldo != null && (
+            <span className="chip" title="Variação do saldo vs. mês anterior">
+              {varSaldo > 0 ? "▲" : varSaldo < 0 ? "▼" : "•"} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+            </span>
+          )}
+        </div>
+        <FioDoMes entradas={atual.entradas_cents} fixas={atual.fixas_cents} variaveis={atual.variaveis_cents} />
+      </section>
+
+      <div className="grid-stats secao">
+        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--positive)" atraso={1}
           variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
-        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--negative)" atraso={3} menosMelhor
+        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--negative)" atraso={2} menosMelhor
           variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
-        <StatCard rotulo="Economia" cents={atual.saldo_cents} icone={<IcEconomia />} cor="var(--accent)" atraso={4}
-          variacao={ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null} serie={serie((d) => d.saldo_cents)} />
+        <StatCard rotulo={ehMesAtual ? "Gasto médio/dia (até hoje)" : "Gasto médio/dia"} cents={mediaDia}
+          icone={<IcEconomia />} cor="var(--warning)" atraso={3} />
       </div>
 
       <div className="grid-2 secao">
@@ -161,8 +215,29 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <section className="secao">
-        <h3>Próximos vencimentos</h3>
+      <div className="grid-2 secao">
+        <section className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <h3>Metas em andamento</h3>
+          {metas.length === 0 ? (
+            <p className="sub">Nenhuma meta ativa. <NavLink to="/metas" style={{ color: "var(--accent-vivid)", fontWeight: 600 }}>Crie a primeira</NavLink> e planeje os itens dela.</p>
+          ) : (
+            metas.map((m) => {
+              const pct = Math.min((m.valor_atual_cents / Math.max(m.valor_total_cents, 1)) * 100, 100);
+              return (
+                <NavLink key={m.id} to="/metas" className="meta-mini">
+                  <div className="meta-mini-linha">
+                    <strong style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}><IcMetas /> {m.nome}</strong>
+                    <span className="sub num" style={{ fontSize: "0.8rem" }}>{brl(m.valor_atual_cents)} / {brl(m.valor_total_cents)}</span>
+                  </div>
+                  <div className="barra-mini"><span style={{ width: `${pct}%` }} /></div>
+                </NavLink>
+              );
+            })
+          )}
+        </section>
+
+        <section className="surgir">
+        <h3 style={{ marginBottom: "0.75rem" }}>Próximos vencimentos</h3>
         {atual.proximos_vencimentos.length === 0 ? (
           <p className="card sub">Nada pendente neste mês. 🎉</p>
         ) : (
@@ -182,7 +257,8 @@ export default function Dashboard() {
             </table>
           </div>
         )}
-      </section>
+        </section>
+      </div>
 
       <section className="secao">
         <div className="insights-cabecalho">

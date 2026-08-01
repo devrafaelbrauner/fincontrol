@@ -257,6 +257,37 @@ def estrategia_meta(db: sqlite3.Connection, meta: dict, contexto: str) -> str:
     return chamar(db, mensagens, espera_json=False, max_tokens=800).strip()
 
 
+def planejar_meta(db: sqlite3.Connection, meta: dict, itens: list[dict], contexto: str) -> dict:
+    """Quebra a meta em itens de planejamento com valores estimados + análise do plano."""
+    instrucao = (
+        "Você é um consultor financeiro pessoal que ajuda a PLANEJAR uma meta, quebrando-a "
+        "em itens concretos (ex.: viagem → passagens, hospedagem, transporte, alimentação, "
+        "passeios, reserva de imprevistos). Responda SOMENTE com um objeto JSON: "
+        '{"itens": [{"nome": str, "valor_cents": int, "descricao": str}, ...], "analise": str}. '
+        "itens = 3 a 7 sugestões NOVAS (nunca repita itens que o usuário já tem), com valores "
+        "realistas em centavos de real para o Brasil e descricao curta com opções/dicas "
+        "práticas de como cotar ou economizar naquele item. "
+        "analise = 2 a 4 frases: a soma do plano (itens existentes + sugeridos) versus o "
+        "objetivo da meta — se estoura, diga onde apertar; se sobra, diga o que reforçar; "
+        "considere o contexto financeiro para dizer se o plano cabe na realidade da pessoa. "
+        "Sem markdown na analise."
+    )
+    existentes = "; ".join(
+        f"{i['nome']} R$ {i['valor_cents']/100:.2f}" + (f" ({i['descricao']})" if i.get("descricao") else "")
+        for i in itens
+    ) or "nenhum"
+    ctx = (
+        f"Meta: {meta['nome']} — objetivo R$ {meta['valor_total_cents']/100:.2f}, "
+        f"prazo {meta['prazo']}, já guardado R$ {meta['valor_atual_cents']/100:.2f}.\n"
+        f"Itens já planejados: {existentes}.\n\nContexto financeiro:\n{contexto}"
+    )
+    mensagens = [
+        {"role": "system", "content": instrucao},
+        {"role": "user", "content": ctx},
+    ]
+    return chamar_json(db, mensagens, max_tokens=1200)
+
+
 def interpretar_transacao(db: sqlite3.Connection, texto: str, hoje: str, categorias: list[str]) -> dict:
     """Linguagem natural → transação estruturada para o usuário confirmar."""
     instrucao = (
