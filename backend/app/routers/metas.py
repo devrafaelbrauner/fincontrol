@@ -119,9 +119,16 @@ def criar_item(meta_id: int, body: ItemIn, db: sqlite3.Connection = Depends(get_
     return {"id": cur.lastrowid}
 
 
+# Colunas que o PATCH pode escrever. O SET é montado por interpolação, então o
+# nome da coluna nunca pode vir de fora: hoje as chaves são as do ItemPatch, mas
+# um campo novo no modelo (ou um model_dump que passe a incluir extras) viraria
+# SQL direto. A lista fecha isso na origem.
+COLUNAS_EDITAVEIS = frozenset({"nome", "valor_cents", "descricao"})
+
+
 @router.patch("/{meta_id}/itens/{item_id}")
 def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connection = Depends(get_db)):
-    campos = body.model_dump(exclude_unset=True)
+    campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
     sets = ", ".join(f"{c} = ?" for c in campos)
