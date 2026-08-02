@@ -52,10 +52,16 @@ class CodigoBody(BaseModel):
     codigo: str
 
 
+# Comprimento é o que de fato encarece um ataque offline; 6 caracteres caem em
+# segundos se o banco vazar, por mais símbolos que tenham. Espelhado em
+# frontend/src/pages/Login.tsx (REGRAS) — mexeu aqui, mexa lá.
+SENHA_MINIMA = 12
+
+
 def _validar_senha(senha: str) -> str | None:
-    """Política: mínimo 6 caracteres, com letra, número e caractere especial."""
-    if len(senha) < 6:
-        return "A senha precisa de pelo menos 6 caracteres"
+    """Política: mínimo de 12 caracteres, com letra, número e caractere especial."""
+    if len(senha) < SENHA_MINIMA:
+        return f"A senha precisa de pelo menos {SENHA_MINIMA} caracteres"
     if not re.search(r"[A-Za-z]", senha):
         return "A senha precisa de pelo menos uma letra"
     if not re.search(r"\d", senha):
@@ -203,7 +209,15 @@ def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlit
         raise HTTPException(422, "E-mail inválido")
     if erro := _validar_senha(body.senha):
         raise HTTPException(422, erro)
-    _config_set(db, "senha_hash", ph.hash(body.senha))
+    # DO NOTHING em vez de _config_set: a checagem lá em cima é só para o erro
+    # bonito — entre ela e aqui cabe um segundo cadastro, e quem chegar depois
+    # sobrescreveria a senha do dono. A gravação condicional decide no banco.
+    cur = db.execute(
+        "INSERT INTO config (chave, valor) VALUES ('senha_hash', ?) ON CONFLICT(chave) DO NOTHING",
+        (ph.hash(body.senha),),
+    )
+    if cur.rowcount == 0:
+        raise HTTPException(409, "Conta já configurada — use a tela de login")
     _config_set(db, "perfil_nome", nome)
     _config_set(db, "perfil_email", body.email.strip())
     if body.telefone and body.telefone.strip():

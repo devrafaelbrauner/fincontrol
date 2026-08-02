@@ -5,9 +5,10 @@ import Logo from "../components/Logo";
 
 type Modo = "carregando" | "login" | "cadastro" | "mfa";
 
-/** Regras da senha exibidas e validadas em tempo real (o backend revalida). */
+/** Regras da senha exibidas e validadas em tempo real (o backend revalida).
+ *  Espelha SENHA_MINIMA em backend/app/auth.py — mexeu lá, mexa aqui. */
 const REGRAS: { rotulo: string; ok: (s: string) => boolean }[] = [
-  { rotulo: "6+ caracteres", ok: (s) => s.length >= 6 },
+  { rotulo: "12+ caracteres", ok: (s) => s.length >= 12 },
   { rotulo: "letra", ok: (s) => /[A-Za-z]/.test(s) },
   { rotulo: "número", ok: (s) => /\d/.test(s) },
   { rotulo: "especial (!@#$…)", ok: (s) => /[^A-Za-z0-9]/.test(s) },
