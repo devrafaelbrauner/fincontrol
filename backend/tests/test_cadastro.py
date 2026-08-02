@@ -30,7 +30,22 @@ def test_cadastro_cria_conta_e_ja_autentica(cliente):
     assert r.status_code == 201, r.text
     assert r.json()["nome"] == "Fulano"
     assert r.json()["token"]
-    assert cliente.post("/api/auth/login", json={"senha": CONTA["senha"]}).status_code == 200
+    entrar = {"email": CONTA["email"], "senha": CONTA["senha"]}
+    assert cliente.post("/api/auth/login", json=entrar).status_code == 200
+
+
+def test_login_exige_o_email_do_perfil(cliente):
+    """Cadastrada a conta, a senha sozinha não basta — o e-mail passa a fazer parte
+    das credenciais."""
+    _sem_conta()
+    assert cliente.post("/api/auth/cadastro", json=CONTA).status_code == 201
+
+    assert cliente.post("/api/auth/login", json={"senha": CONTA["senha"]}).status_code == 401
+    outro = {"email": "outro@exemplo.com", "senha": CONTA["senha"]}
+    assert cliente.post("/api/auth/login", json=outro).status_code == 401
+    # Maiúsculas/minúsculas no e-mail não podem barrar o dono.
+    caixa_alta = {"email": CONTA["email"].upper(), "senha": CONTA["senha"]}
+    assert cliente.post("/api/auth/login", json=caixa_alta).status_code == 200
 
 
 def test_cadastro_nao_sobrescreve_conta_existente(cliente):
