@@ -2,8 +2,25 @@
 import pytest
 
 from app.db import connect
+from app.routers.ia import _valor_cents
 
 from .conftest import SENHA
+
+
+@pytest.mark.parametrize("bruto, esperado", [
+    (180000, 180000),
+    (1800.0, 1800),
+    ("180000", 180000),
+    ("  180000  ", 180000),
+    (-5, 0),
+    ("R$ 1.800,00", None),   # ambíguo: 1800 centavos ou 180000? não chutar
+    ("1800.50", None),
+    ("muito caro", None),
+    (None, None),
+    (True, None),            # bool é int em Python; não pode virar 1 centavo
+])
+def test_valor_cents_da_sugestao_da_ia(bruto, esperado):
+    assert _valor_cents(bruto) == esperado
 
 
 @pytest.fixture
@@ -87,3 +104,41 @@ def test_item_de_outra_meta_nao_e_alcancavel(autenticado, meta):
 def test_item_em_meta_inexistente(autenticado):
     r = autenticado.post("/api/metas/99999/itens", json={"nome": "x", "valor_cents": 1})
     assert r.status_code == 404
+
+
+@pytest.mark.parametrize("corpo", [{"nome": None}, {"valor_cents": None}])
+def test_patch_com_null_em_coluna_obrigatoria_da_422(autenticado, meta, corpo):
+    """`exclude_unset` preserva null explícito; sem barreira ele vira SET nome = NULL
+    numa coluna NOT NULL e o IntegrityError sobe como 500."""
+    item_id = autenticado.post(f"/api/metas/{meta}/itens",
+                               json={"nome": "Transporte", "valor_cents": 30000}).json()["id"]
+
+    r = autenticado.patch(f"/api/metas/{meta}/itens/{item_id}", json=corpo)
+    assert r.status_code == 422, r.text
+
+    db = connect()
+    linha = db.execute("SELECT * FROM metas_itens WHERE id = ?", (item_id,)).fetchone()
+    db.close()
+    assert linha["nome"] == "Transporte" and linha["valor_cents"] == 30000
+
+
+def test_patch_recusa_nome_em_branco_como_o_post(autenticado, meta):
+    item_id = autenticado.post(f"/api/metas/{meta}/itens",
+                               json={"nome": "Alimentação", "valor_cents": 60000}).json()["id"]
+
+    assert autenticado.patch(f"/api/metas/{meta}/itens/{item_id}",
+                             json={"nome": "   "}).status_code == 422
+    assert autenticado.patch(f"/api/metas/{meta}/itens/{item_id}",
+                             json={"nome": "  Comida  "}).status_code == 200
+
+    db = connect()
+    linha = db.execute("SELECT * FROM metas_itens WHERE id = ?", (item_id,)).fetchone()
+    db.close()
+    assert linha["nome"] == "Comida"      # gravou aparado
+
+
+def test_patch_de_meta_com_null_obrigatorio_da_422(autenticado, meta):
+    r = autenticado.patch(f"/api/metas/{meta}", json={"nome": None})
+    assert r.status_code == 422, r.text
+    # estrategia_texto é nullable: continua aceitando null
+    assert autenticado.patch(f"/api/metas/{meta}", json={"estrategia_texto": None}).status_code == 200

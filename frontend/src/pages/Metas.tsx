@@ -52,6 +52,7 @@ export default function Metas() {
   const [planAnalise, setPlanAnalise] = useState("");
   const [planSel, setPlanSel] = useState<Set<number>>(new Set());
   const [planejandoId, setPlanejandoId] = useState<number | null>(null);
+  const [aceitando, setAceitando] = useState(false);       // trava o botão durante a gravação em série
 
   function abrirItem(m: Meta, i: Item | null) {
     setItemMeta(m);
@@ -96,19 +97,29 @@ export default function Metas() {
   }
 
   async function aceitarSugestoes() {
-    if (!planMeta) return;
-    const escolhidos = planItens.filter((_, idx) => planSel.has(idx));
+    if (!planMeta || aceitando) return;
+    const escolhidos = planItens.map((s, idx) => ({ s, idx })).filter(({ idx }) => planSel.has(idx));
+    setAceitando(true);
+    let gravados = 0;
     try {
-      for (const s of escolhidos) {
+      for (const { s, idx } of escolhidos) {
         await api(`/metas/${planMeta.id}/itens`, {
           method: "POST",
           body: JSON.stringify({ nome: s.nome, valor_cents: s.valor_cents, descricao: s.descricao }),
         });
+        gravados++;
+        // Desmarca assim que grava: se o próximo POST falhar, o modal continua aberto e
+        // um novo clique reenvia só o que faltou, em vez de duplicar o que já entrou.
+        setPlanSel((prev) => { const novo = new Set(prev); novo.delete(idx); return novo; });
       }
-      toast(`${escolhidos.length} ${escolhidos.length === 1 ? "item adicionado" : "itens adicionados"} ao planejamento.`);
+      toast(`${gravados} ${gravados === 1 ? "item adicionado" : "itens adicionados"} ao planejamento.`);
       setPlanMeta(null);
-      carregar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) {
+      toast(`${gravados} de ${escolhidos.length} adicionados. ${(err as Error).message}`, "erro");
+    } finally {
+      setAceitando(false);
+      carregar();  // sempre: mesmo na falha parcial, a lista precisa mostrar o que entrou
+    }
   }
 
   const carregar = useCallback(() => {
@@ -317,10 +328,10 @@ export default function Metas() {
             </label>
           ))}
           <div className="acoes-modal">
-            <button className="btn btn-primario" onClick={aceitarSugestoes} disabled={planSel.size === 0}>
-              Adicionar {planSel.size} {planSel.size === 1 ? "item" : "itens"}
+            <button className="btn btn-primario" onClick={aceitarSugestoes} disabled={planSel.size === 0 || aceitando}>
+              {aceitando ? "Adicionando…" : `Adicionar ${planSel.size} ${planSel.size === 1 ? "item" : "itens"}`}
             </button>
-            <button className="btn" onClick={() => setPlanMeta(null)}>Cancelar</button>
+            <button className="btn" onClick={() => setPlanMeta(null)} disabled={aceitando}>Cancelar</button>
           </div>
         </div>
       </Modal>

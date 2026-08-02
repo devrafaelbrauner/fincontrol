@@ -42,6 +42,19 @@ class ItemPatch(BaseModel):
     descricao: str | None = None
 
 
+# `model_dump(exclude_unset=True)` preserva um null enviado de propósito ({"nome": null}),
+# e escrevê-lo numa coluna NOT NULL estoura IntegrityError — 500 onde cabia 422. Estas são
+# as colunas editáveis que o schema declara NOT NULL.
+NAO_NULAVEIS_META = frozenset({"nome", "valor_total_cents", "prazo", "ativa"})
+NAO_NULAVEIS_ITEM = frozenset({"nome", "valor_cents"})
+
+
+def _recusar_nulos(campos: dict, nao_nulaveis: frozenset[str]) -> None:
+    nulos = sorted(c for c in campos if c in nao_nulaveis and campos[c] is None)
+    if nulos:
+        raise HTTPException(422, f"Campo não pode ser nulo: {', '.join(nulos)}")
+
+
 def _meses_restantes(prazo: str) -> int:
     h = hoje()
     ano, mes = int(prazo[:4]), int(prazo[5:7])
@@ -83,6 +96,7 @@ def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_d
     campos = body.model_dump(exclude_unset=True)
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
+    _recusar_nulos(campos, NAO_NULAVEIS_META)
     if "ativa" in campos:
         campos["ativa"] = 1 if campos["ativa"] else 0
     sets = ", ".join(f"{c} = ?" for c in campos)
@@ -131,6 +145,11 @@ def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connect
     campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
+    _recusar_nulos(campos, NAO_NULAVEIS_ITEM)
+    if "nome" in campos:  # mesma validação que o POST faz, senão "   " vira um nome vazio na lista
+        campos["nome"] = campos["nome"].strip()
+        if not campos["nome"]:
+            raise HTTPException(422, "Informe o nome do item")
     sets = ", ".join(f"{c} = ?" for c in campos)
     cur = db.execute(
         f"UPDATE metas_itens SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ? AND meta_id = ?",
