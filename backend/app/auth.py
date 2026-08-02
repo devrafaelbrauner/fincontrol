@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import secrets
 import sqlite3
 import time
@@ -38,6 +39,36 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class LoginBody(BaseModel):
     senha: str
     codigo_totp: str | None = None
+
+
+class CadastroBody(BaseModel):
+    nome: str
+    telefone: str | None = None
+    email: str
+    senha: str
+
+
+class CodigoBody(BaseModel):
+    codigo: str
+
+
+# Comprimento é o que de fato encarece um ataque offline; 6 caracteres caem em
+# segundos se o banco vazar, por mais símbolos que tenham. Espelhado em
+# frontend/src/pages/Login.tsx (REGRAS) — mexeu aqui, mexa lá.
+SENHA_MINIMA = 12
+
+
+def _validar_senha(senha: str) -> str | None:
+    """Política: mínimo de 12 caracteres, com letra, número e caractere especial."""
+    if len(senha) < SENHA_MINIMA:
+        return f"A senha precisa de pelo menos {SENHA_MINIMA} caracteres"
+    if not re.search(r"[A-Za-z]", senha):
+        return "A senha precisa de pelo menos uma letra"
+    if not re.search(r"\d", senha):
+        return "A senha precisa de pelo menos um número"
+    if not re.search(r"[^A-Za-z0-9]", senha):
+        return "A senha precisa de pelo menos um caractere especial (!@#$%…)"
+    return None
 
 
 def config_get(db: sqlite3.Connection, chave: str) -> str | None:
@@ -158,6 +189,48 @@ def _cliente_nativo(request: Request) -> bool:
     return request.headers.get("X-Client") == "native"
 
 
+@router.get("/status")
+def status(db: sqlite3.Connection = Depends(get_db)):
+    """Público: o frontend decide entre tela de login e de cadastro (primeiro uso)."""
+    return {"configurado": config_get(db, "senha_hash") is not None}
+
+
+@router.post("/cadastro", status_code=201)
+@limiter.limit("5/minute")
+def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlite3.Connection = Depends(get_db)):
+    """Cria a conta única no primeiro uso. Com conta existente, retorna 409 —
+    nunca sobrescreve (redefinição de senha é pelo terminal: python -m app.setup_user)."""
+    if config_get(db, "senha_hash"):
+        raise HTTPException(409, "Conta já configurada — use a tela de login")
+    nome = body.nome.strip()
+    if not nome:
+        raise HTTPException(422, "Informe seu nome")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", body.email.strip()):
+        raise HTTPException(422, "E-mail inválido")
+    if erro := _validar_senha(body.senha):
+        raise HTTPException(422, erro)
+    # DO NOTHING em vez de _config_set: a checagem lá em cima é só para o erro
+    # bonito — entre ela e aqui cabe um segundo cadastro, e quem chegar depois
+    # sobrescreveria a senha do dono. A gravação condicional decide no banco.
+    cur = db.execute(
+        "INSERT INTO config (chave, valor) VALUES ('senha_hash', ?) ON CONFLICT(chave) DO NOTHING",
+        (ph.hash(body.senha),),
+    )
+    if cur.rowcount == 0:
+        raise HTTPException(409, "Conta já configurada — use a tela de login")
+    _config_set(db, "perfil_nome", nome)
+    _config_set(db, "perfil_email", body.email.strip())
+    if body.telefone and body.telefone.strip():
+        _config_set(db, "perfil_telefone", body.telefone.strip())
+    # Auto-login: emite a mesma sessão que o /login emitiria.
+    refresh_token = _emitir_refresh(db)
+    _set_cookie(response, refresh_token)
+    resposta = {"token": _emitir_access(), "nome": nome}
+    if _cliente_nativo(request):
+        resposta["refresh_token"] = refresh_token
+    return resposta
+
+
 @router.post("/login")
 @limiter.limit("5/minute")                                    # por IP
 @limiter.limit("30/minute", key_func=lambda *_: "login")      # teto global: Argon2 custa 64 MiB/tentativa
@@ -177,7 +250,7 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
             raise HTTPException(401, "Senha ou código incorretos")
     refresh_token = _emitir_refresh(db)
     _set_cookie(response, refresh_token)
-    resposta = {"token": _emitir_access()}
+    resposta = {"token": _emitir_access(), "nome": config_get(db, "perfil_nome")}
     if _cliente_nativo(request):
         resposta["refresh_token"] = refresh_token
     return resposta
@@ -247,3 +320,46 @@ def require_auth(authorization: str | None = Header(default=None)):
         raise HTTPException(401, "Sessão inválida ou expirada")
     if dados.get("type") != "access":
         raise HTTPException(401, "Token inválido para esta operação")
+
+
+# ---------- MFA (TOTP) — ativação em duas etapas, com o usuário logado ----------
+
+@router.get("/mfa", dependencies=[Depends(require_auth)])
+def mfa_status(db: sqlite3.Connection = Depends(get_db)):
+    return {"ativo": config_get(db, "totp_secret") is not None}
+
+
+@router.post("/mfa/iniciar", dependencies=[Depends(require_auth)])
+def mfa_iniciar(db: sqlite3.Connection = Depends(get_db)):
+    """Gera um secret PENDENTE (só vira exigência de login após confirmar um código
+    — garante que o autenticador foi cadastrado antes de trancar a porta)."""
+    secret = pyotp.random_base32()
+    _config_set(db, "totp_secret_pendente", secret)
+    email = config_get(db, "perfil_email") or "dono"
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="FinControl")
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+@router.post("/mfa/confirmar", dependencies=[Depends(require_auth)])
+def mfa_confirmar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
+    secret = config_get(db, "totp_secret_pendente")
+    if not secret:
+        raise HTTPException(400, "Nenhuma ativação de MFA em andamento")
+    if not pyotp.TOTP(secret).verify(body.codigo.strip(), valid_window=1):
+        raise HTTPException(400, "Código incorreto — confira o app autenticador")
+    _config_set(db, "totp_secret", secret)
+    db.execute("DELETE FROM config WHERE chave = 'totp_secret_pendente'")
+    return {"ativo": True}
+
+
+@router.post("/mfa/desativar", dependencies=[Depends(require_auth)])
+def mfa_desativar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
+    secret = config_get(db, "totp_secret")
+    if not secret:
+        return {"ativo": False}
+    if not pyotp.TOTP(secret).verify(body.codigo.strip(), valid_window=1):
+        raise HTTPException(400, "Código incorreto")
+    db.execute("DELETE FROM config WHERE chave = 'totp_secret'")
+    return {"ativo": False}
+
+

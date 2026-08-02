@@ -44,19 +44,37 @@ function headersNativos(comRefresh = false): Record<string, string> {
   return h;
 }
 
-/** Login: autentica e guarda o access token (e, no nativo, o refresh token). */
-export async function login(senha: string, codigo_totp: string | null): Promise<void> {
-  const res = await fetch(API_BASE + "/api/auth/login", {
+function guardarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
+  setToken(corpo.token);
+  if (corpo.refresh_token) setRefresh(corpo.refresh_token);
+  if (corpo.nome) localStorage.setItem("nome", corpo.nome);
+}
+
+async function postAuth(path: string, body: unknown): Promise<void> {
+  const res = await fetch(API_BASE + "/api/auth/" + path, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headersNativos() },
-    body: JSON.stringify({ senha, codigo_totp }),
+    body: JSON.stringify(body),
   });
   const corpo = await res.json().catch(() => null);
   if (!res.ok) throw new Error(corpo?.detail ?? res.statusText);
-  const { token, refresh_token } = corpo as { token: string; refresh_token?: string };
-  setToken(token);
-  if (refresh_token) setRefresh(refresh_token);
+  guardarSessao(corpo);
+}
+
+/** Login: autentica e guarda o access token (e, no nativo, o refresh token). */
+export const login = (senha: string, codigo_totp: string | null) =>
+  postAuth("login", { senha, codigo_totp });
+
+/** Cadastro (primeiro uso): cria a conta única e já entra logado. */
+export const cadastrar = (dados: { nome: string; telefone: string; email: string; senha: string }) =>
+  postAuth("cadastro", dados);
+
+/** Público: existe conta configurada? Decide entre tela de login e de cadastro. */
+export async function contaConfigurada(): Promise<boolean> {
+  const res = await fetch(API_BASE + "/api/auth/status", { credentials: "include" });
+  if (!res.ok) return true; // na dúvida, mostra o login (o cadastro daria 409 mesmo)
+  return ((await res.json()) as { configurado: boolean }).configurado;
 }
 
 function irParaLogin(): never {
@@ -80,10 +98,11 @@ async function renovar(): Promise<string | null> {
   return token;
 }
 
-/** fetch com Bearer atual; em 401 (fora de /auth) tenta renovar uma vez e repete. */
+/** fetch com Bearer atual; em 401 (fora das rotas públicas de /auth) tenta renovar uma vez e repete. */
 async function comAuth(path: string, montar: (token: string | null) => RequestInit): Promise<Response> {
   let res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(getToken()) });
-  if (res.status === 401 && !path.startsWith("/auth")) {
+  // /auth/mfa/* é autenticada como as demais; só login/refresh/etc. ficam fora do retry.
+  if (res.status === 401 && (!path.startsWith("/auth") || path.startsWith("/auth/mfa"))) {
     const novo = await renovar();
     if (!novo) irParaLogin();
     res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(novo) });

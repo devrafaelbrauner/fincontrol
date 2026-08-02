@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
 from .auth import router as auth_router
-from .db import migrate
+from .db import connect, migrate
 from .routers import anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
@@ -47,6 +47,27 @@ def _validar_ambiente() -> None:
 
 _validar_ambiente()  # valida os segredos ANTES de tocar no banco
 migrate()
+
+
+def _avisar_se_sem_conta() -> None:
+    """Banco sem conta em produção = /api/auth/cadastro aberto para quem chegar
+    primeiro. É o estado normal antes do setup_user, mas também o estado de um
+    backup restaurado vazio — e aí passa despercebido. Ver deploy/README.md."""
+    if not IS_PROD:
+        return
+    db = connect()
+    try:
+        tem_conta = db.execute("SELECT 1 FROM config WHERE chave = 'senha_hash'").fetchone()
+    finally:
+        db.close()
+    if not tem_conta:
+        _log.warning(
+            "NENHUMA CONTA CONFIGURADA: /api/auth/cadastro está aberto e o primeiro "
+            "visitante vira o dono. Rode 'python -m app.setup_user' ou cadastre-se agora."
+        )
+
+
+_avisar_se_sem_conta()
 
 # Em produção o schema/docs da API não ficam expostos.
 app = FastAPI(
