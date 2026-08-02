@@ -8,7 +8,9 @@ usuário de sistema **`fincontrol`**, e todo git/pip/npm roda como ele (`sudo -u
 
 ## Pré-requisitos
 
-- VPS com Debian/Ubuntu, Python 3.11+, Node 20+, `git`, `sqlite3` (CLI, para backup),
+- VPS com Debian/Ubuntu, Python 3.11+, **Node ≥ 20.19 ou ≥ 22.12** (exigência do
+  Vite 7 — o `Node 20+` genérico não basta: 20.0–20.18 quebram o build), `git`,
+  `sqlite3` (CLI, para backup),
   e **Caddy** instalado (https://caddyserver.com/docs/install).
 - `rclone` se quiser backup offsite (recomendado): `apt install rclone` + `rclone config`.
 - Um subdomínio (ex. `fincontrol.seudominio.com`) com **registro A** apontando para o IP da VPS.
@@ -115,6 +117,16 @@ valida e recarrega o Caddy e testa o `/api/health`.
 - **Restauração** (testar 1x/trimestre): `systemctl stop fincontrol`, copiar o
   `fincontrol.db` do backup para `$FINCONTROL_DATA`, extrair `uploads.tar.gz` no
   mesmo lugar, `systemctl start fincontrol`.
+
+## Ícones e splash (regenerar sob demanda)
+
+Os PNGs gerados estão versionados. Para regenerar a partir de `frontend/assets/`
+(logo.svg/splash.png), rode sob demanda — o pacote não fica em devDependencies
+porque a cadeia dele (tar/sharp antigos) concentrava as vulnerabilidades do npm audit:
+
+```bash
+cd frontend && npx @capacitor/assets generate --ios --pwa
+```
 
 ## App iOS (Capacitor) apontando para a VPS
 
