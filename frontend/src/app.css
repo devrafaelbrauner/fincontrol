@@ -482,6 +482,41 @@ tbody tr:hover { background: var(--surface-hover); }
 
 /* Grids de cards */
 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+
+/* ---------- Herói do mês: sobra grande + fio do mês ---------- */
+.hero-mes { display: flex; flex-direction: column; gap: 1.1rem; }
+.hero-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.eyebrow { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--content-2); }
+.hero-valor { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-top: 0.15rem; }
+
+/* O fio do mês: entradas consumidas por fixas e variáveis; o resto é a sobra. */
+.fio { display: flex; flex-direction: column; gap: 0.6rem; }
+.fio-barra {
+  display: flex; height: 14px; border-radius: 7px; overflow: hidden;
+  background: color-mix(in srgb, var(--negative) 14%, var(--surface-hover));
+}
+@keyframes fio-crescer { from { transform: scaleX(0); } }
+.fio-barra .seg { display: block; height: 100%; transform-origin: left; animation: fio-crescer 600ms var(--ease) both; }
+.fio-barra .seg + .seg { animation-delay: 150ms; }
+.fio-barra .seg + .seg + .seg { animation-delay: 300ms; }
+.fio-barra .fixas { background: var(--negative); }
+.fio-barra .variaveis { background: color-mix(in srgb, var(--negative) 55%, var(--surface)); }
+.fio-barra .sobra { background: var(--positive); }
+.fio-legenda { display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--content-2); }
+.fio-legenda b { color: var(--content); font-weight: 650; margin-left: 0.25rem; }
+.fio-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 0.35rem; }
+.fio-legenda .entradas { background: color-mix(in srgb, var(--positive) 45%, var(--surface-hover)); outline: 1px solid var(--positive); outline-offset: -1px; }
+.fio-legenda .fixas { background: var(--negative); }
+.fio-legenda .variaveis { background: color-mix(in srgb, var(--negative) 55%, var(--surface)); }
+.fio-legenda .sobra { background: var(--positive); }
+.fio-legenda .excede { background: var(--warning); }
+
+/* ---------- Metas em andamento (widget do dashboard) ---------- */
+.meta-mini { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.35rem 0; border-radius: var(--radius-sm); }
+.meta-mini:hover strong { color: var(--accent-vivid); }
+.meta-mini-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.barra-mini { height: 7px; border-radius: 4px; background: var(--surface-hover); overflow: hidden; }
+.barra-mini span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--positive)); transition: width 400ms var(--ease); }
 .grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
 .grid-metas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
 
@@ -726,6 +761,17 @@ tbody tr:hover { background: var(--surface-hover); }
   line-height: 1.55; color: var(--content);
 }
 .insights-cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; }
+
+/* Planejamento de meta (sub-itens) */
+.plano { border-top: 1px dashed var(--edge-strong); padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.plano-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.plano-titulo { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--content-2); }
+.plano-item { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 1px solid var(--edge); border-radius: var(--radius-sm); background: var(--field); }
+.plano-item-linha { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; }
+.plano-sugestao { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0.65rem; border: 1px solid var(--edge); border-radius: var(--radius-sm); cursor: pointer; }
+.plano-sugestao:has(input:checked) { border-color: var(--accent); }
+.plano-sugestao input { margin-top: 0.2rem; accent-color: var(--accent); }
+.plano-sugestao > div { flex: 1; }
 .insights-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
 .insights-lista li { display: flex; gap: 0.6rem; align-items: flex-start; line-height: 1.45; }
 .insights-lista .ponto-in { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; margin-top: 0.45rem; }

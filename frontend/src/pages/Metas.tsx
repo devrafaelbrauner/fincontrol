@@ -6,6 +6,8 @@ import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
 
+type Item = { id: number; nome: string; valor_cents: number; descricao: string | null };
+
 type Meta = {
   id: number;
   nome: string;
@@ -14,7 +16,10 @@ type Meta = {
   valor_mensal_necessario_cents: number;
   prazo: string;
   estrategia_texto: string | null;
+  itens: Item[];
 };
+
+type Sugestao = { nome: string; valor_cents: number; descricao: string | null };
 
 export default function Metas() {
   const toast = useToast();
@@ -35,6 +40,76 @@ export default function Metas() {
   const [editMeta, setEditMeta] = useState<Meta | null>(null);
   const [editValor, setEditValor] = useState("");
   const [estrategiaId, setEstrategiaId] = useState<number | null>(null);
+
+  // Planejamento (sub-itens)
+  const [itemMeta, setItemMeta] = useState<Meta | null>(null);   // meta do modal de item
+  const [itemEdit, setItemEdit] = useState<Item | null>(null);   // item em edição (null = novo)
+  const [itemNome, setItemNome] = useState("");
+  const [itemValor, setItemValor] = useState("");
+  const [itemDesc, setItemDesc] = useState("");
+  const [planMeta, setPlanMeta] = useState<Meta | null>(null);   // meta do modal de sugestões da IA
+  const [planItens, setPlanItens] = useState<Sugestao[]>([]);
+  const [planAnalise, setPlanAnalise] = useState("");
+  const [planSel, setPlanSel] = useState<Set<number>>(new Set());
+  const [planejandoId, setPlanejandoId] = useState<number | null>(null);
+
+  function abrirItem(m: Meta, i: Item | null) {
+    setItemMeta(m);
+    setItemEdit(i);
+    setItemNome(i?.nome ?? "");
+    setItemValor(i ? (i.valor_cents / 100).toFixed(2).replace(".", ",") : "");
+    setItemDesc(i?.descricao ?? "");
+  }
+
+  async function salvarItem(e: FormEvent) {
+    e.preventDefault();
+    if (!itemMeta) return;
+    const cents = paraCents(itemValor);
+    if (!(cents >= 0)) { toast("Valor inválido.", "erro"); return; }
+    const corpo = JSON.stringify({ nome: itemNome, valor_cents: cents, descricao: itemDesc.trim() || null });
+    try {
+      if (itemEdit) await api(`/metas/${itemMeta.id}/itens/${itemEdit.id}`, { method: "PATCH", body: corpo });
+      else await api(`/metas/${itemMeta.id}/itens`, { method: "POST", body: corpo });
+      toast(itemEdit ? "Item atualizado." : "Item adicionado.");
+      setItemMeta(null);
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
+
+  async function excluirItem(m: Meta, i: Item) {
+    try {
+      await api(`/metas/${m.id}/itens/${i.id}`, { method: "DELETE" });
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
+
+  async function planejarComIa(m: Meta) {
+    setPlanejandoId(m.id);
+    try {
+      const d = await api<{ itens: Sugestao[]; analise: string }>(`/ia/planejar-meta/${m.id}`, { method: "POST", body: "{}" });
+      setPlanMeta(m);
+      setPlanItens(d.itens);
+      setPlanAnalise(d.analise);
+      setPlanSel(new Set(d.itens.map((_, idx) => idx)));
+    } catch (err) { toast((err as Error).message, "erro"); }
+    finally { setPlanejandoId(null); }
+  }
+
+  async function aceitarSugestoes() {
+    if (!planMeta) return;
+    const escolhidos = planItens.filter((_, idx) => planSel.has(idx));
+    try {
+      for (const s of escolhidos) {
+        await api(`/metas/${planMeta.id}/itens`, {
+          method: "POST",
+          body: JSON.stringify({ nome: s.nome, valor_cents: s.valor_cents, descricao: s.descricao }),
+        });
+      }
+      toast(`${escolhidos.length} ${escolhidos.length === 1 ? "item adicionado" : "itens adicionados"} ao planejamento.`);
+      setPlanMeta(null);
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
 
   const carregar = useCallback(() => {
     setCarregando(true);
@@ -134,6 +209,42 @@ export default function Metas() {
                 {m.estrategia_texto && (
                   <div className="insights-sugestao" style={{ whiteSpace: "pre-line" }}><strong>Estratégia da IA:</strong> {m.estrategia_texto}</div>
                 )}
+
+                <div className="plano">
+                  <div className="plano-topo">
+                    <span className="plano-titulo">Planejamento</span>
+                    {m.itens.length > 0 && (() => {
+                      const soma = m.itens.reduce((s, i) => s + i.valor_cents, 0);
+                      const estoura = soma > m.valor_total_cents;
+                      return (
+                        <span className="sub" style={{ fontSize: "0.78rem", color: estoura ? "var(--warning)" : undefined }}>
+                          {brl(soma)} planejado{estoura ? ` — ${brl(soma - m.valor_total_cents)} acima do objetivo` : ` de ${brl(m.valor_total_cents)}`}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  {m.itens.map((i) => (
+                    <div key={i.id} className="plano-item">
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="plano-item-linha">
+                          <strong>{i.nome}</strong>
+                          <span className="num">{brl(i.valor_cents)}</span>
+                        </div>
+                        {i.descricao && <div className="sub" style={{ fontSize: "0.78rem", whiteSpace: "pre-line" }}>{i.descricao}</div>}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.25rem" }}>
+                        <button className="btn btn-icone" onClick={() => abrirItem(m, i)} aria-label={`Editar ${i.nome}`} title="Editar">✎</button>
+                        <button className="btn btn-icone btn-perigo" onClick={() => excluirItem(m, i)} aria-label={`Excluir ${i.nome}`} title="Excluir">×</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button className="btn" onClick={() => abrirItem(m, null)}><IcMais />Adicionar item</button>
+                    <button className="btn" onClick={() => planejarComIa(m)} disabled={planejandoId === m.id}>
+                      <IcExtrair />{planejandoId === m.id ? "Planejando…" : "Planejar com IA"}
+                    </button>
+                  </div>
+                </div>
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                   <button className="btn btn-primario" onClick={() => { setAporteMeta(m); setValorAporte(""); }}><IcMais />Aporte</button>
                   <button className="btn" onClick={() => gerarEstrategia(m)} disabled={estrategiaId === m.id}>
@@ -170,6 +281,48 @@ export default function Metas() {
             <div className="acoes-modal"><button className="btn btn-primario" type="submit">Salvar</button><button className="btn" type="button" onClick={() => setEditMeta(null)}>Cancelar</button></div>
           </form>
         )}
+      </Modal>
+
+      <Modal titulo={`${itemEdit ? "Editar" : "Adicionar"} item — ${itemMeta?.nome ?? ""}`} aberto={!!itemMeta} aoFechar={() => setItemMeta(null)}>
+        <form onSubmit={salvarItem} className="campos">
+          <div className="campo"><label htmlFor="i-nome">Nome do item</label>
+            <input id="i-nome" value={itemNome} onChange={(e) => setItemNome(e.target.value)} required autoFocus placeholder="Passagens, hospedagem…" /></div>
+          <div className="campo"><label htmlFor="i-valor">Valor (R$)</label>
+            <input id="i-valor" inputMode="decimal" placeholder="0,00" value={itemValor} onChange={(e) => setItemValor(e.target.value)} required /></div>
+          <div className="campo"><label htmlFor="i-desc">Opções e planejamento</label>
+            <textarea id="i-desc" rows={3} value={itemDesc} onChange={(e) => setItemDesc(e.target.value)}
+              placeholder="Datas, companhias, links, plano B…" /></div>
+          <div className="acoes-modal">
+            <button className="btn btn-primario" type="submit">{itemEdit ? "Salvar" : "Adicionar"}</button>
+            <button className="btn" type="button" onClick={() => setItemMeta(null)}>Cancelar</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal titulo={`Planejar com IA — ${planMeta?.nome ?? ""}`} aberto={!!planMeta} aoFechar={() => setPlanMeta(null)}>
+        <div className="campos">
+          {planAnalise && <div className="insights-sugestao" style={{ whiteSpace: "pre-line" }}>{planAnalise}</div>}
+          <p className="sub" style={{ fontSize: "0.82rem" }}>Escolha o que entra no planejamento (valores são estimativas — edite depois):</p>
+          {planItens.map((s, idx) => (
+            <label key={idx} className="plano-sugestao">
+              <input type="checkbox" checked={planSel.has(idx)} onChange={(e) => {
+                const novo = new Set(planSel);
+                if (e.target.checked) novo.add(idx); else novo.delete(idx);
+                setPlanSel(novo);
+              }} />
+              <div style={{ minWidth: 0 }}>
+                <div className="plano-item-linha"><strong>{s.nome}</strong><span className="num">{brl(s.valor_cents)}</span></div>
+                {s.descricao && <div className="sub" style={{ fontSize: "0.78rem" }}>{s.descricao}</div>}
+              </div>
+            </label>
+          ))}
+          <div className="acoes-modal">
+            <button className="btn btn-primario" onClick={aceitarSugestoes} disabled={planSel.size === 0}>
+              Adicionar {planSel.size} {planSel.size === 1 ? "item" : "itens"}
+            </button>
+            <button className="btn" onClick={() => setPlanMeta(null)}>Cancelar</button>
+          </div>
+        </div>
       </Modal>
 
       <Modal titulo={`Aporte — ${aporteMeta?.nome ?? ""}`} aberto={!!aporteMeta} aoFechar={() => setAporteMeta(null)}>
