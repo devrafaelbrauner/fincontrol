@@ -125,7 +125,7 @@ Os PNGs gerados estão versionados. Para regenerar a partir de `frontend/assets/
 porque a cadeia dele (tar/sharp antigos) concentrava as vulnerabilidades do npm audit:
 
 ```bash
-cd frontend && npx @capacitor/assets generate --ios --pwa
+cd frontend && npx @capacitor/assets generate --ios --android --pwa
 ```
 
 ## App iOS (Capacitor) apontando para a VPS
@@ -138,6 +138,35 @@ origem do Capacitor:
 cd frontend && VITE_API_BASE=https://fincontrol.seudominio.com npm run ios
 # na VPS, no backend/.env:
 FINCONTROL_CORS_ORIGINS=capacitor://localhost,https://localhost
+```
+
+## App Android (Capacitor)
+
+Apontando para a VPS (HTTPS) — nada de especial a fazer:
+
+```bash
+cd frontend && VITE_API_BASE=https://fincontrol.seudominio.com npm run build
+npx cap sync android && cd android && ./gradlew assembleRelease
+```
+
+**Teste na rede local, contra o backend em HTTP**, precisa de duas permissões que
+o build de produção não tem — e nenhuma delas é ligada por padrão:
+
+```bash
+cd frontend && VITE_API_BASE=http://<ip-do-mac>:8000 npm run build
+FINCONTROL_ANDROID_TESTE_LOCAL=1 npx cap sync android    # libera mixed content
+cd android && ./gradlew assembleDebug                    # variante debug libera cleartext
+```
+
+O `usesCleartextTraffic` vive em `app/src/debug/AndroidManifest.xml`, sobrepondo o
+`false` do manifesto principal só na variante debug; e o `allowMixedContent` depende
+da variável acima. Assim o release sai seguro por construção, em vez de depender de
+alguém lembrar de desfazer a permissão antes de distribuir. Confira no APK gerado:
+
+```bash
+# deve responder "false" para o release
+aapt dump xmltree app/build/outputs/apk/release/app-release.apk AndroidManifest.xml \
+  | grep -i cleartext
 ```
 
 ## Notas
