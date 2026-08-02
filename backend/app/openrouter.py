@@ -285,7 +285,10 @@ def planejar_meta(db: sqlite3.Connection, meta: dict, itens: list[dict], context
         {"role": "system", "content": instrucao},
         {"role": "user", "content": ctx},
     ]
-    return chamar_json(db, mensagens, max_tokens=1200)
+    # 3 a 7 itens (nome + valor + descrição com dicas) mais uma análise de 2 a 4 frases,
+    # tudo em português — densidade de token ruim. Com 1200 a resposta truncava e o
+    # extrair_json virava 502 sem retry nem aproveitamento parcial.
+    return chamar_json(db, mensagens, max_tokens=2200)
 
 
 def interpretar_transacao(db: sqlite3.Connection, texto: str, hoje: str, categorias: list[str]) -> dict:

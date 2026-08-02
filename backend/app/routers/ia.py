@@ -277,6 +277,25 @@ def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
     return {"estrategia": texto}
 
 
+def _valor_cents(bruto) -> int | None:
+    """Normaliza o valor que o modelo devolveu, ou None se for ilegível — nesse caso a
+    sugestão é descartada, em vez de entrar no plano valendo R$ 0,00.
+
+    Aceita número e string de dígitos puros ("180000"), que é o modelo errando só o tipo.
+    Recusa de propósito valor formatado ("R$ 1.800,00", "1800.50"): o campo é em centavos,
+    então esse texto tanto pode ser 180000 centavos quanto 1800 — e chutar erra por 100x.
+    """
+    if isinstance(bruto, bool):
+        return None
+    if isinstance(bruto, int):
+        return max(bruto, 0)
+    if isinstance(bruto, float):
+        return max(int(bruto), 0) if bruto.is_integer() else None
+    if isinstance(bruto, str) and bruto.strip().isdigit():
+        return int(bruto.strip())
+    return None
+
+
 @router.post("/planejar-meta/{meta_id}")
 def planejar_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Sugere itens de planejamento para a meta (sem gravar — o usuário aceita os que quiser)."""
@@ -299,12 +318,18 @@ def planejar_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
         dados = openrouter.planejar_meta(db, meta, itens, _contexto_financeiro(db, comp, meta_id))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    sugestoes = [
-        {"nome": str(i.get("nome", "")).strip(),
-         "valor_cents": int(i["valor_cents"]) if isinstance(i.get("valor_cents"), (int, float)) else 0,
-         "descricao": (str(i["descricao"]).strip() or None) if i.get("descricao") else None}
-        for i in dados.get("itens", []) if isinstance(i, dict) and str(i.get("nome", "")).strip()
-    ]
+    sugestoes = []
+    for i in dados.get("itens", []):
+        if not isinstance(i, dict) or not str(i.get("nome", "")).strip():
+            continue
+        valor = _valor_cents(i.get("valor_cents"))
+        if valor is None:  # veio ilegível: melhor omitir do que sugerir R$ 0,00 como se fosse o preço
+            continue
+        sugestoes.append({
+            "nome": str(i["nome"]).strip(),
+            "valor_cents": valor,
+            "descricao": (str(i["descricao"]).strip() or None) if i.get("descricao") else None,
+        })
     return {"itens": sugestoes, "analise": str(dados.get("analise", "")).strip()}
 
 

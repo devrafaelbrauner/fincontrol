@@ -92,7 +92,9 @@ export default function Dashboard() {
       const [vars, cats, listaMetas] = await Promise.all([
         api<{ itens: Variavel[] }>(`/variaveis?de=${competencia}-01&ate=${competencia}-${String(ate).padStart(2, "0")}`),
         api<Categoria[]>("/categorias"),
-        api<MetaResumo[]>("/metas"),
+        // Metas alimentam só um card secundário: uma falha aqui não pode trocar a
+        // página inteira por uma mensagem de erro.
+        api<MetaResumo[]>("/metas").catch(() => [] as MetaResumo[]),
       ]);
       setMetas(listaMetas);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
@@ -158,11 +160,14 @@ export default function Dashboard() {
   const fluxo: SerieMes[] = meses.map((d) => ({ rotulo: mesCurto(d.competencia), entradas: d.entradas_cents, despesas: despesas(d), saldo: d.saldo_cents }));
 
   // Gasto médio por dia: no mês corrente divide pelos dias já decorridos.
+  // Só sobre as variáveis. As fixas são lançadas de uma vez na virada da competência
+  // (gerar_lancamentos_fixos), independente do vencimento, então incluí-las faria o
+  // dia 2 de um mês com R$ 3.000 de contas fixas exibir R$ 1.500/dia.
   const [anoC, mesC] = competencia.split("-").map(Number);
   const agora = new Date();
   const ehMesAtual = agora.getFullYear() === anoC && agora.getMonth() + 1 === mesC;
   const diasBase = ehMesAtual ? agora.getDate() : new Date(anoC, mesC, 0).getDate();
-  const mediaDia = Math.round(despesas(atual) / Math.max(diasBase, 1));
+  const mediaDia = Math.round(atual.variaveis_cents / Math.max(diasBase, 1));
   const varSaldo = ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null;
 
   return (
@@ -192,7 +197,7 @@ export default function Dashboard() {
           variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
         <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--negative)" atraso={2} menosMelhor
           variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
-        <StatCard rotulo={ehMesAtual ? "Gasto médio/dia (até hoje)" : "Gasto médio/dia"} cents={mediaDia}
+        <StatCard rotulo={ehMesAtual ? "Gasto variável/dia (até hoje)" : "Gasto variável/dia"} cents={mediaDia}
           icone={<IcEconomia />} cor="var(--warning)" atraso={3} />
       </div>
 
