@@ -8,7 +8,9 @@ usuário de sistema **`fincontrol`**, e todo git/pip/npm roda como ele (`sudo -u
 
 ## Pré-requisitos
 
-- VPS com Debian/Ubuntu, Python 3.11+, Node 20+, `git`, `sqlite3` (CLI, para backup),
+- VPS com Debian/Ubuntu, Python 3.11+, **Node ≥ 20.19 ou ≥ 22.12** (exigência do
+  Vite 7 — o `Node 20+` genérico não basta: 20.0–20.18 quebram o build), `git`,
+  `sqlite3` (CLI, para backup),
   e **Caddy** instalado (https://caddyserver.com/docs/install).
 - `rclone` se quiser backup offsite (recomendado): `apt install rclone` + `rclone config`.
 - Um subdomínio (ex. `fincontrol.seudominio.com`) com **registro A** apontando para o IP da VPS.
