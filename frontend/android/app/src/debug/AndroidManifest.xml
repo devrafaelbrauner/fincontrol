@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tráfego em texto claro SÓ na variante debug (o APK de teste em rede local, que
+  fala com o backend do Mac em http://<ip>:8000).
+
+  No manifesto principal o valor é "false", então o build de release já sai
+  seguro por construção: ninguém precisa lembrar de desfazer nada antes de
+  distribuir. Um app financeiro aceitando HTTP aceita também que a rede
+  rebaixe a conexão e leia/altere o tráfego no caminho.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:usesCleartextTraffic="true"
+        tools:replace="android:usesCleartextTraffic" />
+
+</manifest>
