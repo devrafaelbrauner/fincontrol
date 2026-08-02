@@ -9,6 +9,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Default não inclui woff2: offline cairia na fonte do sistema.
+      injectManifest: { globPatterns: ["**/*.{js,css,html,png,svg,woff2}"] },
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",

@@ -17,6 +17,23 @@ TIPOS_PERMITIDOS = {
     "image/heic": ("imagem", ".heic"),
     "image/webp": ("imagem", ".webp"),
 }
+
+# O content_type do multipart é declarado pelo cliente (forjável); a assinatura
+# dos primeiros bytes é o que garante que o conteúdo é mesmo do tipo dito.
+ASSINATURAS = {
+    "application/pdf": lambda b: b.startswith(b"%PDF-"),
+    "image/jpeg": lambda b: b.startswith(b"\xff\xd8\xff"),
+    "image/png": lambda b: b.startswith(b"\x89PNG\r\n\x1a\n"),
+    "image/webp": lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP",
+    # Marcas ISO-BMFF que o iPhone emite: além das HEIC puras, sequências
+    # (hevc/hevx, usadas em Live Photos e burst) e os contêineres mif1/msf1.
+    "image/heic": lambda b: b[4:8] == b"ftyp" and b[8:12] in (
+        b"heic", b"heix", b"heif", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1",
+    ),
+}
+# Todo tipo aceito precisa de assinatura: sem isto, um tipo novo em
+# TIPOS_PERMITIDOS entraria sem checagem de conteúdo (ou explodiria em KeyError).
+assert set(ASSINATURAS) == set(TIPOS_PERMITIDOS), "assinatura faltando para algum tipo permitido"
 EXTENSAO_PARA_CONTENT_TYPE = {ext: content_type for content_type, (_, ext) in TIPOS_PERMITIDOS.items()}
 
 router = APIRouter(prefix="/anexos", tags=["anexos"])
@@ -36,6 +53,8 @@ def enviar(arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
         raise HTTPException(413, "Arquivo maior que 15 MB")
     if not conteudo:
         raise HTTPException(400, "Arquivo vazio")
+    if not ASSINATURAS[arquivo.content_type](conteudo):
+        raise HTTPException(415, "O conteúdo do arquivo não corresponde ao tipo declarado")
 
     hash_sha256 = hashlib.sha256(conteudo).hexdigest()
     nome_disco = f"{hash_sha256}{extensao}"

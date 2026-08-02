@@ -41,9 +41,9 @@ def _resumo_mes(db: sqlite3.Connection, competencia: str) -> str:
     fixas = db.execute("SELECT COALESCE(SUM(valor_cents),0) t FROM lancamentos_fixos WHERE competencia = ?", (competencia,)).fetchone()["t"]
     variaveis = db.execute("SELECT COALESCE(SUM(valor_cents),0) t FROM lancamentos_variaveis WHERE data LIKE ?", (prefixo,)).fetchone()["t"]
     por_cat = db.execute(
-        """SELECT COALESCE(c.nome, 'sem categoria') nome, SUM(v.valor_cents) t
+        """SELECT COALESCE(c.nome, 'sem categoria') nome, SUM(v.valor_cents) t, COUNT(*) n
            FROM lancamentos_variaveis v LEFT JOIN categorias c ON c.id = v.categoria_id
-           WHERE v.data LIKE ? GROUP BY c.nome ORDER BY t DESC LIMIT 5""",
+           WHERE v.data LIKE ? GROUP BY c.nome ORDER BY t DESC LIMIT 6""",
         (prefixo,),
     ).fetchall()
     reais = lambda c: f"R$ {c/100:.2f}"
@@ -52,7 +52,8 @@ def _resumo_mes(db: sqlite3.Connection, competencia: str) -> str:
         f"gastos variáveis {reais(variaveis)}, saldo {reais(entradas - fixas - variaveis)}."
     ]
     if por_cat:
-        linhas.append("  Top categorias variáveis: " + "; ".join(f"{r['nome']} {reais(r['t'])}" for r in por_cat) + ".")
+        linhas.append("  Top categorias variáveis: " + "; ".join(
+            f"{r['nome']} {reais(r['t'])} ({r['n']} lançamento{'s' if r['n'] > 1 else ''})" for r in por_cat) + ".")
     return "\n".join(linhas)
 
 
@@ -85,7 +86,8 @@ def _contexto_financeiro(db: sqlite3.Connection, competencia: str, excluir_meta_
     ).fetchall()
     outras = [m for m in metas if m["id"] != excluir_meta_id]
     if outras:
-        partes.append("Outras metas ativas (disputam o mesmo orçamento): " + "; ".join(
+        rotulo = "Outras metas ativas (disputam o mesmo orçamento)" if excluir_meta_id else "Metas ativas"
+        partes.append(f"{rotulo}: " + "; ".join(
             f"{m['nome']} (guardado {reais(m['atual'])} de {reais(m['valor_total_cents'])}, prazo {m['prazo']})"
             for m in outras) + ".")
     return "\n".join(partes)
@@ -192,7 +194,7 @@ def insights(competencia: str, db: sqlite3.Connection = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(400, str(e))
     try:
-        dados = openrouter.gerar_insights(db, _resumo_3meses(db, competencia))
+        dados = openrouter.gerar_insights(db, _contexto_financeiro(db, competencia))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
     db.execute(
@@ -300,18 +302,8 @@ class PerguntarIn(BaseModel):
 def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
     h = hoje()
     comp = f"{h.year:04d}-{h.month:02d}"
-    partes = [f"Hoje: {h.isoformat()}.", "Resumo dos últimos 3 meses:", _resumo_3meses(db, comp)]
-    metas = db.execute(
-        """SELECT m.nome, m.valor_total_cents, m.prazo, COALESCE(SUM(a.valor_cents),0) atual
-           FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
-           WHERE m.ativa = 1 GROUP BY m.id""",
-    ).fetchall()
-    if metas:
-        partes.append("Metas: " + "; ".join(
-            f"{m['nome']} (guardado R$ {m['atual']/100:.2f} de R$ {m['valor_total_cents']/100:.2f}, prazo {m['prazo']})"
-            for m in metas
-        ))
+    contexto = f"Hoje: {h.isoformat()}.\n" + _contexto_financeiro(db, comp)
     try:
-        return {"resposta": openrouter.perguntar(db, body.pergunta, "\n".join(partes))}
+        return {"resposta": openrouter.perguntar(db, body.pergunta, contexto)}
     except OpenRouterError as e:
         raise HTTPException(502, str(e))

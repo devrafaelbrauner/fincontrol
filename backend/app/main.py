@@ -48,11 +48,88 @@ def _validar_ambiente() -> None:
 _validar_ambiente()  # valida os segredos ANTES de tocar no banco
 migrate()
 
-app = FastAPI(title="FinControl API", version="0.1.0")
+# Em produção o schema/docs da API não ficam expostos.
+app = FastAPI(
+    title="FinControl API", version="0.1.0",
+    **({"docs_url": None, "redoc_url": None, "openapi_url": None} if IS_PROD else {}),
+)
 
 # Rate limiting (slowapi) — protege o login de brute force.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# O multipart é parseado (e derramado para disco) ANTES das dependências de auth
+# do FastAPI — sem este teto, um anônimo encheria o disco via /api/anexos. O Caddy
+# impõe o mesmo limite na borda (request_body); este cobre o modo sem Caddy (macOS).
+LIMITE_CORPO_BYTES = 25 * 1024 * 1024
+_CORPO_413 = b'{"detail":"Corpo da requisi\\u00e7\\u00e3o excede 25 MB"}'
+
+
+class LimiteCorpo:
+    """Teto de bytes no corpo da requisição (ASGI puro).
+
+    O content-length é só a checagem barata: ele não existe em Transfer-Encoding:
+    chunked, e sozinho deixaria passar um upload sem tamanho declarado. Por isso os
+    bytes também são contados conforme chegam, cortando a leitura ao estourar — do
+    contrário o parser seguiria derramando o corpo inteiro para o disco.
+    """
+
+    def __init__(self, app, limite: int) -> None:
+        self.app = app
+        self.limite = limite
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        declarado = next((v for k, v in scope["headers"] if k == b"content-length"), b"")
+        if declarado.isdigit() and int(declarado) > self.limite:
+            return await self._responder_413(send)
+
+        estado = {"lidos": 0, "estourou": False, "respondido": False}
+
+        async def receive_contando():
+            mensagem = await receive()
+            if mensagem["type"] == "http.request":
+                estado["lidos"] += len(mensagem.get("body", b""))
+                if estado["lidos"] > self.limite:
+                    estado["estourou"] = True
+                    return {"type": "http.disconnect"}
+            return mensagem
+
+        async def send_filtrando(mensagem):
+            # Estourado, a resposta que o app produziria (erro de parse, 500 do
+            # disconnect) é descartada em favor de um 413 honesto.
+            if not estado["estourou"]:
+                return await send(mensagem)
+            if estado["respondido"] or mensagem["type"] != "http.response.start":
+                return
+            estado["respondido"] = True
+            await self._responder_413(send)
+
+        try:
+            await self.app(scope, receive_contando, send_filtrando)
+        except Exception:
+            # O disconnect forçado costuma virar ClientDisconnect no parser.
+            if not estado["estourou"] or estado["respondido"]:
+                raise
+            estado["respondido"] = True
+            await self._responder_413(send)
+
+    @staticmethod
+    async def _responder_413(send) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(_CORPO_413)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": _CORPO_413})
+
+
+app.add_middleware(LimiteCorpo, limite=LIMITE_CORPO_BYTES)
 
 # CORS: em produção o frontend é servido pelo mesmo host (Caddy) e CORS é dispensável;
 # origens extras (ex. dev server do Vite) via FINCONTROL_CORS_ORIGINS (separadas por vírgula).
@@ -82,12 +159,15 @@ def health():
 # local sem Caddy; em produção o Caddy serve o dist diretamente — deploy/Caddyfile).
 # Registrado por último: o feed .ics e o /api têm precedência por ordem de registro.
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
-if DIST.is_dir():
+# Guard em dist/assets (não só dist/): um build interrompido deixaria o dist
+# parcial e o StaticFiles levantaria RuntimeError no boot (restart loop).
+if (DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
-    # index.html nunca deve ser cacheado (aponta para os bundles com hash, esses sim
-    # cacheáveis) — sem isto a WKWebView do app nativo pode reter o shell antigo.
+    # Shell do PWA nunca deve ser cacheado (aponta para os bundles com hash, esses
+    # sim cacheáveis) — sem isto a WKWebView do app nativo pode reter o shell antigo.
     SEM_CACHE = {"Cache-Control": "no-cache"}
+    ARQUIVOS_SEM_CACHE = {"sw.js", "registerSW.js", "manifest.webmanifest"}
 
     @app.get("/{caminho:path}", include_in_schema=False)
     def spa(caminho: str):
@@ -95,5 +175,6 @@ if DIST.is_dir():
             raise HTTPException(404)
         arquivo = (DIST / caminho).resolve()
         if caminho and arquivo.is_file() and arquivo.is_relative_to(DIST):
-            return FileResponse(arquivo, headers=SEM_CACHE if arquivo.suffix == ".html" else None)
+            sem_cache = arquivo.suffix == ".html" or arquivo.name in ARQUIVOS_SEM_CACHE
+            return FileResponse(arquivo, headers=SEM_CACHE if sem_cache else None)
         return FileResponse(DIST / "index.html", headers=SEM_CACHE)

@@ -164,22 +164,25 @@ def extrair_itens_de_anexo(
     return chamar_json(db, mensagens, max_tokens=6000)
 
 
-def gerar_insights(db: sqlite3.Connection, resumo: str) -> dict:
-    """Insights estruturados do mês vs. meses anteriores (JSON para render em cards)."""
+def gerar_insights(db: sqlite3.Connection, contexto: str) -> dict:
+    """Insights estruturados do mês, com base no contexto financeiro completo."""
     instrucao = (
-        "Você é um consultor financeiro pessoal, direto e prático. Com base no resumo "
-        "(valores em reais), responda SOMENTE com um objeto JSON: "
-        '{"destaques": [str, ...], "alertas": [str, ...], "sugestao": str}. '
+        "Você é um consultor financeiro pessoal, direto e prático. Analise o contexto "
+        "financeiro completo (meses recentes, contas fixas, entradas recorrentes e metas; "
+        "valores em reais) e responda SOMENTE com um objeto JSON: "
+        '{"destaques": [str, ...], "alertas": [str, ...], "acoes": [str, ...], "sugestao": str}. '
         "destaques = 2 a 4 observações sobre tendências e categorias que mais pesaram "
         "vs. meses anteriores; alertas = 0 a 3 pontos de atenção (gastos subindo, saldo "
-        "negativo); sugestao = UMA recomendação concreta. Frases curtas, sem repetir os "
-        "números crus linha a linha, sem markdown."
+        "negativo, meta em risco); acoes = 2 a 3 ações concretas de economia ou renda, cada "
+        "uma com valor estimado em R$ (ex: 'Reduzir alimentação fora de R$ 320 para R$ 200 "
+        "libera R$ 120/mês'); sugestao = UMA recomendação principal. Frases curtas, sem "
+        "repetir os números crus linha a linha, sem markdown."
     )
     mensagens = [
         {"role": "system", "content": instrucao},
-        {"role": "user", "content": resumo},
+        {"role": "user", "content": contexto},
     ]
-    return chamar_json(db, mensagens, max_tokens=800)
+    return chamar_json(db, mensagens, max_tokens=900)
 
 
 def categorizar(db: sqlite3.Connection, descricao: str, categorias: list[str]) -> str | None:
@@ -278,11 +281,13 @@ def perguntar(db: sqlite3.Connection, pergunta: str, contexto: str) -> str:
     instrucao = (
         "Você é o assistente financeiro do FinControl. Responda à pergunta da pessoa de forma "
         "curta, clara e em português, usando SOMENTE os dados fornecidos no contexto (valores "
-        "em reais). Se o dado não estiver no contexto, diga que não tem essa informação. Não "
-        "invente números. Sem markdown."
+        "em reais). Pode fazer contas simples a partir desses números (somas, médias, "
+        "projeções lineares), explicitando a conta quando o resultado não for óbvio. Se o dado "
+        "não estiver no contexto e não puder ser derivado dele, diga que não tem essa "
+        "informação. Não invente números. Sem markdown."
     )
     mensagens = [
         {"role": "system", "content": instrucao},
         {"role": "user", "content": f"Contexto (dados reais):\n{contexto}\n\nPergunta: {pergunta}"},
     ]
-    return chamar(db, mensagens, espera_json=False, max_tokens=500).strip()
+    return chamar(db, mensagens, espera_json=False, max_tokens=700).strip()

@@ -1,0 +1,14 @@
+# Unidade one-shot do backup — disparada pelo fincontrol-backup.timer.
+# Instalar: cp deploy/fincontrol-backup.{service,timer} /etc/systemd/system/
+#           systemctl daemon-reload && systemctl enable --now fincontrol-backup.timer
+[Unit]
+Description=Backup do FinControl (SQLite + uploads, offsite via rclone)
+After=fincontrol.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/fincontrol
+ExecStart=/opt/fincontrol/deploy/backup.sh
+# Roda como root para escrever em /var/backups; o script só lê os dados do app.
+Nice=10
+IOSchedulingClass=idle

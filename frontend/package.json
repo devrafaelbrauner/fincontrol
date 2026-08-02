@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync",
-    "ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "ios": "node -e \"if(!process.env.VITE_API_BASE){console.error('ERRO: build nativo exige VITE_API_BASE — ex.: VITE_API_BASE=https://seu-dominio npm run ios');process.exit(1)}\" && npm run build && npx cap sync ios && npx cap open ios",
     "test": "vitest run"
   },
   "dependencies": {
@@ -35,6 +35,8 @@
     "vite": "^5.4.0",
     "vite-plugin-pwa": "^0.20.0",
     "vitest": "^4.1.10",
-    "workbox-precaching": "^7.4.1"
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1"
   }
 }

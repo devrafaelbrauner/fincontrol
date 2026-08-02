@@ -65,7 +65,8 @@ def regenerar(request: Request, db: sqlite3.Connection = Depends(get_db)):
 @feed_router.get("/calendar/{token}.ics")
 def feed(token: str, db: sqlite3.Connection = Depends(get_db)):
     atual = _get_token(db)
-    if not atual or not secrets.compare_digest(token, atual):
+    # compare_digest sobre bytes: com str, um token não-ASCII na URL viraria 500.
+    if not atual or not secrets.compare_digest(token.encode(), atual.encode()):
         raise HTTPException(404, "Feed não encontrado")
     corpo = gerar_feed(db)
     return Response(
