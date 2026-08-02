@@ -1,0 +1,5 @@
+# Dependências só de desenvolvimento/teste — não instalar em produção.
+#   .venv/bin/pip install -r requirements-dev.txt
+#   .venv/bin/python -m pytest tests/ -q
+-r requirements.txt
+pytest>=8.0

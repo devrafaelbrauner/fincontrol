@@ -3,9 +3,9 @@ import os
 
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -62,14 +62,74 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # do FastAPI — sem este teto, um anônimo encheria o disco via /api/anexos. O Caddy
 # impõe o mesmo limite na borda (request_body); este cobre o modo sem Caddy (macOS).
 LIMITE_CORPO_BYTES = 25 * 1024 * 1024
+_CORPO_413 = b'{"detail":"Corpo da requisi\\u00e7\\u00e3o excede 25 MB"}'
 
 
-@app.middleware("http")
-async def limitar_corpo(request: Request, call_next):
-    tamanho = request.headers.get("content-length")
-    if tamanho and tamanho.isdigit() and int(tamanho) > LIMITE_CORPO_BYTES:
-        return JSONResponse({"detail": "Corpo da requisição excede 25 MB"}, status_code=413)
-    return await call_next(request)
+class LimiteCorpo:
+    """Teto de bytes no corpo da requisição (ASGI puro).
+
+    O content-length é só a checagem barata: ele não existe em Transfer-Encoding:
+    chunked, e sozinho deixaria passar um upload sem tamanho declarado. Por isso os
+    bytes também são contados conforme chegam, cortando a leitura ao estourar — do
+    contrário o parser seguiria derramando o corpo inteiro para o disco.
+    """
+
+    def __init__(self, app, limite: int) -> None:
+        self.app = app
+        self.limite = limite
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        declarado = next((v for k, v in scope["headers"] if k == b"content-length"), b"")
+        if declarado.isdigit() and int(declarado) > self.limite:
+            return await self._responder_413(send)
+
+        estado = {"lidos": 0, "estourou": False, "respondido": False}
+
+        async def receive_contando():
+            mensagem = await receive()
+            if mensagem["type"] == "http.request":
+                estado["lidos"] += len(mensagem.get("body", b""))
+                if estado["lidos"] > self.limite:
+                    estado["estourou"] = True
+                    return {"type": "http.disconnect"}
+            return mensagem
+
+        async def send_filtrando(mensagem):
+            # Estourado, a resposta que o app produziria (erro de parse, 500 do
+            # disconnect) é descartada em favor de um 413 honesto.
+            if not estado["estourou"]:
+                return await send(mensagem)
+            if estado["respondido"] or mensagem["type"] != "http.response.start":
+                return
+            estado["respondido"] = True
+            await self._responder_413(send)
+
+        try:
+            await self.app(scope, receive_contando, send_filtrando)
+        except Exception:
+            # O disconnect forçado costuma virar ClientDisconnect no parser.
+            if not estado["estourou"] or estado["respondido"]:
+                raise
+            estado["respondido"] = True
+            await self._responder_413(send)
+
+    @staticmethod
+    async def _responder_413(send) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(_CORPO_413)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": _CORPO_413})
+
+
+app.add_middleware(LimiteCorpo, limite=LIMITE_CORPO_BYTES)
 
 # CORS: em produção o frontend é servido pelo mesmo host (Caddy) e CORS é dispensável;
 # origens extras (ex. dev server do Vite) via FINCONTROL_CORS_ORIGINS (separadas por vírgula).

@@ -25,6 +25,11 @@ como_app() { sudo -u fincontrol -H "$@"; }
 echo "==> Validando backend/.env (preflight)"
 "$RAIZ/deploy/preflight.sh" check
 
+echo "==> Conferindo o hash CSP do script inline"
+# Um index.html alterado sem atualizar o script-src passa despercebido: o app
+# sobe, mas o navegador bloqueia o script do tema em silêncio.
+"$RAIZ/deploy/csp-hash.sh" check
+
 echo "==> Atualizando código (git pull --ff-only)"
 como_app git -C "$RAIZ" pull --ff-only
 
@@ -56,6 +61,23 @@ if ! systemctl is-active --quiet fincontrol; then
 	echo "FALHA: o backend não subiu após o restart. Últimas linhas do log:" >&2
 	journalctl -u fincontrol -n 30 --no-pager >&2 || true
 	exit 1
+fi
+
+echo "==> Conferindo /etc/caddy/Caddyfile contra o do repositório"
+# O deploy nunca copiou o Caddyfile: mudanças de header, CSP ou limite de corpo
+# ficavam só no repo e o site seguia servindo a config antiga, sem aviso.
+if ! diff -q "$RAIZ/deploy/Caddyfile" /etc/caddy/Caddyfile >/dev/null 2>&1; then
+	echo "    /etc/caddy/Caddyfile está diferente do versionado:" >&2
+	diff -u /etc/caddy/Caddyfile "$RAIZ/deploy/Caddyfile" >&2 || true
+	if [ "${FINCONTROL_CADDY_MANUAL:-0}" = "1" ]; then
+		echo "    FINCONTROL_CADDY_MANUAL=1 — mantendo a config do servidor." >&2
+	else
+		echo "FALHA: aplique com 'cp $RAIZ/deploy/Caddyfile /etc/caddy/Caddyfile' e rode de novo," >&2
+		echo "       ou exporte FINCONTROL_CADDY_MANUAL=1 se a divergência for intencional." >&2
+		exit 1
+	fi
+else
+	CADDYFILE=/etc/caddy/Caddyfile "$RAIZ/deploy/csp-hash.sh" check
 fi
 
 echo "==> Recarregando Caddy (config validada antes)"

@@ -25,8 +25,15 @@ ASSINATURAS = {
     "image/jpeg": lambda b: b.startswith(b"\xff\xd8\xff"),
     "image/png": lambda b: b.startswith(b"\x89PNG\r\n\x1a\n"),
     "image/webp": lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP",
-    "image/heic": lambda b: b[4:8] == b"ftyp" and b[8:12] in (b"heic", b"heix", b"heif", b"mif1"),
+    # Marcas ISO-BMFF que o iPhone emite: além das HEIC puras, sequências
+    # (hevc/hevx, usadas em Live Photos e burst) e os contêineres mif1/msf1.
+    "image/heic": lambda b: b[4:8] == b"ftyp" and b[8:12] in (
+        b"heic", b"heix", b"heif", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1",
+    ),
 }
+# Todo tipo aceito precisa de assinatura: sem isto, um tipo novo em
+# TIPOS_PERMITIDOS entraria sem checagem de conteúdo (ou explodiria em KeyError).
+assert set(ASSINATURAS) == set(TIPOS_PERMITIDOS), "assinatura faltando para algum tipo permitido"
 EXTENSAO_PARA_CONTENT_TYPE = {ext: content_type for content_type, (_, ext) in TIPOS_PERMITIDOS.items()}
 
 router = APIRouter(prefix="/anexos", tags=["anexos"])

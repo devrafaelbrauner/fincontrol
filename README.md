@@ -63,12 +63,22 @@ backend/app/
 ├── setup_user.py      # cria/redefine usuário: python -m app.setup_user
 ├── util.py            # competência, vencimento, geração on-access
 ├── migrations/        # SQL versionado (001_inicial.sql, ...)
-└── routers/           # categorias, contas_fixas, variaveis, entradas, metas, dashboard
+├── routers/           # categorias, contas_fixas, variaveis, entradas, metas, dashboard
+└── tests/             # pytest — rotação de sessão e anti-replay de TOTP
 
 frontend/src/
 ├── App.tsx            # rotas + layout (abas)
 ├── api.ts             # fetch com JWT, helpers de dinheiro (centavos ↔ BRL)
 └── pages/             # Login, Dashboard, ContasFixas, Variaveis, Entradas, Metas
+```
+
+## Testes
+
+```bash
+cd backend && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest tests/ -q      # sessões/auth (rodam num banco temporário)
+
+cd frontend && npm test                   # vitest
 ```
 
 ## Fases

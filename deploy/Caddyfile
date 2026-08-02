@@ -47,7 +47,13 @@
 		X-Frame-Options DENY
 		# CSP: reduz o impacto de XSS/dependência comprometida. style 'unsafe-inline'
 		# é exigido pelos estilos inline do React; o resto é tudo same-origin.
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		#
+		# O sha256 libera UM script inline: o de index.html que aplica o tema antes
+		# da primeira pintura. Sem ele o CSP bloqueia o script e o tema só entra no
+		# useEffect do React — piscando o tema errado a cada carregamento.
+		# ATENÇÃO: mexeu no <script> inline do index.html, recalcule o hash:
+		#   deploy/csp-hash.sh
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-E1sQz/9HiCJOhs0ouPeDzKAQH9XpNxjotrXCUu5LB4Y='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 		Permissions-Policy "geolocation=(), microphone=(), interest-cohort=()"
 		-Server
 	}

@@ -59,30 +59,42 @@ def _config_set(db: sqlite3.Connection, chave: str, valor: str) -> None:
 
 def _bump_refresh_version(db: sqlite3.Connection) -> None:
     _config_set(db, "refresh_version", str(_refresh_version(db) + 1))
-    _config_set(db, "refresh_jtis", "{}")
+    db.execute("DELETE FROM refresh_tokens")
 
 
-# Refresh tokens vigentes ({jti: expiração}): a rotação remove o antigo, e um
-# token assinado porém fora da lista denuncia reuso (vazamento) — revoga tudo.
-def _jtis(db: sqlite3.Connection) -> dict[str, int]:
-    bruto = config_get(db, "refresh_jtis")
-    agora = int(time.time())
-    try:
-        dados = json.loads(bruto) if bruto else {}
-    except json.JSONDecodeError:
-        dados = {}
-    return {j: exp for j, exp in dados.items() if isinstance(exp, int) and exp > agora}
+# Teto de sessões simultâneas (web + iPhone + macOS sobram folgados em 10).
+MAX_SESSOES = 10
 
 
+# Refresh tokens vigentes, uma linha por sessão (tabela refresh_tokens): a rotação
+# apaga o antigo, e um token assinado cujo jti sumiu denuncia reuso (vazamento).
 def _registrar_jti(db: sqlite3.Connection, jti: str, exp: int, remover: str | None = None) -> None:
-    jtis = _jtis(db)
-    jtis.pop(remover or "", None)
-    jtis[jti] = exp
-    # Teto de sessões simultâneas (web + iPhone + macOS sobram folgados em 10).
-    if len(jtis) > 10:
-        for velho in sorted(jtis, key=jtis.get)[: len(jtis) - 10]:
-            del jtis[velho]
-    _config_set(db, "refresh_jtis", json.dumps(jtis))
+    if remover:
+        # Rotação: o token anterior deixa de existir. Se reaparecer num /refresh,
+        # é token já gasto voltando — reuso.
+        db.execute("DELETE FROM refresh_tokens WHERE jti = ?", (remover,))
+    db.execute("DELETE FROM refresh_tokens WHERE expira_em <= ?", (int(time.time()),))
+    db.execute("INSERT INTO refresh_tokens (jti, expira_em) VALUES (?, ?)", (jti, exp))
+    # Passou do teto: encerra as sessões mais antigas marcando vigente = 0.
+    # Despejo NÃO é reuso — marcar (em vez de apagar) é o que evita que o dono,
+    # ao voltar na sessão despejada, derrube todas as outras junto.
+    db.execute(
+        """UPDATE refresh_tokens SET vigente = 0 WHERE jti IN (
+             SELECT jti FROM refresh_tokens WHERE vigente = 1
+             ORDER BY expira_em DESC, rowid DESC LIMIT -1 OFFSET ?)""",
+        (MAX_SESSOES,),
+    )
+
+
+def _estado_jti(db: sqlite3.Connection, jti: str) -> str:
+    """'vigente', 'despejado' (teto de sessões) ou 'desconhecido' (reuso/forjado)."""
+    row = db.execute(
+        "SELECT vigente FROM refresh_tokens WHERE jti = ? AND expira_em > ?",
+        (jti, int(time.time())),
+    ).fetchone()
+    if row is None:
+        return "desconhecido"
+    return "vigente" if row["vigente"] else "despejado"
 
 
 def _emitir_access() -> str:
@@ -112,6 +124,33 @@ def _set_cookie(resp: Response, token: str) -> None:
     )
 
 
+# Cobre a valid_window=1 do TOTP (passo de 30s: anterior + atual + seguinte).
+JANELA_TOTP_SEGUNDOS = 95
+
+
+def _totp_ja_usado(db: sqlite3.Connection, codigo: str) -> bool:
+    """Anti-replay: um código TOTP interceptado não vale duas vezes na janela.
+
+    Guarda TODOS os códigos recentes, não só o último — com um só, bastava um
+    login intercalado com o código seguinte para liberar a repetição do anterior.
+    """
+    agora = int(time.time())
+    try:
+        recentes = json.loads(config_get(db, "totp_usados") or "{}")
+    except json.JSONDecodeError:
+        recentes = {}
+    if not isinstance(recentes, dict):
+        recentes = {}
+    vivos = {
+        c: t for c, t in recentes.items()
+        if isinstance(t, int) and 0 <= agora - t < JANELA_TOTP_SEGUNDOS
+    }
+    repetido = codigo in vivos
+    vivos[codigo] = agora
+    _config_set(db, "totp_usados", json.dumps(vivos))
+    return repetido
+
+
 def _cliente_nativo(request: Request) -> bool:
     """App Capacitor (iOS/macOS/Android). Como o WebView roda cross-origin, o
     cookie de refresh não trafega: o app recebe o refresh token no corpo e o
@@ -134,12 +173,8 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
     if totp_secret:
         if not body.codigo_totp or not pyotp.TOTP(totp_secret).verify(body.codigo_totp, valid_window=1):
             raise HTTPException(401, "Senha ou código incorretos")
-        # Anti-replay: um código TOTP interceptado não vale duas vezes na janela.
-        usado = config_get(db, "totp_usado") or ""
-        agora = int(time.time())
-        if usado.startswith(body.codigo_totp + ":") and agora - int(usado.split(":")[1]) < 95:
+        if _totp_ja_usado(db, body.codigo_totp):
             raise HTTPException(401, "Senha ou código incorretos")
-        _config_set(db, "totp_usado", f"{body.codigo_totp}:{agora}")
     refresh_token = _emitir_refresh(db)
     _set_cookie(response, refresh_token)
     resposta = {"token": _emitir_access()}
@@ -163,7 +198,15 @@ def refresh(request: Request, response: Response, db: sqlite3.Connection = Depen
     if dados.get("type") != "refresh" or dados.get("ver") != _refresh_version(db):
         raise HTTPException(401, "Refresh token revogado")
     jti = dados.get("jti")
-    if not jti or jti not in _jtis(db):
+    estado = _estado_jti(db, jti) if jti else "desconhecido"
+    if estado == "despejado":
+        # Sessão encerrada pelo teto de sessões simultâneas: só este cliente
+        # precisa entrar de novo. Não é indício de vazamento, então as demais
+        # sessões continuam de pé.
+        db.execute("DELETE FROM refresh_tokens WHERE jti = ?", (jti,))
+        db.commit()  # o get_db não faz commit quando a resposta é uma exceção
+        raise HTTPException(401, "Sessão encerrada — entre novamente")
+    if estado == "desconhecido":
         # Token assinado e não expirado, mas já rotacionado: reuso = provável
         # vazamento. Revoga a família inteira e força novo login.
         _bump_refresh_version(db)
