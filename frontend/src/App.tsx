@@ -2,9 +2,10 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
+import BuscaGlobal from "./components/BuscaGlobal";
 import Logo from "./components/Logo";
 import {
-  IcAnalises, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
+  IcAnalises, IcBusca, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
   IcMetas, IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
@@ -62,6 +63,19 @@ export default function App() {
   const [recolhido, setRecolhido] = useState(false);
   const [addAberto, setAddAberto] = useState(false);
   const [maisAberto, setMaisAberto] = useState(false);
+  const [buscaAberta, setBuscaAberta] = useState(false);
+
+  // Ctrl/Cmd+K abre a busca global de qualquer tela.
+  useEffect(() => {
+    const atalho = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBuscaAberta(true);
+      }
+    };
+    window.addEventListener("keydown", atalho);
+    return () => window.removeEventListener("keydown", atalho);
+  }, []);
   const { competencia, setCompetencia } = useCompetencia();
 
   const ordem = reconciliar(useOrdem());
@@ -152,6 +166,8 @@ export default function App() {
               <span className="competencia-rotulo">{competencia.slice(5, 7)}/{competencia.slice(0, 4)}</span>
               <button className="btn btn-icone" onClick={() => setCompetencia(passoCompetencia(competencia, 1))} aria-label="Próximo mês"><IcExpandir /></button>
             </div>
+            <button className="btn btn-icone" onClick={() => setBuscaAberta(true)}
+              aria-label="Buscar em tudo" title="Buscar em tudo (Ctrl+K)"><IcBusca /></button>
             <NavLink to="/config" className="btn btn-icone" aria-label="Notificações"><IcSino /></NavLink>
             <button className="btn btn-icone" onClick={alternarTema}
               aria-label={tema === "dark" ? "Tema claro" : "Tema escuro"}>
@@ -215,6 +231,7 @@ export default function App() {
       <button className="fab" onClick={() => setAddAberto(true)} aria-label="Adicionar transação"><IcMais /></button>
 
       <AddTransacaoModal aberto={addAberto} aoFechar={() => setAddAberto(false)} />
+      <BuscaGlobal aberto={buscaAberta} aoFechar={() => setBuscaAberta(false)} />
     </div>
   );
 }
