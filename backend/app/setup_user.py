@@ -9,14 +9,18 @@ import sys
 import pyotp
 from argon2 import PasswordHasher
 
+from .auth import SENHA_MINIMA, _validar_senha
 from .db import connect, migrate
 
 
 def main() -> None:
     migrate()
-    senha = getpass.getpass("Nova senha (mín. 8 caracteres): ")
-    if len(senha) < 8:
-        sys.exit("Senha muito curta.")
+    # A política é a do app (auth._validar_senha), não uma cópia: com um mínimo
+    # próprio aqui, este script aceitaria senha que a tela recusa — ou o contrário.
+    senha = getpass.getpass(f"Nova senha (mín. {SENHA_MINIMA} caracteres, com letra, número e especial): ")
+    problema = _validar_senha(senha)
+    if problema:
+        sys.exit(problema)
     if getpass.getpass("Confirme a senha: ") != senha:
         sys.exit("As senhas não conferem.")
 
