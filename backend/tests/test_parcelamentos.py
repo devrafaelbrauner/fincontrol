@@ -93,5 +93,32 @@ def test_validacoes(db, autenticado):
     assert criar(autenticado, valor_parcela_cents=0).status_code == 422
     assert criar(autenticado, primeira_data="2026-02-30").status_code == 400
     assert criar(autenticado, primeira_data="agosto").status_code == 400
+    # fromisoformat (3.11+) aceita estes formatos, mas o banco filtra tudo por
+    # prefixo 'YYYY-MM-': se entrassem, o dinheiro sumiria das visões mensais.
+    assert criar(autenticado, primeira_data="20261115").status_code == 400
+    assert criar(autenticado, primeira_data="2026-W33-1").status_code == 400
+    # FK inexistente é erro do chamador (400), não um 500:
+    assert criar(autenticado, categoria_id=99_999).status_code == 400
+    assert criar(autenticado, anexo_id=99_999).status_code == 400
     # Nada foi criado pelas tentativas inválidas:
     assert db.execute("SELECT COUNT(*) n FROM parcelamentos").fetchone()["n"] == 0
+    assert db.execute("SELECT COUNT(*) n FROM lancamentos_variaveis").fetchone()["n"] == 0
+
+
+def test_recategorizar_a_compra_inteira(db, autenticado):
+    cur = db.execute("INSERT INTO categorias (nome, tipo) VALUES ('Eletrônicos parc', 'variavel')")
+    db.commit()
+    cat = cur.lastrowid
+    pid = criar(autenticado, parcelas=3).json()["id"]
+
+    r = autenticado.patch(f"/api/variaveis/parcelado/{pid}", json={"categoria_id": cat})
+    assert r.status_code == 200
+    assert r.json()["parcelas_atualizadas"] == 3
+    assert db.execute(
+        "SELECT COUNT(*) n FROM lancamentos_variaveis WHERE categoria_id = ?", (cat,)
+    ).fetchone()["n"] == 3
+    assert db.execute("SELECT categoria_id FROM parcelamentos WHERE id = ?", (pid,)).fetchone()["categoria_id"] == cat
+
+    # Categoria inexistente e parcelamento inexistente:
+    assert autenticado.patch(f"/api/variaveis/parcelado/{pid}", json={"categoria_id": 99_999}).status_code == 400
+    assert autenticado.patch("/api/variaveis/parcelado/99999", json={"categoria_id": None}).status_code == 404

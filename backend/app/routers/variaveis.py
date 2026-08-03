@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from datetime import date
 from typing import Literal
@@ -82,39 +83,73 @@ def criar_parcelado(body: ParceladoIn, db: sqlite3.Connection = Depends(get_db))
     para atualizar) e o total de meses é conhecido; com as linhas no banco, os
     meses futuros mostram o comprometimento sem nenhum código especial.
     """
+    # O regex vem antes do parse: fromisoformat (Python ≥3.11) aceita "20260815",
+    # datas-semana etc. — e a string CRUA é o que vai para o banco, onde todo
+    # filtro mensal é por prefixo 'YYYY-MM-'. Uma data em outro formato entraria
+    # e sumiria de dashboard, análises e lembretes.
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", body.primeira_data):
+        raise HTTPException(400, "primeira_data deve ser uma data YYYY-MM-DD válida")
     try:
         primeira = date.fromisoformat(body.primeira_data)
     except ValueError:
         raise HTTPException(400, "primeira_data deve ser uma data YYYY-MM-DD válida")
 
-    cur = db.execute(
-        """INSERT INTO parcelamentos (descricao, categoria_id, valor_parcela_cents, parcelas, primeira_data, forma_pagamento)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (body.descricao, body.categoria_id, body.valor_parcela_cents, body.parcelas,
-         body.primeira_data, body.forma_pagamento),
-    )
-    parcelamento_id = cur.lastrowid
-
-    comp0 = f"{primeira.year:04d}-{primeira.month:02d}"
-    ids = []
-    for n in range(body.parcelas):
-        # Mesmo dia da 1ª parcela nos meses seguintes; dia 31 encolhe para o
-        # último dia do mês quando ele não existe (vencimento já faz isso).
-        data_n = body.primeira_data if n == 0 else vencimento(somar_meses(comp0, n), primeira.day)
+    try:
         cur = db.execute(
-            """INSERT INTO lancamentos_variaveis
-               (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id, parcelamento_id, parcela_num)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (body.descricao, body.categoria_id, body.valor_parcela_cents, data_n,
-             body.forma_pagamento, body.anexo_id if n == 0 else None, parcelamento_id, n + 1),
+            """INSERT INTO parcelamentos (descricao, categoria_id, valor_parcela_cents, parcelas, primeira_data, forma_pagamento)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (body.descricao, body.categoria_id, body.valor_parcela_cents, body.parcelas,
+             body.primeira_data, body.forma_pagamento),
         )
-        ids.append(cur.lastrowid)
+        parcelamento_id = cur.lastrowid
+
+        comp0 = f"{primeira.year:04d}-{primeira.month:02d}"
+        ids = []
+        for n in range(body.parcelas):
+            # Mesmo dia da 1ª parcela nos meses seguintes; dia 31 encolhe para o
+            # último dia do mês quando ele não existe (vencimento já faz isso).
+            data_n = body.primeira_data if n == 0 else vencimento(somar_meses(comp0, n), primeira.day)
+            cur = db.execute(
+                """INSERT INTO lancamentos_variaveis
+                   (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id, parcelamento_id, parcela_num)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (body.descricao, body.categoria_id, body.valor_parcela_cents, data_n,
+                 body.forma_pagamento, body.anexo_id if n == 0 else None, parcelamento_id, n + 1),
+            )
+            ids.append(cur.lastrowid)
+    except sqlite3.IntegrityError:
+        # FK de categoria/anexo inexistente: erro do chamador, não do servidor.
+        # O get_db não comita em exceção — nada fica pela metade.
+        raise HTTPException(400, "categoria_id ou anexo_id inexistente")
 
     return {
         "id": parcelamento_id,
         "lancamentos": ids,
         "total_cents": body.valor_parcela_cents * body.parcelas,
     }
+
+
+class ParceladoPatch(BaseModel):
+    categoria_id: int | None  # None = tirar a categoria de todas as parcelas
+
+
+@router.patch("/parcelado/{parcelamento_id}")
+def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqlite3.Connection = Depends(get_db)):
+    """Muda a categoria da compra INTEIRA — todas as parcelas, passadas e
+    futuras. Recategorizar só um mês é o PATCH comum do lançamento; sem este
+    endpoint, a mesma compra ficaria com categorias diferentes entre os meses
+    sem o usuário perceber."""
+    if not db.execute("SELECT 1 FROM parcelamentos WHERE id = ?", (parcelamento_id,)).fetchone():
+        raise HTTPException(404, "Parcelamento não encontrado")
+    try:
+        db.execute("UPDATE parcelamentos SET categoria_id = ? WHERE id = ?", (body.categoria_id, parcelamento_id))
+        cur = db.execute(
+            "UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE parcelamento_id = ?",
+            (body.categoria_id, parcelamento_id),
+        )
+    except sqlite3.IntegrityError:
+        raise HTTPException(400, "categoria_id inexistente")
+    return {"ok": True, "parcelas_atualizadas": cur.rowcount}
 
 
 @router.delete("/parcelado/{parcelamento_id}")

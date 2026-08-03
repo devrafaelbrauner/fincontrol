@@ -110,10 +110,21 @@ export default function Variaveis() {
     carregar();
   }
 
-  async function definirCategoria(id: number, categoriaId: number | null) {
-    setItens((l) => l.map((i) => (i.id === id ? { ...i, categoria_id: categoriaId } : i)));
+  async function definirCategoria(item: Variavel, categoriaId: number | null) {
+    // Parcela: sem perguntar, mudar só um mês deixaria a MESMA compra com
+    // categorias diferentes entre os meses — e as análises por categoria
+    // ficariam inconsistentes sem ninguém perceber.
+    const todas = item.parcelamento_id != null &&
+      confirm(`Aplicar a nova categoria às ${item.parcelas_total} parcelas desta compra?\n\nOK = todas as parcelas · Cancelar = só esta (${item.parcela_num}/${item.parcelas_total})`);
+    setItens((l) => l.map((i) => (
+      i.id === item.id || (todas && i.parcelamento_id === item.parcelamento_id) ? { ...i, categoria_id: categoriaId } : i
+    )));
     try {
-      await api(`/variaveis/${id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+      if (todas) {
+        await api(`/variaveis/parcelado/${item.parcelamento_id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+      } else {
+        await api(`/variaveis/${item.id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+      }
       atualizar();
     } catch (e) { toast((e as Error).message, "erro"); carregar(); }
   }
@@ -160,7 +171,7 @@ export default function Variaveis() {
                     </span>
                   </td>
                   <td>
-                    <select value={i.categoria_id ?? ""} onChange={(e) => definirCategoria(i.id, e.target.value ? Number(e.target.value) : null)}
+                    <select value={i.categoria_id ?? ""} onChange={(e) => definirCategoria(i, e.target.value ? Number(e.target.value) : null)}
                       aria-label={`Categoria de ${i.descricao}`} style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}>
                       <option value="">—</option>
                       {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
