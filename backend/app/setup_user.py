@@ -9,16 +9,36 @@ import sys
 import pyotp
 from argon2 import PasswordHasher
 
+from .auth import SENHA_MINIMA, _validar_senha
 from .db import connect, migrate
+
+
+def _pedir_senha() -> str:
+    """Insiste até vir uma senha válida (ou Ctrl-C).
+
+    Este é o único caminho de recuperação de acesso, e roda por SSH: abortar num
+    erro de digitação obrigaria a redigitar o comando inteiro a cada tentativa.
+    """
+    while True:
+        # A política é a do app (auth._validar_senha), não uma cópia: com um mínimo
+        # próprio aqui, o script aceitaria senha que a tela recusa — ou o contrário.
+        senha = getpass.getpass(f"Nova senha (mín. {SENHA_MINIMA} caracteres, com letra, número e especial): ")
+        problema = _validar_senha(senha)
+        if problema:
+            print(f"  {problema}. Tente de novo.")
+            continue
+        if getpass.getpass("Confirme a senha: ") != senha:
+            print("  As senhas não conferem. Tente de novo.")
+            continue
+        return senha
 
 
 def main() -> None:
     migrate()
-    senha = getpass.getpass("Nova senha (mín. 8 caracteres): ")
-    if len(senha) < 8:
-        sys.exit("Senha muito curta.")
-    if getpass.getpass("Confirme a senha: ") != senha:
-        sys.exit("As senhas não conferem.")
+    try:
+        senha = _pedir_senha()
+    except (KeyboardInterrupt, EOFError):
+        sys.exit("\nCancelado — nada foi alterado.")
 
     conn = connect()
     upsert = "INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor"

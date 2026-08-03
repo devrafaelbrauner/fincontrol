@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { competenciaAtual, hojeISO, paraCents } from "./api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cadastrar, competenciaAtual, contaConfigurada, hojeISO, paraCents } from "./api";
 
 describe("paraCents", () => {
   it("converte formatos brasileiros para centavos", () => {
@@ -29,5 +29,49 @@ describe("datas locais", () => {
   it("competenciaAtual é o prefixo YYYY-MM de hojeISO", () => {
     expect(competenciaAtual()).toBe(hojeISO().slice(0, 7));
     expect(competenciaAtual()).toMatch(/^\d{4}-\d{2}$/);
+  });
+});
+
+describe("contaConfigurada", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const respondeCom = (corpo: unknown, ok = true, status = 200) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok, status, json: async () => corpo, statusText: "",
+    }));
+
+  it("devolve o que o servidor afirmou", async () => {
+    respondeCom({ configurado: true });
+    expect(await contaConfigurada()).toBe(true);
+    respondeCom({ configurado: false });
+    expect(await contaConfigurada()).toBe(false);
+  });
+
+  it("devolve null quando não deu para saber, e não `true`", async () => {
+    // `true` esconderia o link de cadastro: primeiro acesso com o backend ainda
+    // subindo (502 do Caddy) ficaria sem conta para entrar e sem como criar.
+    respondeCom(null, false, 502);
+    expect(await contaConfigurada()).toBeNull();
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("rede fora")));
+    expect(await contaConfigurada()).toBeNull();
+  });
+});
+
+describe("erros de auth", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("carregam o status HTTP, não só a mensagem", async () => {
+    // O tratamento do 409 no cadastro depende disto: casar substring do `detail`
+    // em português quebraria em silêncio se o texto do backend mudasse.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false, status: 409, statusText: "Conflict",
+      json: async () => ({ detail: "Conta já configurada — use a tela de login" }),
+    }));
+
+    const erro = await cadastrar({ nome: "R", telefone: "", email: "a@b.c", senha: "Abc12@" })
+      .then(() => null, (e) => e as Error & { status?: number });
+
+    expect(erro?.status).toBe(409);
   });
 });

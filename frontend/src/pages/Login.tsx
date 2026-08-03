@@ -8,7 +8,7 @@ type Modo = "carregando" | "login" | "login-mfa" | "cadastro" | "mfa-qr";
 /** Regras da senha exibidas e validadas em tempo real (o backend revalida).
  *  Espelha SENHA_MINIMA em backend/app/auth.py — mexeu lá, mexa aqui. */
 const REGRAS: { rotulo: string; ok: (s: string) => boolean }[] = [
-  { rotulo: "12+ caracteres", ok: (s) => s.length >= 12 },
+  { rotulo: "6+ caracteres", ok: (s) => s.length >= 6 },
   { rotulo: "letra", ok: (s) => /[A-Za-z]/.test(s) },
   { rotulo: "número", ok: (s) => /\d/.test(s) },
   { rotulo: "especial (!@#$…)", ok: (s) => /[^A-Za-z0-9]/.test(s) },
@@ -84,6 +84,9 @@ export default function Login() {
   const [modo, setModo] = useState<Modo>("carregando");
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // App single-user: com conta criada, o cadastro só pode dar 409. Guardar o
+  // estado é o que evita oferecer um caminho que nunca vai dar certo.
+  const [jaTemConta, setJaTemConta] = useState(false);
 
   // login
   const [email, setEmail] = useState("");
@@ -104,7 +107,13 @@ export default function Login() {
   const [secret, setSecret] = useState("");
 
   useEffect(() => {
-    contaConfigurada().then((tem) => setModo(tem ? "login" : "cadastro"));
+    contaConfigurada().then((tem) => {
+      // Só `true` (resposta afirmativa do servidor) esconde o cadastro. Em `null`
+      // — status indisponível — abre o login, mas mantendo o caminho de criar
+      // conta à vista, que é o motivo de o helper distinguir os dois casos.
+      setJaTemConta(tem === true);
+      setModo(tem === false ? "cadastro" : "login");
+    });
   }, []);
 
   function falha(err: unknown) {
@@ -140,7 +149,17 @@ export default function Login() {
       setQr(await QRCode.toDataURL(dados.otpauth_uri, { margin: 1, width: 200 }));
       setModo("mfa-qr");
     } catch (err) {
-      setErro((err as Error).message);
+      // 409: alguém já criou a conta (outra aba, ou o /status respondeu antes de
+      // existir). Insistir no formulário é beco sem saída — leva para o login.
+      // Pelo status, não pelo texto: o `detail` é português e mudaria sem aviso.
+      const msg = (err as Error).message;
+      if ((err as { status?: number }).status === 409) {
+        setJaTemConta(true);
+        setModo("login");
+        setErro("Esta instância já tem uma conta. Entre com a sua senha.");
+      } else {
+        setErro(msg);
+      }
     } finally {
       setOcupado(false);
     }
@@ -296,7 +315,12 @@ export default function Login() {
         <button className="auth-entrar" type="submit" disabled={ocupado}>
           {ocupado ? "Entrando…" : "Entrar"}
         </button>
-        <p className="auth-troca">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("cadastro"); }}>Criar conta</a></p>
+        {/* Sem conta ainda, o app já abre no cadastro; o link cobre o caso de o
+            /status ter falhado e caído no login por precaução. Com conta criada
+            ele some — levava a um formulário que só sabia responder 409. */}
+        {!jaTemConta && (
+          <p className="auth-troca">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("cadastro"); }}>Criar conta</a></p>
+        )}
       </form>
     </Shell>
   );
