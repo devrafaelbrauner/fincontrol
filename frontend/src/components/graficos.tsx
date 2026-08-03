@@ -120,7 +120,11 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
             <g key={i} onMouseEnter={() => setHover(i)}>
               <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--positive)" opacity={hover === null || hover === i ? 1 : 0.5} />
               <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--negative)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
+              {/* Série longa: rótulo mês sim, mês não — ancorado no último, que
+                  é o mês selecionado e não pode ficar sem nome. */}
+              {(dados.length <= 12 || (dados.length - 1 - i) % 2 === 0) && (
+                <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
+              )}
             </g>
           );
         })}
