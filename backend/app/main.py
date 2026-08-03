@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
 from .auth import router as auth_router
 from .db import connect, migrate
-from .routers import analises, anexos, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
+from .routers import analises, anexos, busca, calendario, categorias, contas_fixas, dashboard, entradas, ia, metas, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
 
@@ -183,7 +183,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
-for r in (categorias.router, contas_fixas.router, variaveis.router, entradas.router, metas.router, dashboard.router, analises.router, anexos.router, calendario.router, ia.router, push.router):
+for r in (categorias.router, contas_fixas.router, variaveis.router, entradas.router, metas.router, dashboard.router, analises.router, busca.router, anexos.router, calendario.router, ia.router, push.router):
     app.include_router(r, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Feed .ics é público (autenticado só pelo token secreto na URL) — fora do require_auth e do /api.
