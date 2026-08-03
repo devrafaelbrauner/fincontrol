@@ -9,6 +9,16 @@ describe("paraCents", () => {
     expect(paraCents("0,50")).toBe(50);
   });
 
+  it("ponto em grupos de 3 é milhar, não decimal", () => {
+    // Num campo de limite mensal, "1.500" é mil e quinhentos — tratá-lo como
+    // R$ 1,50 criava um orçamento minúsculo que estourava (e notificava) na hora.
+    expect(paraCents("1.500")).toBe(150_000);
+    expect(paraCents("12.345")).toBe(1_234_500);
+    expect(paraCents("R$ 1.234,56")).toBe(123_456);
+    // Ponto fora do padrão de milhar continua decimal:
+    expect(paraCents("1.50")).toBe(150);
+  });
+
   it("aceita ponto como separador decimal", () => {
     expect(paraCents("12.34")).toBe(1234);
   });

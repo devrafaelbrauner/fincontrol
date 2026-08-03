@@ -275,6 +275,10 @@ export default function Dashboard() {
       {orcamentos.length > 0 && (
         <section className="card surgir secao">
           <h3>Orçamentos do mês</h3>
+          {/* O limite não é versionado por mês — num mês antigo, o vermelho
+              compara o gasto de lá com o limite DE HOJE. Dizer isso evita o
+              susto de "estourei março" num mês em que o orçamento nem existia. */}
+          <p className="sub">Gasto variável do mês exibido contra o limite atual de cada categoria.</p>
           <div className="legenda" style={{ gap: "0.8rem", marginTop: "0.5rem" }}>
             {orcamentos.map((o) => {
               const pct = (o.gasto_cents / o.limite_cents) * 100;

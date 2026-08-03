@@ -106,9 +106,16 @@ def testar(db: sqlite3.Connection = Depends(get_db)):
 def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
     """O que o job do dia notificaria — sem enviar nem marcar como enviado."""
     from .. import lembretes
+    from ..util import competencia_de, hoje
 
     pend = lembretes.pendencias(db)
-    return {"pendencias": pend, "notificacoes": lembretes._mensagens(pend)}
+    msgs = lembretes._mensagens(pend)
+    # A prévia precisa cobrir TODO tipo de aviso do job — mentir por omissão
+    # aqui é o usuário ver a lista vazia e às 8h chegar um push "inexistente".
+    estourados = lembretes.orcamentos_estourados(db)
+    if estourados:
+        msgs.append(lembretes._mensagem_orcamentos(estourados, competencia_de(hoje())))
+    return {"pendencias": pend, "notificacoes": msgs}
 
 
 @router.post("/lembretes")

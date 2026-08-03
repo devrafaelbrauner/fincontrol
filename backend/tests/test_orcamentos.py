@@ -113,6 +113,46 @@ def test_abaixo_do_limite_nao_avisa_e_mes_novo_reavisa(db, enviados):
     assert len(enviados) == 1
 
 
+def test_estouro_da_virada_e_pego_no_comeco_do_mes_seguinte(db, enviados):
+    # Gasto na noite do dia 31 (depois do job) ou lançado retroativamente:
+    # o job do dia 1–5 ainda olha o mês anterior, com o mês no corpo do aviso.
+    m = cat(db, "Virada push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 30_000)", (m,))
+    db.commit()
+    gasto(db, m, 40_000, data="2026-08-31")
+
+    lembretes.enviar_lembretes(db, date(2026, 9, 2))
+
+    # No dia 2 o job também manda o resumo mensal — aqui interessa só o orçamento:
+    de_orcamento = [e for e in enviados if "Orçamento" in e["titulo"]]
+    assert len(de_orcamento) == 1
+    assert "Virada push" in de_orcamento[0]["corpo"]
+    assert "(agosto)" in de_orcamento[0]["corpo"]
+
+    # Depois da janela (dia 6+), o mês anterior não é mais consultado:
+    db.execute("DELETE FROM lembretes_enviados")
+    db.commit()
+    gasto(db, m, 5_000, data="2026-08-01")
+    lembretes.enviar_lembretes(db, date(2026, 9, 10))
+    assert len([e for e in enviados if "Orçamento" in e["titulo"]]) == 1  # nada novo
+
+
+def test_previa_inclui_orcamentos_estourados(db, autenticado):
+    from app.util import hoje
+
+    m = cat(db, "Prévia push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 10_000)", (m,))
+    db.commit()
+    gasto(db, m, 15_000, data=hoje().isoformat())
+
+    r = autenticado.get("/api/push/lembretes")
+    notifs = r.json()["notificacoes"]
+
+    assert any("Prévia push" in n["corpo"] for n in notifs), notifs
+    # Prévia não marca como enviado:
+    assert autenticado.get("/api/push/lembretes").json()["notificacoes"] == notifs
+
+
 def test_dois_estouros_viram_um_push_so(db, enviados):
     a = cat(db, "A push")
     b = cat(db, "B push")

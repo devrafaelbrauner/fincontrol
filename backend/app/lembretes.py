@@ -244,35 +244,52 @@ def _mensagem_resumo(db: sqlite3.Connection, competencia: str) -> dict | None:
 
 # ---------- orçamentos estourados ----------
 
-def orcamentos_estourados(db: sqlite3.Connection, competencia: str) -> list[dict]:
-    """Categorias cujo gasto variável do mês alcançou o limite do orçamento."""
+def orcamentos_estourados(db: sqlite3.Connection, hoje_: date | None = None) -> list[dict]:
+    """Categorias cujo gasto variável alcançou o limite do orçamento.
+
+    Olha o mês corrente e, nos primeiros dias (mesma janela do resumo mensal),
+    também o anterior: um gasto na noite do dia 31 — ou lançado retroativamente
+    na virada — estouraria um mês que o job das 8h nunca mais olharia.
+    """
     from .routers.orcamentos import gastos_do_mes
 
-    gastos = gastos_do_mes(db, competencia)
+    hoje_ = hoje_ or hoje()
+    atual = competencia_de(hoje_)
+    comps = [atual]
+    if hoje_.day <= DIA_LIMITE_RESUMO:
+        comps.append(somar_meses(atual, -1))
+
     out = []
-    for r in db.execute(
-        "SELECT o.categoria_id, o.limite_cents, c.nome FROM orcamentos o "
-        "JOIN categorias c ON c.id = o.categoria_id ORDER BY c.nome"
-    ):
-        gasto = gastos.get(r["categoria_id"], 0)
-        if gasto >= r["limite_cents"]:
-            out.append({
-                # Uma chave por categoria×mês: avisa UMA vez por estouro. Subir o
-                # limite depois do aviso e estourar de novo no MESMO mês não gera
-                # segundo push — o mês seguinte recomeça do zero.
-                "chave": f"orcamento:{r['categoria_id']}:{competencia}",
-                "nome": r["nome"],
-                "gasto_cents": gasto,
-                "limite_cents": r["limite_cents"],
-            })
+    for comp in comps:
+        gastos = gastos_do_mes(db, comp)
+        for r in db.execute(
+            "SELECT o.categoria_id, o.limite_cents, c.nome FROM orcamentos o "
+            "JOIN categorias c ON c.id = o.categoria_id ORDER BY c.nome"
+        ):
+            gasto = gastos.get(r["categoria_id"], 0)
+            if gasto >= r["limite_cents"]:
+                out.append({
+                    # Uma chave por categoria×mês: avisa UMA vez por estouro. Subir
+                    # o limite depois do aviso e estourar de novo no MESMO mês não
+                    # gera segundo push — o mês seguinte recomeça do zero.
+                    "chave": f"orcamento:{r['categoria_id']}:{comp}",
+                    "competencia": comp,
+                    "nome": r["nome"],
+                    "gasto_cents": gasto,
+                    "limite_cents": r["limite_cents"],
+                })
     return out
 
 
-def _mensagem_orcamentos(estourados: list[dict]) -> dict:
+def _mensagem_orcamentos(estourados: list[dict], atual: str) -> dict:
     n = len(estourados)
     titulo = "Orçamento estourado" if n == 1 else f"{n} orçamentos estourados"
     corpo = " · ".join(
-        f"{e['nome']}: {brl(e['gasto_cents'])} de {brl(e['limite_cents'])}" for e in estourados
+        f"{e['nome']}: {brl(e['gasto_cents'])} de {brl(e['limite_cents'])}"
+        # Estouro pego na janela de catch-up é de OUTRO mês — sem o rótulo, o
+        # aviso no dia 2 pareceria falar do mês que acabou de começar.
+        + (f" ({MESES_PT[int(e['competencia'][5:7]) - 1]})" if e["competencia"] != atual else "")
+        for e in estourados
     )
     return {"titulo": titulo, "corpo": corpo, "url": "/analises",
             "chaves": [e["chave"] for e in estourados]}
@@ -312,14 +329,14 @@ def enviar_lembretes(db: sqlite3.Connection, hoje_: date | None = None, forcar: 
         pend = [p for p in pend if p["chave"] not in vistas]
     msgs = _mensagens(pend)
 
-    # Orçamentos estourados no mês corrente — junto do job diário, com a mesma
-    # dedup por chave (categoria×mês) dos outros avisos.
-    estourados = orcamentos_estourados(db, competencia_de(hoje_))
+    # Orçamentos estourados (mês corrente + catch-up da virada) — junto do job
+    # diário, com a mesma dedup por chave (categoria×mês) dos outros avisos.
+    estourados = orcamentos_estourados(db, hoje_)
     if not forcar:
         vistas = _ja_enviadas(db, [e["chave"] for e in estourados])
         estourados = [e for e in estourados if e["chave"] not in vistas]
     if estourados:
-        msgs.append(_mensagem_orcamentos(estourados))
+        msgs.append(_mensagem_orcamentos(estourados, competencia_de(hoje_)))
 
     # Resumo do mês fechado: no dia 1, ou nos primeiros dias se o backend estava
     # fora do ar na virada. A chamada de IA só acontece aqui, uma vez por mês.

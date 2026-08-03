@@ -293,8 +293,13 @@ export default function Analises() {
         <form onSubmit={definirOrcamento} className="linha-form">
           <select value={orcCategoria} onChange={(e) => setOrcCategoria(e.target.value)} aria-label="Categoria do orçamento" style={{ flex: "1 1 160px" }}>
             <option value="">Categoria…</option>
-            {categorias.filter((c) => c.ativa && c.tipo === "variavel").map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}{orcamentos.some((o) => o.categoria_id === c.id) ? " (editar)" : ""}</option>
+            {/* Desativada com orçamento continua editável: o limite dela segue
+                vivo na lista e no push — sem isto dava para remover, mas não
+                ajustar, sem reativar a categoria. */}
+            {categorias.filter((c) => c.tipo === "variavel" && (c.ativa || orcamentos.some((o) => o.categoria_id === c.id))).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}{!c.ativa ? " (desativada)" : orcamentos.some((o) => o.categoria_id === c.id) ? " (editar)" : ""}
+              </option>
             ))}
           </select>
           <input placeholder="Limite mensal (R$)" inputMode="decimal" value={orcValor} onChange={(e) => setOrcValor(e.target.value)}
