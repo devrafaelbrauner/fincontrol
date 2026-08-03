@@ -18,6 +18,10 @@ type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
 type Insights = { destaques: string[]; alertas: string[]; acoes?: string[]; sugestao: string };
 type MetaResumo = { id: number; nome: string; valor_total_cents: number; valor_atual_cents: number; prazo: string };
+type Orcamento = { categoria_id: number; nome: string; cor: string | null; limite_cents: number; gasto_cents: number };
+
+/** Cor da barra de orçamento: julga o consumo, não decora. */
+const corOrcamento = (pct: number) => (pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)");
 
 /** O mês contado numa única barra: entradas consumidas por fixas e variáveis; o que resta é a sobra. */
 function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {
@@ -71,6 +75,7 @@ export default function Dashboard() {
   const [meses, setMeses] = useState<Dash[]>([]);
   const [donut, setDonut] = useState<FatiaDonut[]>([]);
   const [metas, setMetas] = useState<MetaResumo[]>([]);
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -89,14 +94,16 @@ export default function Dashboard() {
 
       const [ano, mes] = competencia.split("-");
       const ate = new Date(Number(ano), Number(mes), 0).getDate();
-      const [vars, cats, listaMetas] = await Promise.all([
+      const [vars, cats, listaMetas, orcs] = await Promise.all([
         api<{ itens: Variavel[] }>(`/variaveis?de=${competencia}-01&ate=${competencia}-${String(ate).padStart(2, "0")}`),
         api<Categoria[]>("/categorias"),
-        // Metas alimentam só um card secundário: uma falha aqui não pode trocar a
-        // página inteira por uma mensagem de erro.
+        // Metas e orçamentos alimentam cards secundários: uma falha aqui não
+        // pode trocar a página inteira por uma mensagem de erro.
         api<MetaResumo[]>("/metas").catch(() => [] as MetaResumo[]),
+        api<Orcamento[]>(`/orcamentos?competencia=${competencia}`).catch(() => [] as Orcamento[]),
       ]);
       setMetas(listaMetas);
+      setOrcamentos(orcs);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
       const soma = new Map<string, { valor: number; cor: string | null }>();
       for (const v of vars.itens) {
@@ -264,6 +271,31 @@ export default function Dashboard() {
         )}
         </section>
       </div>
+
+      {orcamentos.length > 0 && (
+        <section className="card surgir secao">
+          <h3>Orçamentos do mês</h3>
+          {/* O limite não é versionado por mês — num mês antigo, o vermelho
+              compara o gasto de lá com o limite DE HOJE. Dizer isso evita o
+              susto de "estourei março" num mês em que o orçamento nem existia. */}
+          <p className="sub">Gasto variável do mês exibido contra o limite atual de cada categoria.</p>
+          <div className="legenda" style={{ gap: "0.8rem", marginTop: "0.5rem" }}>
+            {orcamentos.map((o) => {
+              const pct = (o.gasto_cents / o.limite_cents) * 100;
+              return (
+                <NavLink key={o.categoria_id} to="/analises" style={{ color: "inherit", textDecoration: "none" }}>
+                  <div className="item" style={{ marginBottom: "0.25rem" }}>
+                    <span className="ponto" style={{ background: corOrcamento(pct) }} />
+                    <span>{o.nome}</span>
+                    <span className="pct num">{brl(o.gasto_cents)} de {brl(o.limite_cents)} · {Math.round(pct)}%</span>
+                  </div>
+                  <div className="progresso"><i style={{ width: `${Math.min(pct, 100)}%`, background: corOrcamento(pct) }} /></div>
+                </NavLink>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="secao">
         <div className="insights-cabecalho">

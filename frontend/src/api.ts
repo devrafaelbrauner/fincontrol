@@ -190,8 +190,19 @@ export const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 /** "R$ 12,34" | "12,34" | "12.34" → 1234 centavos */
-export const paraCents = (texto: string) =>
-  Math.round(parseFloat(texto.replace(/[^\d,.-]/g, "").replace(",", ".")) * 100);
+export const paraCents = (texto: string) => {
+  let t = texto.replace(/[^\d,.-]/g, "");
+  if (t.includes(",")) {
+    // Com vírgula, ela é o decimal e os pontos são milhar: "1.234,56".
+    // (Antes, o parseFloat parava no segundo ponto e "1.234,56" virava R$ 1,23.)
+    t = t.replace(/\./g, "").replace(",", ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(t)) {
+    // Só pontos, em grupos de 3: milhar à brasileira — "1.500" é mil e
+    // quinhentos, não um real e cinquenta. "1.50" segue sendo decimal.
+    t = t.replace(/\./g, "");
+  }
+  return Math.round(parseFloat(t) * 100);
+};
 
 /** Data local (não UTC): à noite o toISOString() já viraria o dia/mês seguinte. */
 export const hojeISO = () => {

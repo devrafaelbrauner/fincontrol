@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { api, brl } from "../api";
+import { api, brl, paraCents } from "../api";
 import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, Sparkline } from "../components/graficos";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -10,6 +10,9 @@ import {
 
 type Categoria = { id: number; nome: string; tipo: string; cor: string | null; ativa: number };
 type Variavel = { valor_cents: number; categoria_id: number | null; forma_pagamento: string | null };
+type Orcamento = { categoria_id: number; nome: string; cor: string | null; limite_cents: number; gasto_cents: number };
+
+const corOrcamento = (pct: number) => (pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)");
 
 const FORMA_ROTULO: Record<string, string> = { pix: "Pix", credito: "Crédito", debito: "Débito", dinheiro: "Dinheiro", boleto: "Boleto" };
 const PERIODOS = [6, 12, 24] as const;
@@ -58,6 +61,10 @@ export default function Analises() {
   const [tipo, setTipo] = useState("variavel");
   const [cor, setCor] = useState("#60a5fa");
 
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
+  const [orcCategoria, setOrcCategoria] = useState("");
+  const [orcValor, setOrcValor] = useState("");
+
   // Trocar período/competência com resposta anterior ainda em voo: a última
   // requisição disparada é a única que pode escrever no estado — sem isto, a
   // resposta lenta de "24 meses" sobrescreveria a tela já em "6 meses".
@@ -69,16 +76,18 @@ export default function Analises() {
     setErro(null);
     try {
       const ate = new Date(Number(competencia.slice(0, 4)), Number(competencia.slice(5)), 0).getDate();
-      const [hist, vars, cats] = await Promise.all([
+      const [hist, vars, cats, orcs] = await Promise.all([
         api<{ serie: PontoHistorico[]; por_categoria: GastoCategoriaMes[] }>(`/analises/historico?ate=${competencia}&meses=${periodo}`),
         api<{ itens: Variavel[] }>(`/variaveis?de=${competencia}-01&ate=${competencia}-${String(ate).padStart(2, "0")}`),
         // todas=1: os gráficos precisam resolver nome/cor de categorias já
         // desativadas — sem isso o gasto delas viraria "Sem categoria".
         api<Categoria[]>("/categorias?todas=1"),
+        api<Orcamento[]>(`/orcamentos?competencia=${competencia}`).catch(() => [] as Orcamento[]),
       ]);
       if (id !== requisicao.current) return; // resposta obsoleta
       setSerie(hist.serie);
       setGastosCat(hist.por_categoria);
+      setOrcamentos(orcs);
       setCategorias(cats);
       const mapaCat = new Map(cats.map((c) => [c.id, c] as const));
 
@@ -126,6 +135,30 @@ export default function Analises() {
     await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ ativa: false }) });
     toast("Categoria desativada.");
     atualizar();
+  }
+
+  async function definirOrcamento(e: FormEvent) {
+    e.preventDefault();
+    const cents = paraCents(orcValor);
+    if (!orcCategoria || !Number.isFinite(cents) || cents <= 0) {
+      toast("Escolha a categoria e um limite maior que zero.", "erro");
+      return;
+    }
+    try {
+      await api(`/orcamentos/${orcCategoria}`, { method: "PUT", body: JSON.stringify({ limite_cents: cents }) });
+      toast("Orçamento definido.");
+      setOrcCategoria(""); setOrcValor("");
+      atualizar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
+
+  async function removerOrcamento(o: Orcamento) {
+    if (!confirm(`Remover o orçamento de ${o.nome}? Os lançamentos não mudam — só o limite deixa de existir.`)) return;
+    try {
+      await api(`/orcamentos/${o.categoria_id}`, { method: "DELETE" });
+      toast("Orçamento removido.");
+      atualizar();
+    } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   const mesExtenso = new Date(Number(competencia.slice(0, 4)), Number(competencia.slice(5)) - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
@@ -236,6 +269,44 @@ export default function Analises() {
           </div>
         </>
       )}
+
+      <section className="card surgir secao">
+        <h3>Orçamentos por categoria</h3>
+        <p className="sub">Limite mensal para gastos variáveis. Ao estourar, chega um aviso push (com os lembretes diários). Barras do mês selecionado.</p>
+        <div className="legenda" style={{ gap: "0.8rem", margin: "0.75rem 0" }}>
+          {orcamentos.length === 0 && <span className="sub">Nenhum orçamento definido ainda.</span>}
+          {orcamentos.map((o) => {
+            const pct = (o.gasto_cents / o.limite_cents) * 100;
+            return (
+              <div key={o.categoria_id}>
+                <div className="item" style={{ marginBottom: "0.25rem" }}>
+                  <span className="ponto" style={{ background: corOrcamento(pct) }} />
+                  <span>{o.nome}</span>
+                  <span className="pct num">{brl(o.gasto_cents)} de {brl(o.limite_cents)} · {Math.round(pct)}%</span>
+                  <button className="anexo-remover" onClick={() => removerOrcamento(o)} aria-label={`Remover orçamento de ${o.nome}`}>×</button>
+                </div>
+                <div className="progresso"><i style={{ width: `${Math.min(pct, 100)}%`, background: corOrcamento(pct) }} /></div>
+              </div>
+            );
+          })}
+        </div>
+        <form onSubmit={definirOrcamento} className="linha-form">
+          <select value={orcCategoria} onChange={(e) => setOrcCategoria(e.target.value)} aria-label="Categoria do orçamento" style={{ flex: "1 1 160px" }}>
+            <option value="">Categoria…</option>
+            {/* Desativada com orçamento continua editável: o limite dela segue
+                vivo na lista e no push — sem isto dava para remover, mas não
+                ajustar, sem reativar a categoria. */}
+            {categorias.filter((c) => c.tipo === "variavel" && (c.ativa || orcamentos.some((o) => o.categoria_id === c.id))).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}{!c.ativa ? " (desativada)" : orcamentos.some((o) => o.categoria_id === c.id) ? " (editar)" : ""}
+              </option>
+            ))}
+          </select>
+          <input placeholder="Limite mensal (R$)" inputMode="decimal" value={orcValor} onChange={(e) => setOrcValor(e.target.value)}
+            aria-label="Limite mensal em reais" style={{ flex: "1 1 140px" }} />
+          <button className="btn btn-primario" type="submit">Definir</button>
+        </form>
+      </section>
 
       <section className="card surgir secao">
         <h3>Categorias</h3>
