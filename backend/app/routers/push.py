@@ -60,6 +60,9 @@ def enviar(db: sqlite3.Connection, titulo: str, corpo: str, url: str = "/") -> i
             status = getattr(e.response, "status_code", None)
             if status in (404, 410):
                 db.execute("DELETE FROM push_subscriptions WHERE id = ?", (sub["id"],))
+                # Commit imediato: senão a transação aberta pela remoção ficaria
+                # de pé pelo resto do lote, que é feito de chamadas de rede.
+                db.commit()
         except Exception:
             # Falha de rede/endpoint numa assinatura não pode abortar o lote.
             pass

@@ -127,13 +127,20 @@ export default function Config() {
     setPushMsg(null);
     setPushOcupado(true);
     try {
-      const r = await api<{ notificacoes: (Notificacao & { dispositivos: number })[] }>(
+      const r = await api<{ notificacoes: (Notificacao & { dispositivos: number })[]; motivo?: string }>(
         "/push/lembretes?forcar=true", { method: "POST", body: "{}" },
       );
       setPrevia(r.notificacoes);
-      setPushMsg(r.notificacoes.length === 0
-        ? "Nada a lembrar hoje — nenhum vencimento na janela."
-        : `${r.notificacoes.length} notificação(ões) enviada(s).`);
+      // "Enviada" tem que significar entregue a alguém: com zero aparelhos
+      // inscritos, dizer "1 notificação enviada" esconde exatamente o problema
+      // que este botão existe para diagnosticar.
+      const aparelhos = r.notificacoes.reduce((s, n) => s + n.dispositivos, 0);
+      setPushMsg(
+        r.motivo ? `Nada enviado: ${r.motivo}. Ative as notificações neste aparelho primeiro.`
+          : r.notificacoes.length === 0 ? "Nada a lembrar hoje — nenhum vencimento na janela."
+          : aparelhos === 0 ? `${r.notificacoes.length} notificação(ões) preparada(s), mas nenhum aparelho recebeu — as inscrições podem ter expirado.`
+          : `${r.notificacoes.length} notificação(ões) enviada(s) para ${aparelhos} aparelho(s).`,
+      );
     } catch (e) {
       setPushMsg((e as Error).message);
     } finally {

@@ -22,7 +22,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 
 from .db import connect
-from .util import TZ, brl, competencia_de, gerar_lancamentos_fixos, hoje, somar_meses, vencimento
+from .util import TZ, brl, competencia_de, hoje, somar_meses, vencimento
 
 _log = logging.getLogger("uvicorn.error")
 
@@ -61,55 +61,72 @@ MESES_PT = [
 def pendencias(db: sqlite3.Connection, hoje_: date | None = None) -> list[dict]:
     """Avisos de conta fixa devidos hoje, ignorando o que já foi enviado.
 
-    Só olha lançamentos em aberto (`data_pagamento IS NULL`) de conta ativa.
+    **Só lê.** Projeta os vencimentos a partir de `contas_fixas` e usa
+    `lancamentos_fixos` apenas para saber o que já foi pago (ou teve o valor
+    editado) — o mesmo caminho do feed .ics. Materializar os meses à frente aqui
+    congelaria o `valor_estimado_cents` do dia da geração: aumentar o aluguel em
+    agosto não apareceria em setembro, porque a linha já existiria com o valor
+    velho. E daria efeito colateral de escrita a um GET.
     """
     hoje_ = hoje_ or hoje()
     atual = competencia_de(hoje_)
 
-    # Uma conta com lembrete_dias_antes grande precisa que o lançamento do mês
-    # seguinte já exista para ser vista com antecedência — daí a geração à frente
-    # (idempotente, é a mesma geração on-access do resto do app).
+    # Janela: mês anterior (atraso que atravessou a virada) até o suficiente para
+    # a conta de maior antecedência ser vista a tempo.
     maior_antes = db.execute(
         "SELECT COALESCE(MAX(lembrete_dias_antes), 0) m FROM contas_fixas WHERE ativa = 1"
     ).fetchone()["m"]
     meses_a_frente = max(1, (maior_antes // 28) + 1)
-    comps = [somar_meses(atual, n) for n in range(0, meses_a_frente + 1)]
-    for c in comps:
-        gerar_lancamentos_fixos(db, c)
-    # O mês anterior entra só para leitura (atraso que atravessou a virada); gerar
-    # nele criaria histórico de um mês que o usuário pode nunca ter aberto.
-    comps.append(somar_meses(atual, -1))
+    comps = [somar_meses(atual, n) for n in range(-1, meses_a_frente + 1)]
 
-    linhas = db.execute(
-        f"""SELECT l.competencia, l.valor_cents, c.id AS conta_id, c.nome,
-                   c.dia_vencimento, c.lembrete_dias_antes
-            FROM lancamentos_fixos l JOIN contas_fixas c ON c.id = l.conta_fixa_id
-            WHERE l.data_pagamento IS NULL AND c.ativa = 1
-              AND l.competencia IN ({','.join('?' * len(comps))})""",
-        comps,
+    marcadores = {
+        (r["conta_fixa_id"], r["competencia"]): r
+        for r in db.execute(
+            f"""SELECT conta_fixa_id, competencia, valor_cents, data_pagamento
+                FROM lancamentos_fixos WHERE competencia IN ({','.join('?' * len(comps))})""",
+            comps,
+        )
+    }
+    contas = db.execute(
+        "SELECT id, nome, valor_estimado_cents, dia_vencimento, lembrete_dias_antes "
+        "FROM contas_fixas WHERE ativa = 1"
     ).fetchall()
 
     out = []
-    for r in linhas:
-        venc = date.fromisoformat(vencimento(r["competencia"], r["dia_vencimento"]))
-        dias = (venc - hoje_).days
-        antes = r["lembrete_dias_antes"] or 0
-        if dias == 0:
-            tipo = "hoje"
-        elif dias > 0 and antes > 0 and dias == antes:
-            tipo = "antes"
-        elif -DIAS_ATRASO_MAX <= dias < 0:
-            tipo = "atraso"
-        else:
-            continue
-        out.append({
-            "chave": f"fixo:{r['conta_id']}:{r['competencia']}:{tipo}",
-            "tipo": tipo,
-            "dias": dias,
-            "nome": r["nome"],
-            "valor_cents": r["valor_cents"],
-            "vencimento": venc.isoformat(),
-        })
+    for c in contas:
+        for comp in comps:
+            lanc = marcadores.get((c["id"], comp))
+            if lanc and lanc["data_pagamento"]:
+                continue
+            # Mês já fechado só conta se o app chegou a materializá-lo: sem isto,
+            # uma conta cadastrada hoje nasceria "em atraso" no mês passado, que
+            # ela nunca teve. Do mês corrente em diante a projeção vale, porque aí
+            # a linha faltante é só o app ainda não ter sido aberto no mês.
+            if comp < atual and lanc is None:
+                continue
+            venc = date.fromisoformat(vencimento(comp, c["dia_vencimento"]))
+            dias = (venc - hoje_).days
+            antes = c["lembrete_dias_antes"] or 0
+            if dias == 0:
+                tipo = "hoje"
+            # `<=` e não `==`: com igualdade, o backend fora do ar exatamente no
+            # dia do aviso o perderia para sempre. A chave de dedup é que garante
+            # uma vez só, então a janela inteira serve de catch-up.
+            elif 0 < dias <= antes:
+                tipo = "antes"
+            elif -DIAS_ATRASO_MAX <= dias < 0:
+                tipo = "atraso"
+            else:
+                continue
+            out.append({
+                "chave": f"fixo:{c['id']}:{comp}:{tipo}",
+                "tipo": tipo,
+                "dias": dias,
+                "nome": c["nome"],
+                # Valor editado na competência manda; senão, o estimado da conta.
+                "valor_cents": lanc["valor_cents"] if lanc else c["valor_estimado_cents"],
+                "vencimento": venc.isoformat(),
+            })
     out.sort(key=lambda p: (p["vencimento"], p["nome"]))
     return out
 
@@ -160,10 +177,33 @@ def _insight_do_mes(db: sqlite3.Connection, competencia: str) -> str | None:
     from . import openrouter  # tardio: evita ciclo com routers.ia e custo de import no boot
     from .routers.ia import _contexto_financeiro
 
+    # Já analisado (pelo Dashboard ou por um envio anterior): reaproveita. Sem isto
+    # cada clique em "Enviar agora" pagaria uma análise nova e sobrescreveria a
+    # que já estava na tela.
+    cache = db.execute(
+        "SELECT dados_json FROM insights_cache WHERE competencia = ?", (competencia,)
+    ).fetchone()
+    if cache:
+        return _destaque(json.loads(cache["dados_json"]))
+
     if not openrouter.api_key(db):
         return None
+    # _contexto_financeiro roda a geração on-access de 3 meses, ou seja, ESCREVE.
+    # Commitar aqui é o que impede a transação de ficar aberta durante a chamada
+    # de rede seguinte: numa requisição HTTP isso é irrelevante (o get_db fecha
+    # logo), mas aqui o intervalo é o timeout do OpenRouter vezes as tentativas —
+    # até uns 3 minutos em que qualquer outra escrita do app bateria no
+    # busy_timeout de 5s e viraria 500.
+    contexto = _contexto_financeiro(db, competencia)
+    db.commit()
     try:
-        dados = openrouter.gerar_insights(db, _contexto_financeiro(db, competencia))
+        dados = openrouter.gerar_insights(db, contexto)
+        # O parse fica DENTRO do try: extrair_json promete dict mas devolve o que
+        # o json.loads produzir, e um modelo respondendo com lista faria o .get
+        # estourar depois da guarda — derrubando o push por causa da IA.
+        if not isinstance(dados, dict):
+            raise TypeError(f"insights vieram como {type(dados).__name__}, não objeto")
+        destaque = _destaque(dados)
     except Exception as e:  # rede, JSON inválido, o que vier: o push não pode falhar por causa da IA
         _log.warning("Resumo mensal: insights de IA falharam (%s). Enviando só os números.", e)
         return None
@@ -172,11 +212,16 @@ def _insight_do_mes(db: sqlite3.Connection, competencia: str) -> str | None:
         "ON CONFLICT(competencia) DO UPDATE SET dados_json = excluded.dados_json, criado_em = CURRENT_TIMESTAMP",
         (competencia, json.dumps(dados, ensure_ascii=False)),
     )
-    destaque = str(dados.get("sugestao") or "").strip()
-    if not destaque:
+    return destaque
+
+
+def _destaque(dados: dict) -> str | None:
+    """A frase que vai no corpo do push: a sugestão principal, ou o 1º destaque."""
+    texto = str(dados.get("sugestao") or "").strip()
+    if not texto:
         lista = dados.get("destaques") or dados.get("alertas") or []
-        destaque = str(lista[0]).strip() if lista else ""
-    return destaque or None
+        texto = str(lista[0]).strip() if lista else ""
+    return texto or None
 
 
 def _mensagem_resumo(db: sqlite3.Connection, competencia: str) -> dict | None:
@@ -211,12 +256,20 @@ def _ja_enviadas(db: sqlite3.Connection, chaves: list[str]) -> set[str]:
 def enviar_lembretes(db: sqlite3.Connection, hoje_: date | None = None, forcar: bool = False) -> dict:
     """Roda o job do dia. Idempotente: rodar de novo não repete o que já saiu.
 
-    `forcar` ignora o log de enviados (usado pelo botão de teste no Config); as
-    chaves continuam sendo gravadas.
+    `forcar` ignora o log de enviados (usado pelo botão "Enviar agora" do Config);
+    as chaves continuam sendo gravadas.
     """
     from .routers import push  # tardio: push.py também usa este módulo nos endpoints
 
     hoje_ = hoje_ or hoje()
+
+    # Sem nenhum aparelho inscrito não há o que fazer — e sair aqui evita queimar
+    # as chaves de dedup: senão a instalação nova (VAPID configurado, PWA ainda
+    # não instalada) perderia o primeiro dia de avisos e o resumo do mês inteiro,
+    # depois de pagar a chamada de IA para ninguém ler.
+    if not db.execute("SELECT 1 FROM push_subscriptions LIMIT 1").fetchone():
+        return {"notificacoes": [], "motivo": "nenhum aparelho inscrito"}
+
     pend = pendencias(db, hoje_)
     if not forcar:
         vistas = _ja_enviadas(db, [p["chave"] for p in pend])
@@ -232,18 +285,24 @@ def enviar_lembretes(db: sqlite3.Connection, hoje_: date | None = None, forcar: 
             resumo = _mensagem_resumo(db, anterior)
             if resumo:
                 msgs.append(resumo)
+    # Fecha aqui o que o resumo escreveu (insights_cache) para não carregar uma
+    # transação de escrita aberta por cima dos envios de rede que vêm a seguir.
+    db.commit()
 
     enviados = []
     for m in msgs:
-        # A chave é gravada mesmo se nenhum dispositivo receber (ninguém inscrito,
-        # endpoint fora do ar): melhor perder um aviso do que repeti-lo todo dia.
+        # A chave é gravada mesmo se o endpoint de algum aparelho estiver morto:
+        # melhor perder um aviso do que repeti-lo todo dia. O commit é por
+        # notificação — com um único no fim, uma falha no meio desfaria as chaves
+        # de pushes que o celular já tinha exibido, e eles voltariam amanhã.
         n = push.enviar(db, m["titulo"], m["corpo"], m["url"])
         db.executemany("INSERT OR IGNORE INTO lembretes_enviados (chave) VALUES (?)",
                        [(c,) for c in m["chaves"]])
+        db.commit()
         enviados.append({"titulo": m["titulo"], "corpo": m["corpo"], "dispositivos": n})
-    db.commit()
     if enviados:
-        _log.info("Lembretes: %d notificação(ões) enviada(s).", len(enviados))
+        _log.info("Lembretes: %d notificação(ões) enviada(s) para %d aparelho(s).",
+                  len(enviados), sum(e["dispositivos"] for e in enviados))
     return {"notificacoes": enviados}
 
 
