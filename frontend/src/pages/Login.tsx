@@ -108,8 +108,11 @@ export default function Login() {
 
   useEffect(() => {
     contaConfigurada().then((tem) => {
-      setJaTemConta(tem);
-      setModo(tem ? "login" : "cadastro");
+      // Só `true` (resposta afirmativa do servidor) esconde o cadastro. Em `null`
+      // — status indisponível — abre o login, mas mantendo o caminho de criar
+      // conta à vista, que é o motivo de o helper distinguir os dois casos.
+      setJaTemConta(tem === true);
+      setModo(tem === false ? "cadastro" : "login");
     });
   }, []);
 
@@ -148,8 +151,9 @@ export default function Login() {
     } catch (err) {
       // 409: alguém já criou a conta (outra aba, ou o /status respondeu antes de
       // existir). Insistir no formulário é beco sem saída — leva para o login.
+      // Pelo status, não pelo texto: o `detail` é português e mudaria sem aviso.
       const msg = (err as Error).message;
-      if (msg.includes("Conta já configurada")) {
+      if ((err as { status?: number }).status === 409) {
         setJaTemConta(true);
         setModo("login");
         setErro("Esta instância já tem uma conta. Entre com a sua senha.");

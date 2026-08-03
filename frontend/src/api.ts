@@ -58,7 +58,14 @@ async function postAuth(path: string, body: unknown): Promise<void> {
     body: JSON.stringify(body),
   });
   const corpo = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(corpo?.detail ?? res.statusText);
+  if (!res.ok) {
+    // O status vai junto: quem trata o erro não deveria precisar casar substring
+    // de mensagem em português — reescrever um `detail` no backend quebraria o
+    // tratamento em silêncio.
+    const erro = new Error(corpo?.detail ?? res.statusText) as Error & { status?: number };
+    erro.status = res.status;
+    throw erro;
+  }
   guardarSessao(corpo);
 }
 
@@ -70,16 +77,19 @@ export const login = (dados: { email: string; senha: string; codigo_totp?: strin
 export const cadastrar = (dados: { nome: string; telefone: string; email: string; senha: string }) =>
   postAuth("cadastro", dados);
 
-/** Público: existe conta configurada? Decide entre tela de login e de cadastro. */
-export async function contaConfigurada(): Promise<boolean> {
+/** Público: existe conta configurada? Decide entre tela de login e de cadastro.
+ *
+ *  `null` = não deu para saber (backend fora do ar, 502 do Caddy durante o boot).
+ *  Distinguir isso de `true` importa: "tem conta" esconde o link de cadastro, e
+ *  fazer isso na dúvida trancaria o primeiro acesso de uma instalação nova cujo
+ *  backend só demorou a subir — sem conta para entrar e sem caminho para criar. */
+export async function contaConfigurada(): Promise<boolean | null> {
   try {
     const res = await fetch(API_BASE + "/api/auth/status", { credentials: "include" });
-    if (!res.ok) return true; // na dúvida, mostra o login (o cadastro daria 409 mesmo)
+    if (!res.ok) return null;
     return ((await res.json()) as { configurado: boolean }).configurado;
   } catch {
-    // Backend inalcançável: mostrar o login (com erro claro ao submeter) é
-    // melhor que deixar o skeleton de carregamento para sempre.
-    return true;
+    return null;
   }
 }
 

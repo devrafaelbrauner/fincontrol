@@ -54,9 +54,16 @@ class CodigoBody(BaseModel):
     codigo: str
 
 
-# Comprimento é o que de fato encarece um ataque offline: 6 caracteres caem em
-# segundos se o banco vazar, por mais símbolos que tenham. O mínimo é 6 por opção
-# explícita do dono do app, que aqui se apoia no TOTP e no rate limit do login.
+# Mínimo de 6 por decisão explícita do dono do app (era 12).
+#
+# O que isso NÃO é: mitigado. O rate limit do login não alcança um atacante com o
+# arquivo do banco na mão, e o TOTP é opcional nos dois caminhos de criação de
+# conta (a tela oferece "Pular por enquanto", o setup_user aceita 'n'), então uma
+# conta de 6 caracteres sem segundo fator é um estado alcançável. Contra
+# `fincontrol.db` vazado — e ele é copiado para fora da VPS todo dia pelo backup —
+# 6 caracteres caem em segundos, por mais símbolos que tenham. O que segura o risco
+# aqui é o banco não vazar, não o comprimento da senha.
+#
 # Espelhado em frontend/src/pages/Login.tsx (REGRAS) — mexeu aqui, mexa lá.
 SENHA_MINIMA = 6
 
