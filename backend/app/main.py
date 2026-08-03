@@ -1,6 +1,9 @@
+import asyncio
+import contextlib
 import logging
 import os
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -69,9 +72,25 @@ def _avisar_se_sem_conta() -> None:
 
 _avisar_se_sem_conta()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Sobe o agendador de lembretes junto com o app (e o encerra junto)."""
+    from . import lembretes
+
+    tarefa = asyncio.create_task(lembretes.agendador()) if lembretes.agendador_habilitado() else None
+    try:
+        yield
+    finally:
+        if tarefa:
+            tarefa.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tarefa
+
+
 # Em produção o schema/docs da API não ficam expostos.
 app = FastAPI(
-    title="FinControl API", version="0.1.0",
+    title="FinControl API", version="0.1.0", lifespan=lifespan,
     **({"docs_url": None, "redoc_url": None, "openapi_url": None} if IS_PROD else {}),
 )
 

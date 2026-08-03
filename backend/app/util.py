@@ -19,6 +19,21 @@ def vencimento(competencia: str, dia: int) -> str:
     return f"{ano:04d}-{mes:02d}-{min(dia, ultimo):02d}"
 
 
+def competencia_de(d: date) -> str:
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def somar_meses(competencia: str, n: int) -> str:
+    """Competência deslocada em n meses (n pode ser negativo)."""
+    ano, mes = int(competencia[:4]), int(competencia[5:7])
+    total = (ano * 12 + mes - 1) + n
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def brl(cents: int) -> str:
+    return f"R$ {cents / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def validar_competencia(competencia: str) -> None:
     if not RE_COMPETENCIA.match(competencia):
         raise ValueError("Competência deve estar no formato YYYY-MM")

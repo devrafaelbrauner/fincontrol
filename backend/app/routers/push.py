@@ -67,8 +67,16 @@ def enviar(db: sqlite3.Connection, titulo: str, corpo: str, url: str = "/") -> i
 
 
 @router.get("/config")
-def config():
-    return {"habilitado": habilitado(), "vapid_public": VAPID_PUBLIC}
+def config(db: sqlite3.Connection = Depends(get_db)):
+    from ..lembretes import HORA_PADRAO  # tardio: lembretes importa este módulo
+
+    inscritos = db.execute("SELECT COUNT(*) n FROM push_subscriptions").fetchone()["n"]
+    return {
+        "habilitado": habilitado(),
+        "vapid_public": VAPID_PUBLIC,
+        "inscritos": inscritos,
+        "hora_lembrete": HORA_PADRAO,
+    }
 
 
 @router.post("/subscribe", status_code=201)
@@ -89,3 +97,23 @@ def testar(db: sqlite3.Connection = Depends(get_db)):
         raise HTTPException(503, "Push não configurado no servidor")
     n = enviar(db, "FinControl", "Notificação de teste ✅", "/")
     return {"enviados": n}
+
+
+@router.get("/lembretes")
+def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
+    """O que o job do dia notificaria — sem enviar nem marcar como enviado."""
+    from .. import lembretes
+
+    pend = lembretes.pendencias(db)
+    return {"pendencias": pend, "notificacoes": lembretes._mensagens(pend)}
+
+
+@router.post("/lembretes")
+def rodar_lembretes(forcar: bool = False, db: sqlite3.Connection = Depends(get_db)):
+    """Roda o job de lembretes agora (o agendador faz isso uma vez por dia).
+
+    `forcar=1` reenvia o que já saiu hoje — útil para ver a notificação chegar.
+    """
+    from .. import lembretes
+
+    return lembretes.enviar_lembretes(db, forcar=forcar)
