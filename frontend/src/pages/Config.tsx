@@ -5,7 +5,8 @@ import { api } from "../api";
 import { resetarOrdem } from "../ordem";
 
 type IaConfig = { configurada: boolean; modelo: string };
-type PushConfig = { habilitado: boolean; vapid_public: string | null };
+type PushConfig = { habilitado: boolean; vapid_public: string | null; inscritos: number; hora_lembrete: number };
+type Notificacao = { titulo: string; corpo: string };
 
 /** base64url (chave VAPID) → Uint8Array para o applicationServerKey. */
 function base64urlParaBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -26,6 +27,8 @@ export default function Config() {
   const [erro, setErro] = useState<string | null>(null);
   const [push, setPush] = useState<PushConfig | null>(null);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
+  const [previa, setPrevia] = useState<Notificacao[] | null>(null);
+  const [pushOcupado, setPushOcupado] = useState(false);
   const [ordemMsg, setOrdemMsg] = useState<string | null>(null);
 
   const [mfaAtivo, setMfaAtivo] = useState<boolean | null>(null);
@@ -102,6 +105,46 @@ export default function Config() {
       setPushMsg(`Enviado para ${r.enviados} aparelho(s).`);
     } catch (e) {
       setPushMsg((e as Error).message);
+    }
+  }
+
+  /** Mostra o que o job do dia notificaria, sem enviar nem consumir o aviso. */
+  async function verPrevia() {
+    setPushMsg(null);
+    setPushOcupado(true);
+    try {
+      const r = await api<{ notificacoes: Notificacao[] }>("/push/lembretes");
+      setPrevia(r.notificacoes);
+    } catch (e) {
+      setPushMsg((e as Error).message);
+    } finally {
+      setPushOcupado(false);
+    }
+  }
+
+  /** Roda o job agora e reenvia mesmo o que já saiu hoje — é o teste de verdade. */
+  async function rodarLembretes() {
+    setPushMsg(null);
+    setPushOcupado(true);
+    try {
+      const r = await api<{ notificacoes: (Notificacao & { dispositivos: number })[]; motivo?: string }>(
+        "/push/lembretes?forcar=true", { method: "POST", body: "{}" },
+      );
+      setPrevia(r.notificacoes);
+      // "Enviada" tem que significar entregue a alguém: com zero aparelhos
+      // inscritos, dizer "1 notificação enviada" esconde exatamente o problema
+      // que este botão existe para diagnosticar.
+      const aparelhos = r.notificacoes.reduce((s, n) => s + n.dispositivos, 0);
+      setPushMsg(
+        r.motivo ? `Nada enviado: ${r.motivo}. Ative as notificações neste aparelho primeiro.`
+          : r.notificacoes.length === 0 ? "Nada a lembrar hoje — nenhum vencimento na janela."
+          : aparelhos === 0 ? `${r.notificacoes.length} notificação(ões) preparada(s), mas nenhum aparelho recebeu — as inscrições podem ter expirado.`
+          : `${r.notificacoes.length} notificação(ões) enviada(s) para ${aparelhos} aparelho(s).`,
+      );
+    } catch (e) {
+      setPushMsg((e as Error).message);
+    } finally {
+      setPushOcupado(false);
     }
   }
 
@@ -204,10 +247,26 @@ export default function Config() {
         {push?.habilitado ? (
           <>
             <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
+            <p className="sub">
+              Todo dia às {String(push.hora_lembrete).padStart(2, "0")}h o servidor avisa sobre contas a vencer
+              (com a antecedência de cada conta), as que vencem no dia e as que ficaram em atraso.
+              No dia 1, manda o resumo do mês fechado com os insights de IA.
+              {push.inscritos > 0
+                ? ` ${push.inscritos} aparelho(s) inscrito(s).`
+                : " Nenhum aparelho inscrito ainda."}
+            </p>
             <div className="linha-form">
               <button className="btn btn-primario" onClick={ativarPush}>Ativar notificações</button>
               <button className="btn" onClick={testarPush}>Enviar teste</button>
+              <button className="btn" onClick={verPrevia} disabled={pushOcupado}>Ver lembretes de hoje</button>
+              <button className="btn" onClick={rodarLembretes} disabled={pushOcupado}>Enviar agora</button>
             </div>
+            {previa && (
+              <ul className="sub" style={{ marginTop: "0.5rem", paddingLeft: "1.1rem" }}>
+                {previa.length === 0 && <li>Nenhum lembrete devido hoje.</li>}
+                {previa.map((n, i) => <li key={i}><strong>{n.titulo}</strong> — {n.corpo}</li>)}
+              </ul>
+            )}
             {pushMsg && <p style={{ marginTop: "0.5rem" }}>{pushMsg}</p>}
           </>
         ) : (

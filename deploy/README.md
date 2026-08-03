@@ -176,6 +176,14 @@ aapt dump xmltree app/build/outputs/apk/release/app-release.apk AndroidManifest.
   cole as `FINCONTROL_VAPID_*` no `.env` **com um `FINCONTROL_VAPID_SUBJECT=mailto:` real**
   (o Apple Web Push rejeita subject inválido) e `systemctl restart fincontrol`.
   Sem elas, o push fica desabilitado e o calendário assinado segue como lembrete principal.
+- **Lembretes automáticos:** com as chaves VAPID no `.env`, o backend sobe um agendador
+  interno que roda todo dia às 8h (`FINCONTROL_LEMBRETE_HORA`) e no start — avisa sobre
+  contas a vencer, vencendo hoje e em atraso, e no dia 1 manda o resumo do mês fechado
+  com insights de IA. Não precisa de cron nem timer: é uma tarefa asyncio no próprio
+  processo (o `ExecStart` roda um worker só — se um dia virar `--workers N`, cada worker
+  ligaria o seu, e aí o job precisa sair para um systemd timer chamando
+  `POST /api/push/lembretes`). Para conferir sem esperar: **Configurações** →
+  "Ver lembretes de hoje" / "Enviar agora".
 - **Feed `.ics`:** é público por design (token secreto na URL) — o Caddy encaminha
   `/calendar/*` ao backend. Trate a URL como senha; regenere pelo app se vazar.
 - **Cookie de refresh:** exige HTTPS (`FINCONTROL_COOKIE_SECURE=1`) — por isso o Caddy

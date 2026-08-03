@@ -41,3 +41,17 @@ def banco_limpo():
 def cliente():
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def autenticado(cliente):
+    """Cliente já logado — para testar o que vem DEPOIS do login.
+
+    O fluxo de login em si (senha errada, MFA, rotação de sessão) é assunto de
+    test_login_mfa/test_auth_sessoes e continua usando o `cliente` cru; repeti-lo
+    em cada teste de funcionalidade só adiciona ruído e um ponto de quebra.
+    """
+    r = cliente.post("/api/auth/login", json={"senha": SENHA})
+    assert r.status_code == 200, r.text
+    cliente.headers["Authorization"] = f"Bearer {r.json()['token']}"
+    return cliente

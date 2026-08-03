@@ -53,6 +53,23 @@ exporte `FINCONTROL_VAPID_PUBLIC` / `FINCONTROL_VAPID_PRIVATE` / `FINCONTROL_VAP
 (mailto:). Sem elas, o push fica desabilitado e o calendário assinado segue como
 lembrete principal. iOS exige a PWA instalada na tela inicial (≥ 16.4).
 
+**Lembretes automáticos:** com as chaves VAPID presentes, o app sobe um agendador
+interno (tarefa asyncio, sem cron) que roda no start e todo dia às 8h — hora local
+configurável em `FINCONTROL_LEMBRETE_HORA`, e `FINCONTROL_AGENDADOR=0` desliga tudo.
+O que ele notifica (`backend/app/lembretes.py`):
+
+- contas fixas em aberto, com a antecedência de cada conta (`lembrete_dias_antes`),
+  no dia do vencimento e uma vez quando passam a estar atrasadas — contas do mesmo
+  dia viram uma notificação só, não uma por conta;
+- no dia 1, o resumo do mês fechado com os insights de IA, que ficam guardados no
+  mesmo cache que o Dashboard lê (sem chave de IA, ou se a chamada falhar, o resumo
+  numérico vai do mesmo jeito).
+
+Cada aviso é registrado em `lembretes_enviados` — é isso que impede repetição quando
+o job roda mais de uma vez no dia (restart do backend, execução manual). Para conferir
+sem esperar o horário: **Configurações** → "Ver lembretes de hoje" (prévia, não consome
+o aviso) e "Enviar agora".
+
 ## Estrutura
 
 ```
@@ -62,6 +79,7 @@ backend/app/
 ├── auth.py            # login (senha + TOTP) e JWT
 ├── setup_user.py      # cria/redefine usuário: python -m app.setup_user
 ├── util.py            # competência, vencimento, geração on-access
+├── lembretes.py       # job diário de push (vencimentos + resumo mensal)
 ├── migrations/        # SQL versionado (001_inicial.sql, ...)
 ├── routers/           # categorias, contas_fixas, variaveis, entradas, metas, dashboard
 └── tests/             # pytest — rotação de sessão e anti-replay de TOTP
@@ -84,5 +102,6 @@ cd frontend && npm test                   # vitest
 ## Fases
 
 - **Fases 0–3:** ✅ fundação, MVP, anexos, metas, calendário `.ics`, IA (OpenRouter).
-- **Fase 4:** ✅ insights mensais de IA + push notifications (PWA instalada).
-  Tauri/Capacitor ficam de fora enquanto a PWA bastar.
+- **Fase 4:** ✅ insights mensais de IA + push notifications (PWA instalada), com
+  lembretes disparados sozinhos pelo agendador. Tauri/Capacitor ficam de fora
+  enquanto a PWA bastar.

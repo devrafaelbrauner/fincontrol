@@ -8,13 +8,9 @@ valores sensíveis além do necessário para o lembrete.
 import sqlite3
 from datetime import date, datetime, timedelta
 
-from .util import TZ, hoje, vencimento
+from .util import TZ, brl as _brl, hoje, vencimento
 
 MESES_A_FRENTE = 6  # janela de vencimentos futuros exposta no feed
-
-
-def _brl(cents: int) -> str:
-    return f"R$ {cents / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _escape(texto: str) -> str:
