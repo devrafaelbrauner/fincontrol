@@ -65,8 +65,11 @@ export default function App() {
   const [maisAberto, setMaisAberto] = useState(false);
   const [buscaAberta, setBuscaAberta] = useState(false);
 
-  // Ctrl/Cmd+K abre a busca global de qualquer tela.
+  // Ctrl/Cmd+K abre a busca global de qualquer tela — exceto no login, onde o
+  // modal nem é renderizado: lá o atalho só armaria um estado invisível que
+  // escancararia a busca assim que o login completasse.
   useEffect(() => {
+    if (pathname === "/login") return;
     const atalho = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -75,7 +78,7 @@ export default function App() {
     };
     window.addEventListener("keydown", atalho);
     return () => window.removeEventListener("keydown", atalho);
-  }, []);
+  }, [pathname]);
   const { competencia, setCompetencia } = useCompetencia();
 
   const ordem = reconciliar(useOrdem());

@@ -69,6 +69,37 @@ def test_sem_criterio_nenhum_e_400(db, autenticado):
     assert autenticado.get("/api/busca", params={"q": "   "}).status_code == 400
 
 
+def test_datas_malformadas_sao_400(db, autenticado):
+    assert autenticado.get("/api/busca", params={"de": "2026-99-99"}).status_code == 400
+    assert autenticado.get("/api/busca", params={"q": "x", "ate": "ontem"}).status_code == 400
+
+
+def test_limite_das_fixas_corta_depois_do_filtro_de_data(db, autenticado):
+    # Regressão: 10 contas × 8 competências (80 linhas), todas vencendo dia 20.
+    # Um período que exclui agosto (ate dia 15) casa 70 linhas — se o corte por
+    # dia acontecer DEPOIS do LIMIT, as linhas de agosto (recentes, todas fora
+    # do período) consomem o teto e meses antigos válidos somem em silêncio.
+    for n in range(10):
+        cur = db.execute(
+            "INSERT INTO contas_fixas (nome, dia_vencimento, valor_estimado_cents) VALUES (?, 20, 1000)",
+            (f"fixa lote {n}",),
+        )
+        db.executemany(
+            "INSERT INTO lancamentos_fixos (conta_fixa_id, competencia, valor_cents) VALUES (?, ?, 1000)",
+            [(cur.lastrowid, f"2026-{m:02d}") for m in range(1, 9)],
+        )
+    db.commit()
+
+    r = buscar(autenticado, q="fixa lote", de="2026-01-01", ate="2026-08-15")
+
+    assert len(r["itens"]) == 50
+    assert r["truncado"] is True
+    datas = [i["data"] for i in r["itens"]]
+    assert "2026-08-20" not in datas          # agosto está fora do período
+    assert datas[0] == "2026-07-20"           # os mais recentes DENTRO do período vêm primeiro
+    assert all(d <= "2026-08-15" for d in datas)
+
+
 def test_truncamento_no_limite(db, autenticado):
     db.executemany(
         "INSERT INTO lancamentos_variaveis (descricao, valor_cents, data) VALUES (?, 100, '2026-06-01')",
