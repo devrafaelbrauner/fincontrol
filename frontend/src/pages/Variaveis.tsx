@@ -15,6 +15,9 @@ type Variavel = {
   forma_pagamento: string | null;
   anexo_id: number | null;
   categoria_id: number | null;
+  parcelamento_id: number | null;
+  parcela_num: number | null;
+  parcelas_total: number | null;
 };
 type Categoria = { id: number; nome: string; tipo: string };
 
@@ -81,11 +84,23 @@ export default function Variaveis() {
     [itens, busca]
   );
 
-  async function excluir(id: number) {
-    if (!confirm("Excluir este lançamento?")) return;
+  async function excluir(i: Variavel) {
+    const pergunta = i.parcelamento_id != null
+      ? `Excluir só esta parcela (${i.parcela_num}/${i.parcelas_total})? As outras continuam lançadas.`
+      : "Excluir este lançamento?";
+    if (!confirm(pergunta)) return;
     try {
-      await api(`/variaveis/${id}`, { method: "DELETE" });
+      await api(`/variaveis/${i.id}`, { method: "DELETE" });
       toast("Lançamento excluído.");
+      atualizar();
+    } catch (e) { toast((e as Error).message, "erro"); }
+  }
+
+  async function excluirParcelamento(i: Variavel) {
+    if (!confirm(`Excluir a compra parcelada "${i.descricao}" INTEIRA — todas as ${i.parcelas_total} parcelas, incluindo as de meses passados e futuros?`)) return;
+    try {
+      const r = await api<{ parcelas_removidas: number }>(`/variaveis/parcelado/${i.parcelamento_id}`, { method: "DELETE" });
+      toast(`Compra parcelada excluída (${r.parcelas_removidas} parcelas).`);
       atualizar();
     } catch (e) { toast((e as Error).message, "erro"); }
   }
@@ -136,7 +151,14 @@ export default function Variaveis() {
               {filtrados.map((i) => (
                 <tr key={i.id}>
                   <td>{new Date(i.data + "T00:00").toLocaleDateString("pt-BR")}</td>
-                  <td><span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}><IcVariaveis /> {i.descricao}</span></td>
+                  <td>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                      <IcVariaveis /> {i.descricao}
+                      {i.parcela_num != null && (
+                        <span className="chip" title={`Parcela ${i.parcela_num} de ${i.parcelas_total}`}>{i.parcela_num}/{i.parcelas_total}</span>
+                      )}
+                    </span>
+                  </td>
                   <td>
                     <select value={i.categoria_id ?? ""} onChange={(e) => definirCategoria(i.id, e.target.value ? Number(e.target.value) : null)}
                       aria-label={`Categoria de ${i.descricao}`} style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}>
@@ -147,7 +169,15 @@ export default function Variaveis() {
                   <td>{i.forma_pagamento && <span className="chip">{i.forma_pagamento}</span>}</td>
                   <td className="num negativo">{brl(i.valor_cents)}</td>
                   <td><AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a)} /></td>
-                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i.id)} aria-label="Excluir">×</button></td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)}
+                      aria-label={i.parcelamento_id != null ? "Excluir esta parcela" : "Excluir"}
+                      title={i.parcelamento_id != null ? "Excluir só esta parcela" : "Excluir"}>×</button>
+                    {i.parcelamento_id != null && (
+                      <button className="btn btn-icone btn-perigo" onClick={() => excluirParcelamento(i)}
+                        aria-label="Excluir a compra parcelada inteira" title="Excluir a compra parcelada inteira (todas as parcelas)">⨯⨯</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

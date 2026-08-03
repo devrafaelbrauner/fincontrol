@@ -29,6 +29,8 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   const [dia, setDia] = useState("10");
   const [forma, setForma] = useState("pix");
   const [recorrente, setRecorrente] = useState(false);
+  const [parcelado, setParcelado] = useState(false);
+  const [parcelas, setParcelas] = useState("10");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState<string>("");
   const [sugerindo, setSugerindo] = useState(false);
@@ -104,6 +106,7 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
   function limpar() {
     setDescricao(""); setValor(""); setData(hojeISO()); setDia("10"); setRecorrente(false);
     setCategoriaId(""); setErros({}); setNlTexto(""); setAnexoId(null);
+    setParcelado(false); setParcelas("10");
   }
 
   function validar(): boolean {
@@ -114,6 +117,10 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
     if (tipo === "fixa") {
       const d = Number(dia);
       if (!Number.isInteger(d) || d < 1 || d > 31) e.dia = "Dia entre 1 e 31.";
+    }
+    if (tipo === "variavel" && parcelado) {
+      const n = Number(parcelas);
+      if (!Number.isInteger(n) || n < 2 || n > 72) e.parcelas = "Entre 2 e 72 parcelas.";
     }
     setErros(e);
     return Object.keys(e).length === 0;
@@ -126,14 +133,20 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
     const cents = paraCents(valor);
     const cat = categoriaId ? Number(categoriaId) : null;
     try {
-      if (tipo === "variavel") {
+      if (tipo === "variavel" && parcelado) {
+        await api("/variaveis/parcelado", { method: "POST", body: JSON.stringify({ descricao, valor_parcela_cents: cents, parcelas: Number(parcelas), primeira_data: data, forma_pagamento: forma, categoria_id: cat, anexo_id: anexoId }) });
+      } else if (tipo === "variavel") {
         await api("/variaveis", { method: "POST", body: JSON.stringify({ descricao, valor_cents: cents, data, forma_pagamento: forma, categoria_id: cat, anexo_id: anexoId }) });
       } else if (tipo === "entrada") {
         await api("/entradas", { method: "POST", body: JSON.stringify({ descricao, valor_cents: cents, data, recorrente, categoria_id: cat }) });
       } else {
         await api("/contas-fixas", { method: "POST", body: JSON.stringify({ nome: descricao, dia_vencimento: Number(dia), valor_estimado_cents: cents }) });
       }
-      toast(tipo === "fixa" ? "Conta fixa criada." : "Transação adicionada.");
+      toast(
+        tipo === "fixa" ? "Conta fixa criada."
+        : tipo === "variavel" && parcelado ? `Compra em ${Number(parcelas)}× criada — uma parcela por mês.`
+        : "Transação adicionada."
+      );
       atualizar();
       limpar();
       aoFechar();
@@ -184,11 +197,34 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
         </div>
 
         <div className="campo">
-          <label htmlFor="add-valor">Valor (R$)</label>
+          <label htmlFor="add-valor">{tipo === "variavel" && parcelado ? "Valor da parcela (R$)" : "Valor (R$)"}</label>
           <input id="add-valor" inputMode="decimal" placeholder="0,00" value={valor}
             onChange={(e) => setValor(e.target.value)} aria-invalid={!!erros.valor} />
           {erros.valor && <span className="erro-campo">{erros.valor}</span>}
         </div>
+
+        {tipo === "variavel" && (
+          <label className="campo" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+            <input type="checkbox" style={{ width: "auto" }} checked={parcelado} onChange={(e) => setParcelado(e.target.checked)} />
+            <span>Compra parcelada</span>
+          </label>
+        )}
+
+        {tipo === "variavel" && parcelado && (
+          <div className="campo">
+            <label htmlFor="add-parcelas">Número de parcelas</label>
+            <input id="add-parcelas" type="number" min={2} max={72} value={parcelas}
+              onChange={(e) => setParcelas(e.target.value)} aria-invalid={!!erros.parcelas} />
+            {erros.parcelas && <span className="erro-campo">{erros.parcelas}</span>}
+            {(() => {
+              const cents = paraCents(valor);
+              const n = Number(parcelas);
+              return cents > 0 && Number.isInteger(n) && n >= 2
+                ? <span className="sub" style={{ fontSize: "0.78rem" }}>Total: {n}× de {centsParaTexto(cents)} = R$ {centsParaTexto(cents * n)}</span>
+                : null;
+            })()}
+          </div>
+        )}
 
         {tipo === "fixa" ? (
           <div className="campo">
@@ -198,7 +234,7 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
           </div>
         ) : (
           <div className="campo">
-            <label htmlFor="add-data">Data</label>
+            <label htmlFor="add-data">{tipo === "variavel" && parcelado ? "Data da 1ª parcela" : "Data"}</label>
             <input id="add-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
           </div>
         )}
