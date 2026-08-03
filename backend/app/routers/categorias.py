@@ -22,8 +22,12 @@ class CategoriaPatch(BaseModel):
 
 
 @router.get("")
-def listar(db: sqlite3.Connection = Depends(get_db)):
-    return [dict(r) for r in db.execute("SELECT * FROM categorias WHERE ativa = 1 ORDER BY tipo, nome")]
+def listar(todas: bool = False, db: sqlite3.Connection = Depends(get_db)):
+    """`todas=1` inclui as desativadas — para resolver nome/cor de lançamentos
+    históricos (uma categoria desativada não pode virar "Sem categoria" nos
+    gráficos); as listas de escolha continuam usando só as ativas."""
+    where = "" if todas else "WHERE ativa = 1"
+    return [dict(r) for r in db.execute(f"SELECT * FROM categorias {where} ORDER BY tipo, nome")]
 
 
 @router.post("", status_code=201)
