@@ -4,8 +4,6 @@ import pytest
 from app.db import connect
 from app.routers.ia import _valor_cents
 
-from .conftest import SENHA
-
 
 @pytest.mark.parametrize("bruto, esperado", [
     (180000, 180000),
@@ -21,14 +19,6 @@ from .conftest import SENHA
 ])
 def test_valor_cents_da_sugestao_da_ia(bruto, esperado):
     assert _valor_cents(bruto) == esperado
-
-
-@pytest.fixture
-def autenticado(cliente):
-    r = cliente.post("/api/auth/login", json={"senha": SENHA})
-    assert r.status_code == 200
-    cliente.headers["Authorization"] = f"Bearer {r.json()['token']}"
-    return cliente
 
 
 @pytest.fixture

@@ -208,14 +208,11 @@ def test_resumo_mensal_sobrevive_a_falha_da_ia(db, enviados, monkeypatch):
     assert "Saldo R$ 8.000,00" in resumo[0]["corpo"]
 
 
-def test_previa_nao_marca_como_enviado(cliente, db, enviados):
+def test_previa_nao_marca_como_enviado(autenticado, db, enviados):
     """A prévia do Config mostra o que sairia; não pode consumir o aviso."""
-    from .conftest import SENHA
-
     cria_conta(db, "Aluguel", dia=date.today().day)  # vence hoje, dê o dia que for
-    token = cliente.post("/api/auth/login", json={"senha": SENHA}).json()["token"]
 
-    r = cliente.get("/api/push/lembretes", headers={"Authorization": f"Bearer {token}"})
+    r = autenticado.get("/api/push/lembretes")
     assert r.status_code == 200
     assert [n["titulo"] for n in r.json()["notificacoes"]] == ["Vence hoje"]
 
