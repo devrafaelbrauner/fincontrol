@@ -106,15 +106,23 @@ def testar(db: sqlite3.Connection = Depends(get_db)):
 def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
     """O que o job do dia notificaria — sem enviar nem marcar como enviado."""
     from .. import lembretes
-    from ..util import competencia_de, hoje
+    from ..util import competencia_de, hoje, somar_meses
 
     pend = lembretes.pendencias(db)
     msgs = lembretes._mensagens(pend)
     # A prévia precisa cobrir TODO tipo de aviso do job — mentir por omissão
     # aqui é o usuário ver a lista vazia e às 8h chegar um push "inexistente".
+    atual = competencia_de(hoje())
     estourados = lembretes.orcamentos_estourados(db)
     if estourados:
-        msgs.append(lembretes._mensagem_orcamentos(estourados, competencia_de(hoje())))
+        msgs.append(lembretes._mensagem_orcamentos(estourados, atual))
+    if hoje().day <= lembretes.DIA_LIMITE_RESUMO:
+        # `gerar_ia=False`: a prévia mostra os números do mês fechado (e o insight
+        # que já estiver em cache), mas não paga uma análise nova a cada clique —
+        # essa chamada é do envio de verdade, uma vez por mês.
+        resumo = lembretes._mensagem_resumo(db, somar_meses(atual, -1), gerar_ia=False)
+        if resumo:
+            msgs.append(resumo)
     return {"pendencias": pend, "notificacoes": msgs}
 
 

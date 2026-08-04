@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
+from ..util import DataISO
 
 router = APIRouter(prefix="/entradas", tags=["entradas"])
 
@@ -12,7 +13,7 @@ class EntradaIn(BaseModel):
     descricao: str
     categoria_id: int | None = None
     valor_cents: int = Field(ge=0)
-    data: str
+    data: DataISO
     recorrente: bool = False
 
 
@@ -36,10 +37,13 @@ def listar(de: str | None = None, ate: str | None = None, db: sqlite3.Connection
 
 @router.post("", status_code=201)
 def criar(body: EntradaIn, db: sqlite3.Connection = Depends(get_db)):
-    cur = db.execute(
-        "INSERT INTO entradas (descricao, categoria_id, valor_cents, data, recorrente) VALUES (?, ?, ?, ?, ?)",
-        (body.descricao, body.categoria_id, body.valor_cents, body.data, int(body.recorrente)),
-    )
+    try:
+        cur = db.execute(
+            "INSERT INTO entradas (descricao, categoria_id, valor_cents, data, recorrente) VALUES (?, ?, ?, ?, ?)",
+            (body.descricao, body.categoria_id, body.valor_cents, body.data, int(body.recorrente)),
+        )
+    except sqlite3.IntegrityError:
+        raise HTTPException(400, "categoria_id inexistente")
     return {"id": cur.lastrowid}
 
 

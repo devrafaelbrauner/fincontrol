@@ -91,12 +91,14 @@ def test_validacoes(db, autenticado):
     assert criar(autenticado, parcelas=1).status_code == 422
     assert criar(autenticado, parcelas=73).status_code == 422
     assert criar(autenticado, valor_parcela_cents=0).status_code == 422
-    assert criar(autenticado, primeira_data="2026-02-30").status_code == 400
-    assert criar(autenticado, primeira_data="agosto").status_code == 400
+    # Data agora é validada no schema (util.DataISO), junto com as demais do app
+    # — por isso 422 e não mais o 400 do check que existia só aqui.
+    assert criar(autenticado, primeira_data="2026-02-30").status_code == 422
+    assert criar(autenticado, primeira_data="agosto").status_code == 422
     # fromisoformat (3.11+) aceita estes formatos, mas o banco filtra tudo por
     # prefixo 'YYYY-MM-': se entrassem, o dinheiro sumiria das visões mensais.
-    assert criar(autenticado, primeira_data="20261115").status_code == 400
-    assert criar(autenticado, primeira_data="2026-W33-1").status_code == 400
+    assert criar(autenticado, primeira_data="20261115").status_code == 422
+    assert criar(autenticado, primeira_data="2026-W33-1").status_code == 422
     # FK inexistente é erro do chamador (400), não um 500:
     assert criar(autenticado, categoria_id=99_999).status_code == 400
     assert criar(autenticado, anexo_id=99_999).status_code == 400

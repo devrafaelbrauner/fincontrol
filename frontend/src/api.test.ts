@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cadastrar, competenciaAtual, contaConfigurada, hojeISO, paraCents } from "./api";
+import { cadastrar, competenciaAtual, contaConfigurada, hojeISO, mensagemDeErro, paraCents } from "./api";
 
 describe("paraCents", () => {
   it("converte formatos brasileiros para centavos", () => {
@@ -83,5 +83,30 @@ describe("erros de auth", () => {
       .then(() => null, (e) => e as Error & { status?: number });
 
     expect(erro?.status).toBe(409);
+  });
+});
+
+describe("mensagemDeErro", () => {
+  it("transforma a lista de erros de um 422 em texto legível", () => {
+    // O FastAPI manda uma lista de campos num 422; jogá-la em `new Error`
+    // rendia o toast "[object Object]", sem dizer qual campo foi recusado.
+    const detail = [
+      { type: "value_error", loc: ["body", "data"], msg: "Value error, Data deve estar no formato YYYY-MM-DD" },
+    ];
+    expect(mensagemDeErro(detail, "Erro")).toBe("data: Data deve estar no formato YYYY-MM-DD");
+  });
+
+  it("junta vários campos e ignora o prefixo 'body'", () => {
+    const detail = [
+      { loc: ["body", "prazo"], msg: "Value error, Data inválida" },
+      { loc: ["body", "valor_cents"], msg: "Input should be greater than 0" },
+    ];
+    expect(mensagemDeErro(detail, "Erro")).toBe("prazo: Data inválida · valor_cents: Input should be greater than 0");
+  });
+
+  it("deixa passar o `detail` string dos HTTPException e cai no fallback quando não dá para ler", () => {
+    expect(mensagemDeErro("Lançamento não encontrado", "Erro")).toBe("Lançamento não encontrado");
+    expect(mensagemDeErro(undefined, "Bad Request")).toBe("Bad Request");
+    expect(mensagemDeErro([], "Bad Request")).toBe("Bad Request");
   });
 });

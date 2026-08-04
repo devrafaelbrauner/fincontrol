@@ -50,13 +50,22 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
 
   const centsParaTexto = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
+  /** Data que o modelo devolveu, só se for YYYY-MM-DD de calendário.
+   *  Qualquer outro formato ("15/08/2026", "20260815") deixa o campo como está:
+   *  o `<input type=date>` não exibe valor inválido, então o usuário veria uma
+   *  data em branco enquanto o estado guardava o texto torto para o POST. */
+  const dataUsavel = (s: string | null | undefined) =>
+    s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + "T00:00")) ? s : null;
+
   /** Pré-preenche o formulário com dados vindos da IA (extração ou linguagem natural). */
   function aplicar(d: Extraido) {
     if (d.tipo === "variavel" || d.tipo === "entrada" || d.tipo === "fixa") setTipo(d.tipo);
     if (d.descricao) setDescricao(d.descricao);
     if (d.valor_cents != null) setValor(centsParaTexto(d.valor_cents));
-    if (d.data) setData(d.data);
-    if (d.vencimento) { setData(d.vencimento); const dd = Number(d.vencimento.slice(8, 10)); if (dd) setDia(String(dd)); }
+    const dData = dataUsavel(d.data);
+    const dVenc = dataUsavel(d.vencimento);
+    if (dData) setData(dData);
+    if (dVenc) { setData(dVenc); const dd = Number(dVenc.slice(8, 10)); if (dd) setDia(String(dd)); }
     if (d.dia_vencimento) setDia(String(d.dia_vencimento));
     if (d.forma_pagamento) setForma(d.forma_pagamento);
     if (d.categoria) { const c = categorias.find((x) => x.nome === d.categoria); if (c) setCategoriaId(String(c.id)); }

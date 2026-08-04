@@ -7,7 +7,7 @@ import pytest
 from app import lembretes
 from app.db import connect
 from app.routers import push
-from app.util import gerar_lancamentos_fixos, hoje
+from app.util import competencia_de, gerar_lancamentos_fixos, hoje, somar_meses
 
 
 @pytest.fixture
@@ -333,3 +333,27 @@ def test_previa_nao_marca_como_enviado(autenticado, db, enviados):
 
     assert enviados == []
     assert db.execute("SELECT COUNT(*) n FROM lembretes_enviados").fetchone()["n"] == 0
+
+
+def test_previa_mostra_o_resumo_do_mes_sem_pagar_a_ia(autenticado, db, monkeypatch):
+    """Na janela do resumo (dias 1–5), a prévia tem que listar o resumo mensal:
+    ela promete mostrar TUDO que o job enviaria. Mas sem gerar insights — senão
+    cada clique em "Ver lembretes de hoje" custaria uma análise de IA."""
+    from app import openrouter
+
+    h = hoje()
+    if h.day > lembretes.DIA_LIMITE_RESUMO:
+        pytest.skip("fora da janela do resumo mensal (dias 1–5)")
+
+    anterior = somar_meses(competencia_de(h), -1)
+    db.execute("INSERT INTO entradas (descricao, valor_cents, data) VALUES ('Salário', 800000, ?)",
+               (f"{anterior}-05",))
+    db.commit()
+    monkeypatch.setattr(openrouter, "api_key", lambda _db: "sk-or-falsa")
+    monkeypatch.setattr(openrouter, "gerar_insights", lambda _db, _ctx: pytest.fail(
+        "a prévia não pode chamar a IA"))
+
+    titulos = [n["titulo"] for n in autenticado.get("/api/push/lembretes").json()["notificacoes"]]
+
+    assert any(t.startswith("Resumo de") for t in titulos), titulos
+    assert db.execute("SELECT COUNT(*) n FROM insights_cache").fetchone()["n"] == 0

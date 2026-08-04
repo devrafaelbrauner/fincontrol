@@ -1,4 +1,3 @@
-import re
 import sqlite3
 from datetime import date
 from typing import Literal
@@ -7,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import somar_meses, vencimento
+from ..util import DataISO, somar_meses, vencimento
 
 router = APIRouter(prefix="/variaveis", tags=["variaveis"])
 
@@ -16,7 +15,7 @@ class VariavelIn(BaseModel):
     descricao: str
     categoria_id: int | None = None
     valor_cents: int = Field(ge=0)
-    data: str
+    data: DataISO
     forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = None
     anexo_id: int | None = None
 
@@ -26,7 +25,7 @@ class VariavelPatch(BaseModel):
     categoria_id: int | None = None
     descricao: str | None = None
     valor_cents: int | None = Field(default=None, ge=0)
-    data: str | None = None
+    data: DataISO | None = None
     forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = None
 
 
@@ -69,7 +68,7 @@ class ParceladoIn(BaseModel):
     # não o total — é o número que está no comprovante.
     valor_parcela_cents: int = Field(gt=0)
     parcelas: int = Field(ge=2, le=72)
-    primeira_data: str  # YYYY-MM-DD
+    primeira_data: DataISO
     forma_pagamento: Literal["pix", "credito", "debito", "dinheiro", "boleto"] | None = "credito"
     anexo_id: int | None = None  # comprovante da compra — vai na 1ª parcela
 
@@ -83,16 +82,8 @@ def criar_parcelado(body: ParceladoIn, db: sqlite3.Connection = Depends(get_db))
     para atualizar) e o total de meses é conhecido; com as linhas no banco, os
     meses futuros mostram o comprometimento sem nenhum código especial.
     """
-    # O regex vem antes do parse: fromisoformat (Python ≥3.11) aceita "20260815",
-    # datas-semana etc. — e a string CRUA é o que vai para o banco, onde todo
-    # filtro mensal é por prefixo 'YYYY-MM-'. Uma data em outro formato entraria
-    # e sumiria de dashboard, análises e lembretes.
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", body.primeira_data):
-        raise HTTPException(400, "primeira_data deve ser uma data YYYY-MM-DD válida")
-    try:
-        primeira = date.fromisoformat(body.primeira_data)
-    except ValueError:
-        raise HTTPException(400, "primeira_data deve ser uma data YYYY-MM-DD válida")
+    # O formato já foi checado no schema (DataISO) — aqui só se converte.
+    primeira = date.fromisoformat(body.primeira_data)
 
     try:
         cur = db.execute(
@@ -167,11 +158,15 @@ def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get
 
 @router.post("", status_code=201)
 def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
-    cur = db.execute(
-        """INSERT INTO lancamentos_variaveis (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (body.descricao, body.categoria_id, body.valor_cents, body.data, body.forma_pagamento, body.anexo_id),
-    )
+    try:
+        cur = db.execute(
+            """INSERT INTO lancamentos_variaveis (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (body.descricao, body.categoria_id, body.valor_cents, body.data, body.forma_pagamento, body.anexo_id),
+        )
+    except sqlite3.IntegrityError:
+        # Mesma regra do /parcelado: FK inexistente é erro do chamador, não 500.
+        raise HTTPException(400, "categoria_id ou anexo_id inexistente")
     return {"id": cur.lastrowid}
 
 
@@ -181,10 +176,13 @@ def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Dep
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
     sets = ", ".join(f"{c} = ?" for c in campos)
-    cur = db.execute(
-        f"UPDATE lancamentos_variaveis SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
-        (*campos.values(), lancamento_id),
-    )
+    try:
+        cur = db.execute(
+            f"UPDATE lancamentos_variaveis SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            (*campos.values(), lancamento_id),
+        )
+    except sqlite3.IntegrityError:
+        raise HTTPException(400, "categoria_id ou anexo_id inexistente")
     if cur.rowcount == 0:
         raise HTTPException(404, "Lançamento não encontrado")
     return {"ok": True}

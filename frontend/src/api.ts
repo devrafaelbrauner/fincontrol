@@ -44,6 +44,26 @@ function headersNativos(comRefresh = false): Record<string, string> {
   return h;
 }
 
+/** Texto legível do `detail` de um erro da API.
+ *
+ *  Num 422 o FastAPI manda uma LISTA de erros de campo, não uma string — e
+ *  `new Error(lista)` virava o toast "[object Object]", que não diz nem qual
+ *  campo recusou. Aqui vira "data: Data deve estar no formato YYYY-MM-DD". */
+export function mensagemDeErro(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const partes = detail.map((d) => {
+      const e = d as { loc?: unknown[]; msg?: string };
+      // loc é ["body", "campo"] — o prefixo é ruído para quem lê.
+      const campo = Array.isArray(e.loc) ? e.loc.filter((l) => l !== "body" && typeof l === "string").join(".") : "";
+      const msg = (e.msg ?? "").replace(/^Value error, /, "");
+      return campo && msg ? `${campo}: ${msg}` : msg || campo;
+    }).filter(Boolean);
+    if (partes.length) return partes.join(" · ");
+  }
+  return fallback;
+}
+
 function guardarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
   setToken(corpo.token);
   if (corpo.refresh_token) setRefresh(corpo.refresh_token);
@@ -62,7 +82,7 @@ async function postAuth(path: string, body: unknown): Promise<void> {
     // O status vai junto: quem trata o erro não deveria precisar casar substring
     // de mensagem em português — reescrever um `detail` no backend quebraria o
     // tratamento em silêncio.
-    const erro = new Error(corpo?.detail ?? res.statusText) as Error & { status?: number };
+    const erro = new Error(mensagemDeErro(corpo?.detail, res.statusText)) as Error & { status?: number };
     erro.status = res.status;
     throw erro;
   }
@@ -130,7 +150,7 @@ async function comAuth(path: string, montar: (token: string | null) => RequestIn
 async function corpoOuErro<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const corpo = await res.json().catch(() => null);
-    throw new Error(corpo?.detail ?? res.statusText);
+    throw new Error(mensagemDeErro(corpo?.detail, res.statusText));
   }
   return res.json();
 }
@@ -146,7 +166,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }));
   if (res.status === 401 && path.startsWith("/auth")) {
     const corpo = await res.json().catch(() => null);
-    throw new Error(corpo?.detail ?? res.statusText);
+    throw new Error(mensagemDeErro(corpo?.detail, res.statusText));
   }
   return corpoOuErro<T>(res);
 }
