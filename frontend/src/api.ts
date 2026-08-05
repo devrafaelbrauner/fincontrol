@@ -125,8 +125,7 @@ function irParaLogin(): never {
   throw new Error("Não autenticado");
 }
 
-/** Renova o access token: web usa o cookie httpOnly; nativo manda o refresh token por header. */
-async function renovar(): Promise<string | null> {
+async function renovarAgora(): Promise<string | null> {
   const res = await fetch(API_BASE + "/api/auth/refresh", {
     method: "POST",
     credentials: "include",
@@ -137,6 +136,29 @@ async function renovar(): Promise<string | null> {
   setToken(token);
   if (refresh_token) setRefresh(refresh_token);
   return token;
+}
+
+/** Renovação em voo, compartilhada por todas as chamadas que esbarrarem no 401. */
+let renovacaoEmVoo: Promise<string | null> | null = null;
+
+/** Renova o access token: web usa o cookie httpOnly; nativo manda o refresh token por header.
+ *
+ *  **Single-flight de propósito.** Uma tela com `Promise.all` (Dashboard, Análises)
+ *  dispara várias chamadas de uma vez; vencido o access token, todas voltam 401
+ *  juntas. Sem compartilhar a renovação, viravam N POSTs a /refresh com o MESMO
+ *  refresh token: o primeiro rotaciona e os demais chegam com o token já gasto,
+ *  que o servidor lê como vazamento e responde revogando TODAS as sessões — o
+ *  iPhone e o Mac caíam na tela de login por causa de um F5 no navegador.
+ *  Reproduzido com 6 chamadas: 3 sessões viravam 0. O servidor ganhou uma janela
+ *  de graça para o mesmo caso (auth.JANELA_GRACA_SEGUNDOS); os dois lados juntos
+ *  é que fecham o buraco — este evita a corrida, aquele perdoa a que escapar. */
+function renovar(): Promise<string | null> {
+  if (!renovacaoEmVoo) {
+    // Zera na conclusão para que o próximo 401 (dali a 30 min) renove de novo,
+    // em vez de reaproveitar um token já vencido.
+    renovacaoEmVoo = renovarAgora().finally(() => { renovacaoEmVoo = null; });
+  }
+  return renovacaoEmVoo;
 }
 
 /** fetch com Bearer atual; em 401 (fora das rotas públicas de /auth) tenta renovar uma vez e repete. */
@@ -204,7 +226,11 @@ export async function logout(): Promise<void> {
   await fetch(API_BASE + "/api/auth/logout", {
     method: "POST",
     credentials: "include",
-    headers: headersNativos(),
+    // `true` manda o X-Refresh-Token. Sem ele, o app nativo — onde o cookie não
+    // trafega (WebView cross-origin) — pedia logout sem se identificar: o
+    // servidor não tinha o que revogar e a sessão seguia viva por até 30 dias,
+    // enquanto o "Sair" parecia ter funcionado porque limpava o localStorage.
+    headers: headersNativos(true),
   }).catch(() => {});
   setToken(null);
   setRefresh(null);
