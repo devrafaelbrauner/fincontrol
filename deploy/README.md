@@ -160,15 +160,26 @@ cd frontend/android && ./gradlew assembleRelease
 o build de produção não tem — e nenhuma delas é ligada por padrão:
 
 ```bash
-# as duas flags na MESMA invocação: o npm run android já roda o cap sync, e é
-# ele quem lê FINCONTROL_ANDROID_TESTE_LOCAL (capacitor.config.ts).
-cd frontend && FINCONTROL_BUILD_LOCAL=1 FINCONTROL_ANDROID_TESTE_LOCAL=1 \
-  VITE_API_BASE=http://<ip-do-mac>:8000 npm run android   # libera mixed content
-cd android && ./gradlew assembleDebug                     # variante debug libera cleartext
+cd frontend && npm run apk:teste
 ```
 
-Use o **IP do Mac na rede**, nunca `localhost`: no aparelho, `localhost` é o
-próprio aparelho — é exatamente por isso que a checagem o recusa.
+O script descobre o IP desta máquina, monta o bundle com ele, compila o APK
+debug (a variante que libera tráfego em texto claro) e imprime o comando do
+backend. Fazer isso à mão tem duas armadilhas silenciosas, e as duas já
+custaram um APK que não funcionava:
+
+1. **O IP fica congelado no bundle.** Trocar de rede — ou o DHCP renovar —
+   invalida o APK sem nada avisar: o app só fica girando.
+2. **O backend padrão sobe em `--host 127.0.0.1`**, que aceita conexão só da
+   própria máquina. Mesmo com o IP certo no APK, o celular não alcança. Para o
+   teste em rede é preciso:
+
+```bash
+cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Isso expõe o backend de desenvolvimento à rede local — use só na sua rede, e
+não deixe rodando assim.
 
 O `usesCleartextTraffic` vive em `app/src/debug/AndroidManifest.xml`, sobrepondo o
 `false` do manifesto principal só na variante debug; e o `allowMixedContent` depende
