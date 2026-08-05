@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAtualizacao } from "../estado";
 import { api, brl } from "../api";
 import { IcExpandir, IcRecolher } from "../components/icones";
 
@@ -10,6 +11,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const competenciaDe = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 
 export default function Calendario() {
+  const { versao } = useAtualizacao();
   const hoje = useMemo(() => new Date(), []);
   // Sempre abre no mês atual.
   const [mes, setMes] = useState<string>(competenciaDe(hoje));
@@ -27,7 +29,7 @@ export default function Calendario() {
       .then(setLancamentos)
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
-  }, [mes]);
+  }, [mes, versao]);
 
   useEffect(carregar, [carregar]);
 

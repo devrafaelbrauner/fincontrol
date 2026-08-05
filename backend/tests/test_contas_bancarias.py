@@ -10,13 +10,16 @@ import pytest
 
 from app.db import connect
 
+from .conftest import limpar_movimento
+
 
 @pytest.fixture
 def db():
     conn = connect()
-    conn.execute("DELETE FROM saldos_conta")
-    conn.execute("DELETE FROM contas_bancarias")
-    conn.commit()
+    # Limpa TUDO, não só as tabelas de conta: a reconciliação compara saldos com
+    # entradas, variáveis e fixas, então lançamento vazado de outro teste entra
+    # direto na conta e o número sai errado sem nada apontar a causa.
+    limpar_movimento(conn)
     yield conn
     conn.close()
 
@@ -224,3 +227,85 @@ def test_validacoes_de_cadastro(db, autenticado):
 def test_saldo_em_conta_inexistente_e_404(db, autenticado):
     assert autenticado.post("/api/contas-bancarias/99999/saldos", json={"valor_cents": 1}).status_code == 404
     assert autenticado.get("/api/contas-bancarias/99999/saldos").status_code == 404
+
+
+# ---------- reconciliação saldo × lançamentos ----------
+#
+# Os dois eixos são independentes de propósito, e é por isso que compará-los
+# informa: a diferença é dinheiro que se moveu sem passar por lançamento nenhum.
+
+def _leitura(db, conta_id, valor, quando):
+    db.execute("INSERT INTO saldos_conta (conta_id, valor_cents, registrado_em) VALUES (?, ?, ?)",
+               (conta_id, valor, quando))
+    db.commit()
+
+
+def test_reconciliacao_fecha_quando_tudo_foi_lancado(db, autenticado):
+    conta = criar(autenticado)
+    _leitura(db, conta, 100_000, "2026-06-30 10:00:00")
+    _leitura(db, conta, 130_000, "2026-07-31 10:00:00")
+    autenticado.post("/api/entradas", json={"descricao": "Salário", "valor_cents": 50_000, "data": "2026-07-05"})
+    autenticado.post("/api/variaveis", json={"descricao": "Mercado", "valor_cents": 20_000, "data": "2026-07-10"})
+
+    r = autenticado.get("/api/contas-bancarias/reconciliacao/2026-07").json()
+    assert r["variacao_saldos_cents"] == 30_000
+    assert r["explicado_lancamentos_cents"] == 30_000
+    assert r["diferenca_cents"] == 0
+    assert r["contas_medidas"] == 1
+
+
+def test_diferenca_revela_dinheiro_que_nao_passou_por_lancamento(db, autenticado):
+    """Rendimento, tarifa ou gasto esquecido: o número que o app não conhecia."""
+    conta = criar(autenticado)
+    _leitura(db, conta, 100_000, "2026-06-30 10:00:00")
+    _leitura(db, conta, 145_000, "2026-07-31 10:00:00")
+    autenticado.post("/api/entradas", json={"descricao": "Salário", "valor_cents": 50_000, "data": "2026-07-05"})
+    autenticado.post("/api/variaveis", json={"descricao": "Mercado", "valor_cents": 20_000, "data": "2026-07-10"})
+
+    r = autenticado.get("/api/contas-bancarias/reconciliacao/2026-07").json()
+    assert r["variacao_saldos_cents"] == 45_000
+    assert r["explicado_lancamentos_cents"] == 30_000
+    assert r["diferenca_cents"] == 15_000
+
+
+def test_conta_fixa_nao_paga_nao_entra_na_conta(db, autenticado):
+    """Ela não saiu do banco — cobrá-la aqui criaria diferença que não existe."""
+    conta = criar(autenticado)
+    _leitura(db, conta, 100_000, "2026-06-30 10:00:00")
+    _leitura(db, conta, 100_000, "2026-07-31 10:00:00")
+    cur = db.execute("INSERT INTO contas_fixas (nome, dia_vencimento, valor_estimado_cents) "
+                     "VALUES ('Aluguel', 10, 80_000)")
+    db.execute("INSERT INTO lancamentos_fixos (conta_fixa_id, competencia, valor_cents) VALUES (?, '2026-07', 80_000)",
+               (cur.lastrowid,))
+    db.commit()
+
+    r = autenticado.get("/api/contas-bancarias/reconciliacao/2026-07").json()
+    assert r["detalhe"]["fixas_pagas_cents"] == 0
+    assert r["diferenca_cents"] == 0
+
+
+def test_conta_criada_no_mes_nao_vira_ganho(db, autenticado):
+    """Cadastrar uma conta com R$ 5.000 não é dinheiro que entrou no mês."""
+    conta = criar(autenticado)
+    _leitura(db, conta, 500_000, "2026-07-15 10:00:00")
+
+    r = autenticado.get("/api/contas-bancarias/reconciliacao/2026-07").json()
+    assert r["variacao_saldos_cents"] == 0
+    assert r["contas_medidas"] == 0
+
+
+def test_conta_sem_leitura_no_mes_fica_de_fora(db, autenticado):
+    """"Não mudou" e "não olhei" são coisas diferentes."""
+    a = criar(autenticado, banco="A", nome="Medida")
+    b = criar(autenticado, banco="B", nome="Esquecida")
+    _leitura(db, a, 100_000, "2026-06-30 10:00:00")
+    _leitura(db, a, 120_000, "2026-07-20 10:00:00")
+    _leitura(db, b, 900_000, "2026-06-30 10:00:00")  # nenhuma leitura em julho
+
+    r = autenticado.get("/api/contas-bancarias/reconciliacao/2026-07").json()
+    assert r["contas_medidas"] == 1
+    assert r["variacao_saldos_cents"] == 20_000
+
+
+def test_competencia_invalida_e_400(db, autenticado):
+    assert autenticado.get("/api/contas-bancarias/reconciliacao/2026-13").status_code == 400

@@ -1,11 +1,12 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
 from ..util import (
     DataISO,
+    conferir_versao,
     gerar_lancamentos_fixos,
     hoje,
     status_lancamento,
@@ -46,7 +47,10 @@ class AnexoLancamentoIn(BaseModel):
 
 @router.get("")
 def listar(db: sqlite3.Connection = Depends(get_db)):
-    return [dict(r) for r in db.execute("SELECT * FROM contas_fixas ORDER BY dia_vencimento, nome")]
+    # `versao` acompanha o If-Match do PATCH; `atualizado_em` continua saindo
+    # cru para quem já o lia.
+    return [{**dict(r), "versao": r["versao"]}
+            for r in db.execute("SELECT * FROM contas_fixas ORDER BY dia_vencimento, nome")]
 
 
 @router.post("", status_code=201)
@@ -60,13 +64,15 @@ def criar(body: ContaFixaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{conta_id}")
-def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "contas_fixas", conta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
     sets = ", ".join(f"{c} = ?" for c in campos)
     cur = db.execute(
-        f"UPDATE contas_fixas SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        f"UPDATE contas_fixas SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
         (*campos.values(), conta_id),
     )
     if cur.rowcount == 0:

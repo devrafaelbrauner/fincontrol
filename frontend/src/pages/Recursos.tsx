@@ -3,6 +3,7 @@ import { api, brl, paraCents } from "../api";
 import { IcMais, IcRecursos } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
+import { useAtualizacao, useCompetencia } from "../estado";
 
 type Conta = {
   id: number;
@@ -15,6 +16,7 @@ type Conta = {
   variacao_pct: number | null;
   pct_do_total: number | null;
   atualizado_em: string | null;
+  versao: number;
 };
 
 type Resumo = {
@@ -23,6 +25,14 @@ type Resumo = {
   variacao_total_cents: number | null;
   variacao_total_pct: number | null;
   contas_sem_saldo: number;
+};
+
+type Reconciliacao = {
+  competencia: string;
+  variacao_saldos_cents: number;
+  explicado_lancamentos_cents: number;
+  diferenca_cents: number;
+  contas_medidas: number;
 };
 
 type Leitura = {
@@ -59,6 +69,9 @@ function Variacao({ cents, pct }: { cents: number | null; pct: number | null }) 
 
 export default function Recursos() {
   const toast = useToast();
+  const { versao } = useAtualizacao();
+  const { competencia } = useCompetencia();
+  const [recon, setRecon] = useState<Reconciliacao | null>(null);
   const [dados, setDados] = useState<Resumo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -88,7 +101,7 @@ export default function Recursos() {
     } finally {
       setCarregando(false);
     }
-  }, [verArquivadas]);
+  }, [verArquivadas, versao]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -152,7 +165,10 @@ export default function Recursos() {
 
   async function arquivar(c: Conta) {
     try {
-      await api(`/contas-bancarias/${c.id}`, { method: "PATCH", body: JSON.stringify({ ativa: !c.ativa }) });
+      await api(`/contas-bancarias/${c.id}`, {
+        method: "PATCH", body: JSON.stringify({ ativa: !c.ativa }),
+        headers: { "If-Match": String(c.versao) },
+      });
       toast(c.ativa ? "Conta arquivada." : "Conta reativada.");
       carregar();
     } catch (err) { toast((err as Error).message, "erro"); }
@@ -168,6 +184,13 @@ export default function Recursos() {
   }
 
   const itens = dados?.itens ?? [];
+
+  async function verReconciliacao() {
+    setRecon(null);
+    try {
+      setRecon(await api<Reconciliacao>(`/contas-bancarias/reconciliacao/${competencia}`));
+    } catch (err) { toast((err as Error).message, "erro"); }
+  }
 
   return (
     <>
@@ -206,6 +229,51 @@ export default function Recursos() {
                    }} />
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {dados && itens.length > 0 && (
+        <div style={{ marginTop: "0.6rem" }}>
+          <button className="btn" onClick={verReconciliacao}>
+            Conferir com os lançamentos de {competencia.slice(5, 7)}/{competencia.slice(0, 4)}
+          </button>
+        </div>
+      )}
+
+      {recon && (
+        <div className="card insights-sugestao" style={{ marginTop: "0.6rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+            <strong>Saldos × lançamentos</strong>
+            <button className="btn btn-icone" onClick={() => setRecon(null)} aria-label="Fechar">×</button>
+          </div>
+          {recon.contas_medidas === 0 ? (
+            <p className="sub">
+              Nenhuma conta tem leitura de saldo neste mês E no anterior — sem os dois pontos não
+              há variação a comparar.
+            </p>
+          ) : (
+            <>
+              <p className="sub" style={{ marginBottom: "0.3rem" }}>
+                Seus saldos variaram <strong>{brl(recon.variacao_saldos_cents)}</strong>;
+                os lançamentos explicam <strong>{brl(recon.explicado_lancamentos_cents)}</strong>.
+              </p>
+              {recon.diferenca_cents === 0 ? (
+                <p style={{ color: "var(--positive)" }}>Bate exatamente — nada ficou de fora.</p>
+              ) : (
+                <p>
+                  <strong style={{ color: "var(--warning)" }}>
+                    {brl(Math.abs(recon.diferenca_cents))} {recon.diferenca_cents > 0 ? "a mais" : "a menos"}
+                  </strong>{" "}
+                  do que os lançamentos explicam — dinheiro que se moveu sem passar por nenhum
+                  registro: rendimento, tarifa, transferência entre contas ou um gasto esquecido.
+                </p>
+              )}
+              <p className="sub" style={{ fontSize: "0.78rem" }}>
+                Considera {recon.contas_medidas} conta(s) com leitura antes e dentro do mês. Conta fixa
+                não paga não entra: ela ainda não saiu do banco.
+              </p>
+            </>
           )}
         </div>
       )}
