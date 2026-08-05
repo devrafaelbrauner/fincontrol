@@ -171,12 +171,39 @@ class LimiteCorpo:
 
 app.add_middleware(LimiteCorpo, limite=LIMITE_CORPO_BYTES)
 
-# CORS: em produção o frontend é servido pelo mesmo host (Caddy) e CORS é dispensável;
-# origens extras (ex. dev server do Vite) via FINCONTROL_CORS_ORIGINS (separadas por vírgula).
-origens = os.environ.get("FINCONTROL_CORS_ORIGINS", "http://localhost:5173")
+# CORS. No web o frontend é servido pelo mesmo host (Caddy) e CORS é dispensável;
+# quem precisa dele são os apps Capacitor, cujo WebView tem origem própria.
+#
+# Essas origens são SEMPRE permitidas, e não um default que a configuração
+# sobrescreve. O motivo é uma pegadinha que custava o login inteiro do celular:
+# `os.environ.get(chave, default)` só usa o default quando a variável está
+# AUSENTE — e o deploy/.env.example entregava `FINCONTROL_CORS_ORIGINS=` vazio,
+# que é presente. A lista virava [], o web seguia funcionando (same-origin) e
+# parecia tudo no ar, enquanto iPhone e Android não passavam nem do login: todo
+# request leva `X-Client: native`, que força preflight, e o preflight voltava 400.
+#
+# São as origens dos apps do próprio dono — não há cenário em que ele queira
+# bloqueá-las e ainda assim usar os apps. A variável de ambiente ACRESCENTA
+# origens (é como o .env.example sempre a descreveu), em vez de substituí-las.
+ORIGENS_NATIVAS = (
+    "capacitor://localhost",  # iOS/iPadOS
+    "https://localhost",      # Android
+)
+
+
+def origens_cors(extras: str = "", producao: bool = True) -> list[str]:
+    """Origens permitidas: as nativas, o dev server fora de produção, e os extras.
+
+    Função (e não expressão solta no módulo) para que a composição seja testável
+    sem depender do ambiente lido no import.
+    """
+    dev = () if producao else ("http://localhost:5173",)  # dev server do Vite
+    return [*ORIGENS_NATIVAS, *dev, *(o.strip() for o in extras.split(",") if o.strip())]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in origens.split(",") if o.strip()],
+    allow_origins=origens_cors(os.environ.get("FINCONTROL_CORS_ORIGINS", ""), IS_PROD),
     allow_credentials=True,  # necessário para o cookie httpOnly de refresh
     allow_methods=["*"],
     allow_headers=["*"],

@@ -128,35 +128,47 @@ porque a cadeia dele (tar/sharp antigos) concentrava as vulnerabilidades do npm 
 cd frontend && npx @capacitor/assets generate --ios --android --pwa
 ```
 
-## App iOS (Capacitor) apontando para a VPS
+## Apps Capacitor apontando para a VPS
 
-O build nativo precisa da URL da API **em build time** e o backend precisa aceitar a
-origem do Capacitor:
+A URL da API entra **em build time** e fica congelada no bundle: um deploy
+atualiza o web, e **não** atualiza os celulares. Rebuildar é parte de trocar de
+domínio.
 
 ```bash
-# no Mac:
 cd frontend && VITE_API_BASE=https://fincontrol.seudominio.com npm run ios
-# na VPS, no backend/.env:
-FINCONTROL_CORS_ORIGINS=capacitor://localhost,https://localhost
+cd frontend && VITE_API_BASE=https://fincontrol.seudominio.com npm run android
 ```
 
-## App Android (Capacitor)
+Os dois scripts recusam uma base que não sirva num aparelho de verdade —
+ausente, vazia, `http://` ou apontando para `localhost`/`127.0.0.1`. Foi assim
+que um bundle saiu apontando para `http://127.0.0.1:8001`, que num iPhone é o
+loopback do próprio telefone: nada funcionava, e nada avisava. Para o teste em
+rede local (abaixo), `FINCONTROL_BUILD_LOCAL=1` libera a checagem.
 
-Apontando para a VPS (HTTPS) — nada de especial a fazer:
+**CORS não precisa de configuração**: `capacitor://localhost` (iOS) e
+`https://localhost` (Android) são sempre aceitas pelo backend. Não confunda as
+duas — cada plataforma tem a sua, e são os defaults do Capacitor 8 (nenhum
+`iosScheme`/`androidScheme` no `capacitor.config.ts`).
+
+Depois do build, o APK de release sai com:
 
 ```bash
-cd frontend && VITE_API_BASE=https://fincontrol.seudominio.com npm run build
-npx cap sync android && cd android && ./gradlew assembleRelease
+cd frontend/android && ./gradlew assembleRelease
 ```
 
 **Teste na rede local, contra o backend em HTTP**, precisa de duas permissões que
 o build de produção não tem — e nenhuma delas é ligada por padrão:
 
 ```bash
-cd frontend && VITE_API_BASE=http://<ip-do-mac>:8000 npm run build
-FINCONTROL_ANDROID_TESTE_LOCAL=1 npx cap sync android    # libera mixed content
-cd android && ./gradlew assembleDebug                    # variante debug libera cleartext
+# as duas flags na MESMA invocação: o npm run android já roda o cap sync, e é
+# ele quem lê FINCONTROL_ANDROID_TESTE_LOCAL (capacitor.config.ts).
+cd frontend && FINCONTROL_BUILD_LOCAL=1 FINCONTROL_ANDROID_TESTE_LOCAL=1 \
+  VITE_API_BASE=http://<ip-do-mac>:8000 npm run android   # libera mixed content
+cd android && ./gradlew assembleDebug                     # variante debug libera cleartext
 ```
+
+Use o **IP do Mac na rede**, nunca `localhost`: no aparelho, `localhost` é o
+próprio aparelho — é exatamente por isso que a checagem o recusa.
 
 O `usesCleartextTraffic` vive em `app/src/debug/AndroidManifest.xml`, sobrepondo o
 `false` do manifesto principal só na variante debug; e o `allowMixedContent` depende
