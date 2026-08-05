@@ -19,6 +19,7 @@ type Compromisso = {
   forma_pagamento: string | null;
   orientacao_texto: string | null;
   status: "em_aberto" | "atrasado" | "quitado";
+  versao: number;
   ativo: boolean;
 };
 
@@ -143,7 +144,12 @@ export default function Compromissos() {
       forma_pagamento: forma || null,
     });
     try {
-      if (edit) await api(`/compromissos/${edit.id}`, { method: "PATCH", body: corpo });
+      if (edit) await api(`/compromissos/${edit.id}`, {
+        method: "PATCH", body: corpo,
+        // Versão que esta tela leu. O servidor recusa com 409 se outro aparelho
+        // já alterou o item — antes, o último a salvar apagava o outro em silêncio.
+        headers: { "If-Match": String(edit.versao) },
+      });
       else await api("/compromissos", { method: "POST", body: corpo });
       toast(edit ? "Compromisso atualizado." : "Compromisso criado.");
       setFormAberto(false);
@@ -218,7 +224,10 @@ export default function Compromissos() {
 
   async function arquivar(c: Compromisso) {
     try {
-      await api(`/compromissos/${c.id}`, { method: "PATCH", body: JSON.stringify({ ativo: !c.ativo }) });
+      await api(`/compromissos/${c.id}`, {
+        method: "PATCH", body: JSON.stringify({ ativo: !c.ativo }),
+        headers: { "If-Match": String(c.versao) },
+      });
       toast(c.ativo ? "Compromisso arquivado." : "Compromisso reativado.");
       carregar();
     } catch (err) { toast((err as Error).message, "erro"); }

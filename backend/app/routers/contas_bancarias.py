@@ -11,11 +11,11 @@ corrigir uma leitura errada recalcule tudo em vez de deixar número velho para t
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from ..db import get_db
-from ..util import agora_iso, validar_competencia
+from ..util import conferir_versao, agora_iso, validar_competencia
 
 router = APIRouter(prefix="/contas-bancarias", tags=["contas-bancarias"])
 
@@ -100,7 +100,10 @@ def _conta_com_saldo(c: sqlite3.Row, leituras: list[sqlite3.Row]) -> dict:
         "saldo_anterior_cents": anterior,
         "variacao_cents": variacao,
         "variacao_pct": pct,
+        # Quando o SALDO foi lido — não confundir com `versao`, que é a versão
+        # da linha da conta (nome, banco, arquivamento) usada no If-Match.
         "atualizado_em": leituras[0]["registrado_em"] if leituras else None,
+        "versao": c["versao"],
     }
 
 
@@ -231,7 +234,9 @@ def criar(body: ContaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{conta_id}")
-def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "contas_bancarias", conta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
@@ -247,7 +252,7 @@ def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get
     sets = ", ".join(f"{c} = ?" for c in campos)  # chaves são as do ContaPatch, nunca externas
     try:
         cur = db.execute(
-            f"UPDATE contas_bancarias SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            f"UPDATE contas_bancarias SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
             (*campos.values(), conta_id),
         )
     except sqlite3.IntegrityError:

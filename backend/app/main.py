@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
 from .auth import router as auth_router
 from .db import connect, migrate
+from .util import ConflitoDeVersao
 from .routers import analises, anexos, busca, calendario, categorias, compromissos, contas_bancarias, contas_fixas, dashboard, entradas, ia, metas, orcamentos, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
@@ -97,6 +98,19 @@ app = FastAPI(
 # Rate limiting (slowapi) — protege o login de brute force.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(ConflitoDeVersao)
+async def _conflito(_req, exc: ConflitoDeVersao):
+    """409 com a versão atual junto: sem ela a tela só saberia dizer "deu erro",
+    e o dono teria que descobrir sozinho o que mudou."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "Este item foi alterado em outro aparelho. Recarregue para ver a versão atual.",
+                 "atualizado_em": exc.atual},
+    )
 
 # O multipart é parseado (e derramado para disco) ANTES das dependências de auth
 # do FastAPI — sem este teto, um anônimo encheria o disco via /api/anexos. O Caddy

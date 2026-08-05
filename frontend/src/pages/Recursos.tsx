@@ -16,6 +16,7 @@ type Conta = {
   variacao_pct: number | null;
   pct_do_total: number | null;
   atualizado_em: string | null;
+  versao: number;
 };
 
 type Resumo = {
@@ -164,7 +165,10 @@ export default function Recursos() {
 
   async function arquivar(c: Conta) {
     try {
-      await api(`/contas-bancarias/${c.id}`, { method: "PATCH", body: JSON.stringify({ ativa: !c.ativa }) });
+      await api(`/contas-bancarias/${c.id}`, {
+        method: "PATCH", body: JSON.stringify({ ativa: !c.ativa }),
+        headers: { "If-Match": String(c.versao) },
+      });
       toast(c.ativa ? "Conta arquivada." : "Conta reativada.");
       carregar();
     } catch (err) { toast((err as Error).message, "erro"); }

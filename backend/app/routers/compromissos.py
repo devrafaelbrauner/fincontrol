@@ -12,11 +12,11 @@ e não existe caminho para o número da aba divergir do gasto do mês.
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataISO, hoje
+from ..util import conferir_versao, DataISO, hoje
 
 router = APIRouter(prefix="/compromissos", tags=["compromissos"])
 
@@ -142,7 +142,9 @@ def criar(body: CompromissoIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{compromisso_id}")
-def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "compromissos", compromisso_id, if_match)
     campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
@@ -158,7 +160,7 @@ def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection =
     sets = ", ".join(f"{c} = ?" for c in campos)
     try:
         cur = db.execute(
-            f"UPDATE compromissos SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            f"UPDATE compromissos SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
             (*campos.values(), compromisso_id),
         )
     except sqlite3.IntegrityError:

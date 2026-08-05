@@ -177,7 +177,12 @@ async function comAuth(path: string, montar: (token: string | null) => RequestIn
 async function corpoOuErro<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const corpo = await res.json().catch(() => null);
-    throw new Error(mensagemDeErro(corpo?.detail, res.statusText));
+    const erro = new Error(mensagemDeErro(corpo?.detail, res.statusText)) as Error & { status?: number };
+    // O status acompanha o erro para quem quiser distinguir um conflito de
+    // edição (409) de um erro qualquer — casar substring de mensagem quebraria
+    // no dia em que o texto mudasse.
+    erro.status = res.status;
+    throw erro;
   }
   return res.json();
 }
