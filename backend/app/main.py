@@ -189,12 +189,21 @@ ORIGENS_NATIVAS = (
     "capacitor://localhost",  # iOS/iPadOS
     "https://localhost",      # Android
 )
-_extras = os.environ.get("FINCONTROL_CORS_ORIGINS", "")
-_dev = () if IS_PROD else ("http://localhost:5173",)  # dev server do Vite
-origens = [*ORIGENS_NATIVAS, *_dev, *(o.strip() for o in _extras.split(",") if o.strip())]
+
+
+def origens_cors(extras: str = "", producao: bool = True) -> list[str]:
+    """Origens permitidas: as nativas, o dev server fora de produção, e os extras.
+
+    Função (e não expressão solta no módulo) para que a composição seja testável
+    sem depender do ambiente lido no import.
+    """
+    dev = () if producao else ("http://localhost:5173",)  # dev server do Vite
+    return [*ORIGENS_NATIVAS, *dev, *(o.strip() for o in extras.split(",") if o.strip())]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origens,
+    allow_origins=origens_cors(os.environ.get("FINCONTROL_CORS_ORIGINS", ""), IS_PROD),
     allow_credentials=True,  # necessário para o cookie httpOnly de refresh
     allow_methods=["*"],
     allow_headers=["*"],

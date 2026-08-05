@@ -42,8 +42,11 @@ if (url.protocol !== "https:" && url.protocol !== "http:") {
 }
 
 // localhost/loopback no aparelho é o PRÓPRIO aparelho — nunca o seu Mac.
-const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"]);
-if (LOOPBACK.has(url.hostname)) {
+// A faixa inteira 127.0.0.0/8 é loopback, não só o .1 — e o parser de URL já
+// normaliza as formas abreviadas (`127.1` e `0177.0.0.1` viram `127.0.0.1`).
+const LOOPBACK = new Set(["localhost", "[::1]", "::1", "0.0.0.0"]);
+const ehLoopback = (h) => LOOPBACK.has(h) || /^127\.\d+\.\d+\.\d+$/.test(h);
+if (ehLoopback(url.hostname)) {
   erro(`A base aponta para ${url.hostname}, que no celular é o próprio celular.`,
        "Use o domínio da VPS — ou, para teste em rede local, o IP do Mac com FINCONTROL_BUILD_LOCAL=1.");
 }

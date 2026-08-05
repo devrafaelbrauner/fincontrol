@@ -9,7 +9,7 @@ parecia no ar, enquanto iPhone e Android não passavam do login: todo request le
 
 import pytest
 
-from app.main import ORIGENS_NATIVAS
+from app.main import ORIGENS_NATIVAS, origens_cors
 
 
 @pytest.mark.parametrize("origem", ORIGENS_NATIVAS)
@@ -44,3 +44,26 @@ def test_ios_e_android_tem_origens_diferentes():
     Android. São os defaults do Capacitor 8, um por plataforma."""
     assert "capacitor://localhost" in ORIGENS_NATIVAS  # iOS/iPadOS
     assert "https://localhost" in ORIGENS_NATIVAS      # Android
+
+
+# ---------- composição da lista ----------
+
+def test_variavel_vazia_nao_apaga_as_nativas():
+    """O caso exato do .env.example: presente e vazia. Antes zerava a lista."""
+    assert origens_cors("", producao=True) == list(ORIGENS_NATIVAS)
+
+
+def test_extras_somam_em_vez_de_substituir():
+    origens = origens_cors("https://outro-front.exemplo.com", producao=True)
+    assert set(ORIGENS_NATIVAS) <= set(origens), "as nativas não podem sumir"
+    assert "https://outro-front.exemplo.com" in origens
+
+
+def test_extras_aceitam_lista_com_espacos_e_vazios():
+    origens = origens_cors(" https://a.exemplo.com , ,https://b.exemplo.com ", producao=True)
+    assert origens[len(ORIGENS_NATIVAS):] == ["https://a.exemplo.com", "https://b.exemplo.com"]
+
+
+def test_dev_server_do_vite_so_fora_de_producao():
+    assert "http://localhost:5173" in origens_cors(producao=False)
+    assert "http://localhost:5173" not in origens_cors(producao=True)

@@ -160,9 +160,11 @@ cd frontend/android && ./gradlew assembleRelease
 o build de produção não tem — e nenhuma delas é ligada por padrão:
 
 ```bash
-cd frontend && FINCONTROL_BUILD_LOCAL=1 VITE_API_BASE=http://<ip-do-mac>:8000 npm run android
-FINCONTROL_ANDROID_TESTE_LOCAL=1 npx cap sync android    # libera mixed content
-cd android && ./gradlew assembleDebug                    # variante debug libera cleartext
+# as duas flags na MESMA invocação: o npm run android já roda o cap sync, e é
+# ele quem lê FINCONTROL_ANDROID_TESTE_LOCAL (capacitor.config.ts).
+cd frontend && FINCONTROL_BUILD_LOCAL=1 FINCONTROL_ANDROID_TESTE_LOCAL=1 \
+  VITE_API_BASE=http://<ip-do-mac>:8000 npm run android   # libera mixed content
+cd android && ./gradlew assembleDebug                     # variante debug libera cleartext
 ```
 
 Use o **IP do Mac na rede**, nunca `localhost`: no aparelho, `localhost` é o
