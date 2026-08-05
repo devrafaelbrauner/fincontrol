@@ -26,6 +26,20 @@ type Categoria = { id: number; nome: string; tipo: string };
 
 type Pagamento = { id: number; descricao: string; valor_cents: number; data: string; forma_pagamento: string | null };
 
+type Prioridade = {
+  ordem: { id: number; posicao: number; motivo: string }[];
+  sem_posicao: number[];
+  resumo: string;
+};
+
+type Plano = {
+  parcelas: { data: string; valor_cents: number }[];
+  soma_cents: number;
+  falta_cents: number;
+  diferenca_cents: number;
+  analise: string;
+};
+
 const FORMAS = ["pix", "credito", "debito", "dinheiro", "boleto"];
 
 const dataBR = (iso: string) => new Date(iso + "T00:00").toLocaleDateString("pt-BR");
@@ -75,6 +89,14 @@ export default function Compromissos() {
   const [formaPag, setFormaPag] = useState("");
 
   // Histórico de pagamentos (carregado sob demanda, ao expandir)
+  // IA — sempre sob demanda: cada chamada é paga, e gerar sozinho cobraria o
+  // dono por texto que ele não pediu.
+  const [pensandoId, setPensandoId] = useState<number | null>(null);
+  const [priorizando, setPriorizando] = useState(false);
+  const [prioridade, setPrioridade] = useState<Prioridade | null>(null);
+  const [plano, setPlano] = useState<Plano | null>(null);
+  const [planoDe, setPlanoDe] = useState<Compromisso | null>(null);
+
   const [expandido, setExpandido] = useState<number | null>(null);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
 
@@ -148,6 +170,33 @@ export default function Compromissos() {
     } catch (err) { toast((err as Error).message, "erro"); }
   }
 
+  async function pedirOrientacao(c: Compromisso) {
+    setPensandoId(c.id);
+    try {
+      await api(`/ia/orientacao-compromisso/${c.id}`, { method: "POST" });
+      toast("Orientação gerada.");
+      carregar();
+    } catch (err) { toast((err as Error).message, "erro"); }
+    finally { setPensandoId(null); }
+  }
+
+  async function pedirPlano(c: Compromisso) {
+    setPensandoId(c.id);
+    try {
+      setPlano(await api<Plano>(`/ia/plano-compromisso/${c.id}`, { method: "POST" }));
+      setPlanoDe(c);
+    } catch (err) { toast((err as Error).message, "erro"); }
+    finally { setPensandoId(null); }
+  }
+
+  async function pedirPrioridade() {
+    setPriorizando(true);
+    try {
+      setPrioridade(await api<Prioridade>("/ia/priorizar-compromissos", { method: "POST" }));
+    } catch (err) { toast((err as Error).message, "erro"); }
+    finally { setPriorizando(false); }
+  }
+
   async function verPagamentos(id: number, forcar = false) {
     if (expandido === id && !forcar) { setExpandido(null); return; }
     setExpandido(id);
@@ -189,8 +238,35 @@ export default function Compromissos() {
       </div>
 
       {emAberto.length > 0 && (
-        <div className="chip" style={{ marginTop: "0.5rem" }}>
-          {emAberto.length} em aberto · falta {brl(totalFalta)}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+          <span className="chip">{emAberto.length} em aberto · falta {brl(totalFalta)}</span>
+          {emAberto.length > 1 && (
+            <button className="btn" disabled={priorizando} onClick={pedirPrioridade}>
+              {priorizando ? "Pensando…" : "Por onde começar?"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {prioridade && (
+        <div className="card insights-sugestao" style={{ marginTop: "0.75rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+            <strong>Ordem sugerida pela IA</strong>
+            <button className="btn btn-icone" onClick={() => setPrioridade(null)} aria-label="Fechar sugestão">×</button>
+          </div>
+          {prioridade.resumo && <p style={{ whiteSpace: "pre-line" }}>{prioridade.resumo}</p>}
+          <ol style={{ margin: "0.5rem 0 0 1.1rem", padding: 0 }}>
+            {prioridade.ordem.map((o) => {
+              const c = itens.find((x) => x.id === o.id);
+              return <li key={o.id}><strong>{c?.nome ?? `#${o.id}`}</strong>{o.motivo && ` — ${o.motivo}`}</li>;
+            })}
+          </ol>
+          {prioridade.sem_posicao.length > 0 && (
+            // O modelo às vezes esquece um item; escondê-lo faria a lista parecer completa.
+            <p className="sub" style={{ fontSize: "0.78rem", marginTop: "0.4rem" }}>
+              Sem posição sugerida: {prioridade.sem_posicao.map((id) => itens.find((x) => x.id === id)?.nome ?? id).join(", ")}
+            </p>
+          )}
         </div>
       )}
 
@@ -258,6 +334,16 @@ export default function Compromissos() {
                   <button className="btn" onClick={() => verPagamentos(c.id)}>
                     {expandido === c.id ? "Ocultar" : "Pagamentos"}
                   </button>
+                  {c.status !== "quitado" && (
+                    <>
+                      <button className="btn" disabled={pensandoId === c.id} onClick={() => pedirOrientacao(c)}>
+                        {pensandoId === c.id ? "Pensando…" : c.orientacao_texto ? "Refazer orientação" : "Orientação da IA"}
+                      </button>
+                      <button className="btn" disabled={pensandoId === c.id} onClick={() => pedirPlano(c)}>
+                        Plano de quitação
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {expandido === c.id && (
@@ -282,6 +368,41 @@ export default function Compromissos() {
           })}
         </div>
       )}
+
+      <Modal aberto={!!plano} aoFechar={() => setPlano(null)}
+        titulo={`Plano de quitação — ${planoDe?.nome ?? ""}`}>
+        {plano && (
+          <div className="form">
+            {plano.analise && <p className="sub" style={{ whiteSpace: "pre-line" }}>{plano.analise}</p>}
+            {plano.parcelas.length === 0 ? (
+              <p className="sub">A IA não devolveu parcelas utilizáveis. Tente de novo.</p>
+            ) : (
+              <div className="plano">
+                {plano.parcelas.map((p, i) => (
+                  <div key={i} className="plano-item">
+                    <div className="plano-item-linha" style={{ flex: 1 }}>
+                      <span className="sub">{dataBR(p.data)}</span>
+                      <span className="num">{brl(p.valor_cents)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="sub" style={{ fontSize: "0.8rem" }}>
+              Soma {brl(plano.soma_cents)} de {brl(plano.falta_cents)} a quitar
+              {plano.diferenca_cents !== 0 && (
+                <strong style={{ color: "var(--warning)" }}>
+                  {" "}— {plano.diferenca_cents > 0 ? "faltam" : "sobram"} {brl(Math.abs(plano.diferenca_cents))}
+                </strong>
+              )}
+            </p>
+            <p className="sub" style={{ fontSize: "0.78rem" }}>
+              Isto é só uma sugestão — nada foi gravado. Registre cada pagamento quando ele
+              acontecer de verdade.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       <Modal aberto={formAberto} aoFechar={() => setFormAberto(false)} titulo={edit ? "Editar compromisso" : "Novo compromisso"}>
         <form onSubmit={salvar} className="form">

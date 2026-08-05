@@ -325,3 +325,74 @@ def perguntar(db: sqlite3.Connection, pergunta: str, contexto: str) -> str:
         {"role": "user", "content": f"Contexto (dados reais):\n{contexto}\n\nPergunta: {pergunta}"},
     ]
     return chamar(db, mensagens, espera_json=False, max_tokens=700).strip()
+
+
+# ---------- compromissos financeiros ----------
+
+def orientacao_compromisso(db: sqlite3.Connection, comp: dict, contexto: str) -> str:
+    """Plano concreto para quitar UM compromisso, olhando o orçamento real."""
+    instrucao = (
+        "Você é um consultor financeiro pessoal, direto e realista. A pessoa tem uma DÍVIDA "
+        "ou obrigação pontual com prazo. Analise o contexto financeiro completo e escreva "
+        "como quitá-la a tempo. Sem markdown e sem preâmbulo; linhas curtas, uma por tópico:\n"
+        "Diagnóstico: a sobra mensal real (entradas − fixas − variáveis) e se o que falta cabe "
+        "nela até o prazo.\n"
+        "De onde tirar: 2 a 4 cortes específicos por categoria, cada um com valor em R$ "
+        "realista (reduções parciais; nunca mande zerar saúde ou alimentação).\n"
+        "Ritmo: quanto separar por mês (ou por semana, se o prazo for curto) para chegar lá.\n"
+        "Primeiro passo: uma ação executável ainda esta semana.\n"
+        "Se o prazo for inviável mesmo com cortes plausíveis, diga isso com franqueza e "
+        "sugira negociar prazo ou parcelamento, indicando o valor de parcela que caberia."
+    )
+    de = f" (para {comp['credor']})" if comp.get("credor") else ""
+    ctx = (
+        f"Compromisso: {comp['nome']}{de} — total R$ {comp['valor_total_cents']/100:.2f}, "
+        f"já pago R$ {comp['pago_cents']/100:.2f}, FALTA R$ {comp['falta_cents']/100:.2f}, "
+        f"vence em {comp['data_limite']} ({comp['dias_restantes']} dias).\n\n"
+        f"Contexto financeiro:\n{contexto}"
+    )
+    return chamar(db, [{"role": "system", "content": instrucao},
+                       {"role": "user", "content": ctx}], espera_json=False, max_tokens=800).strip()
+
+
+def priorizar_compromissos(db: sqlite3.Connection, itens: list[dict], contexto: str) -> dict:
+    """Ordem sugerida de quitação, olhando todos os compromissos de uma vez."""
+    instrucao = (
+        "Você é um consultor financeiro pessoal. A pessoa tem VÁRIOS compromissos em aberto e "
+        "não consegue quitar todos de uma vez. Diga em que ordem atacá-los. Responda SOMENTE "
+        'com JSON: {"ordem": [{"id": int, "posicao": int, "motivo": str}, ...], "resumo": str}. '
+        "Inclua TODOS os ids recebidos, sem inventar nenhum. posicao começa em 1. "
+        "motivo = uma frase curta e concreta (prazo, valor, risco de multa/juros, efeito de "
+        "quitar primeiro o menor). resumo = 2 a 3 frases sobre a estratégia geral e quanto "
+        "por mês isso exige. Sem markdown."
+    )
+    linhas = "\n".join(
+        f"- id {i['id']}: {i['nome']}"
+        + (f" (para {i['credor']})" if i.get("credor") else "")
+        + f" — falta R$ {i['falta_cents']/100:.2f}, vence {i['data_limite']}"
+          f" ({i['dias_restantes']} dias)"
+        for i in itens
+    )
+    ctx = f"Compromissos em aberto:\n{linhas}\n\nContexto financeiro:\n{contexto}"
+    return chamar_json(db, [{"role": "system", "content": instrucao},
+                            {"role": "user", "content": ctx}], max_tokens=1600)
+
+
+def plano_compromisso(db: sqlite3.Connection, comp: dict, contexto: str) -> dict:
+    """Parcelas sugeridas para quitar o compromisso até o prazo (nada é gravado)."""
+    instrucao = (
+        "Você monta um plano de pagamento para quitar uma dívida até o prazo. Responda SOMENTE "
+        'com JSON: {"parcelas": [{"data": "YYYY-MM-DD", "valor_cents": int}, ...], "analise": str}. '
+        "As parcelas devem somar EXATAMENTE o que falta, ter datas entre hoje e o prazo, e "
+        "respeitar a sobra mensal real da pessoa — se não couber, use o máximo plausível e "
+        "diga na analise que o prazo não fecha. valor_cents em centavos, inteiro. "
+        "No máximo 12 parcelas. analise = 2 a 4 frases, sem markdown."
+    )
+    de = f" (para {comp['credor']})" if comp.get("credor") else ""
+    ctx = (
+        f"Compromisso: {comp['nome']}{de} — falta R$ {comp['falta_cents']/100:.2f}, "
+        f"vence em {comp['data_limite']} ({comp['dias_restantes']} dias). Hoje é {comp['hoje']}.\n\n"
+        f"Contexto financeiro:\n{contexto}"
+    )
+    return chamar_json(db, [{"role": "system", "content": instrucao},
+                            {"role": "user", "content": ctx}], max_tokens=1600)
