@@ -110,6 +110,8 @@ def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
 
     pend = lembretes.pendencias(db)
     msgs = lembretes._mensagens(pend)
+    comp = lembretes.pendencias_compromissos(db)
+    msgs.extend(lembretes._mensagens_compromissos(db, comp))
     # A prévia precisa cobrir TODO tipo de aviso do job — mentir por omissão
     # aqui é o usuário ver a lista vazia e às 8h chegar um push "inexistente".
     atual = competencia_de(hoje())

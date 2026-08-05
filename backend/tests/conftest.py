@@ -37,6 +37,32 @@ def banco_limpo():
     auth.limiter.enabled = True
 
 
+# Tabelas de movimento, filhas antes das mães (as FKs estão ligadas).
+# NÃO inclui `categorias` (a migration 004 semeia as padrão, e vários testes
+# dependem delas) nem `config`, que o banco_limpo já cuida.
+TABELAS_MOVIMENTO = (
+    "lancamentos_variaveis", "parcelamentos", "compromissos",
+    "lancamentos_fixos", "contas_fixas", "entradas",
+    "metas_aportes", "metas_itens", "metas",
+    "orcamentos", "saldos_conta", "contas_bancarias",
+    "lembretes_enviados", "push_subscriptions", "insights_cache",
+)
+
+
+def limpar_movimento(conn) -> None:
+    """Zera todo dado de movimento.
+
+    Use isto — em vez de listar tabelas à mão — em qualquer teste que afirme
+    algo GLOBAL, como "nenhuma notificação foi enviada". Fixtures que listam só
+    as tabelas do próprio assunto quebram em silêncio quando uma entidade nova
+    passa a gerar aviso: foi o que aconteceu quando os compromissos entraram no
+    job de lembretes e os testes de orçamento começaram a contar pushes alheios.
+    """
+    for t in TABELAS_MOVIMENTO:
+        conn.execute(f"DELETE FROM {t}")
+    conn.commit()
+
+
 @pytest.fixture
 def cliente():
     with TestClient(app) as c:

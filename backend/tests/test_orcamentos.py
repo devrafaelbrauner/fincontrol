@@ -9,13 +9,13 @@ from app import lembretes
 from app.db import connect
 from app.routers import push
 
+from .conftest import limpar_movimento
+
 
 @pytest.fixture
 def db():
     conn = connect()
-    for t in ("orcamentos", "lancamentos_variaveis", "lancamentos_fixos", "contas_fixas",
-              "entradas", "lembretes_enviados", "push_subscriptions"):
-        conn.execute(f"DELETE FROM {t}")
+    limpar_movimento(conn)
     conn.execute("INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES ('x', 'y', 'z')")
     conn.commit()
     yield conn

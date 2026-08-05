@@ -141,6 +141,54 @@ def buscar(
             "categoria": r["categoria"],
         })
 
+    # Compromissos: o "quando" é a data limite, e o texto procurado cobre o nome
+    # E o credor — quem lembra "devo alguma coisa ao João" não lembra do rótulo
+    # que deu ao compromisso.
+    where_c, params_c = ["1=1"], []
+    if q:
+        where_c.append("(norm(c.nome) LIKE ? ESCAPE '\\' OR norm(COALESCE(c.credor, '')) LIKE ? ESCAPE '\\')")
+        params_c += [_like(q), _like(q)]
+    if de:
+        where_c.append("c.data_limite >= ?")
+        params_c.append(de)
+    if ate:
+        where_c.append("c.data_limite <= ?")
+        params_c.append(ate)
+    # A faixa de valor casa com o que FALTA quitar, que é o número vivo do
+    # compromisso — o total já pago não é mais uma quantia a procurar.
+    having = []
+    if valor_min is not None:
+        having.append("falta_cents >= ?")
+        params_c.append(valor_min)
+    if valor_max is not None:
+        having.append("falta_cents <= ?")
+        params_c.append(valor_max)
+    sql_having = f"HAVING {' AND '.join(having)}" if having else ""
+    for r in db.execute(
+        f"""SELECT c.id, c.nome, c.credor, c.data_limite, c.valor_total_cents, cat.nome AS categoria,
+                   c.categoria_id,
+                   c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
+            FROM compromissos c
+            LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+            LEFT JOIN categorias cat ON cat.id = c.categoria_id
+            WHERE {' AND '.join(where_c)}
+            GROUP BY c.id {sql_having}
+            ORDER BY c.data_limite DESC, c.id DESC LIMIT ?""",
+        (*params_c, LIMITE + 1),
+    ):
+        itens.append({
+            "tipo": "compromisso",
+            "id": r["id"],
+            "descricao": r["nome"],
+            "credor": r["credor"],
+            "valor_cents": r["falta_cents"],
+            "valor_total_cents": r["valor_total_cents"],
+            "data": r["data_limite"],
+            "quitado": r["falta_cents"] <= 0,
+            "categoria_id": r["categoria_id"],
+            "categoria": r["categoria"],
+        })
+
     itens.sort(key=lambda i: i["data"], reverse=True)
     truncado = len(itens) > LIMITE
     return {"itens": itens[:LIMITE], "truncado": truncado}

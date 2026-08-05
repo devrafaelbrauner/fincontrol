@@ -126,5 +126,32 @@ def gerar_feed(db: sqlite3.Connection) -> str:
             alarme_dias=7,
         )
 
+    # Compromissos em aberto: uma obrigação pontual com prazo é exatamente o que
+    # um calendário serve para lembrar. Quitado não vira evento — o prazo deixou
+    # de existir, e mantê-lo poluiria a agenda com o que já foi resolvido.
+    compromissos = db.execute(
+        """SELECT c.id, c.nome, c.credor, c.data_limite, c.lembrete_dias_antes,
+                  c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
+           FROM compromissos c
+           LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+           WHERE c.ativo = 1
+           GROUP BY c.id
+           HAVING falta_cents > 0"""
+    ).fetchall()
+    for c in compromissos:
+        try:
+            date.fromisoformat(c["data_limite"])
+        except ValueError:
+            continue
+        de = f" ({c['credor']})" if c["credor"] else ""
+        linhas += _evento(
+            uid=f"compromisso-{c['id']}@fincontrol",
+            dt=c["data_limite"],
+            dtstamp=dtstamp,
+            resumo=f"💠 {c['nome']}{de} — {_brl(c['falta_cents'])}",
+            descricao="Compromisso financeiro a quitar.",
+            alarme_dias=c["lembrete_dias_antes"],
+        )
+
     linhas.append("END:VCALENDAR")
     return "\r\n".join(_dobrar_linha(l) for l in linhas) + "\r\n"
