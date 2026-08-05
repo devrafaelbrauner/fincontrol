@@ -338,6 +338,125 @@ def _mensagens_orcamentos(alertas: list[dict], atual: str) -> list[dict]:
     return msgs
 
 
+# ---------- compromissos a vencer ----------
+
+def _comprometido_no_mes(db: sqlite3.Connection, competencia: str, exceto_id: int) -> int:
+    """Contas fixas + outros compromissos em aberto que vencem na competência.
+
+    Isto é o "alerta de conflito", e ele NÃO é um push próprio de propósito: vira
+    uma frase no aviso do compromisso. Um push separado precisaria de um limiar
+    ("pesado" a partir de quanto?) que nada no app sabe calibrar, e erraria para
+    os dois lados. Como contexto na mensagem que já ia sair, informa sem inventar
+    régua nem custar uma notificação a mais.
+    """
+    fixas = db.execute(
+        "SELECT COALESCE(SUM(valor_estimado_cents), 0) t FROM contas_fixas WHERE ativa = 1"
+    ).fetchone()["t"]
+    outros = db.execute(
+        """SELECT COALESCE(SUM(c.valor_total_cents - COALESCE(pago.t, 0)), 0) t
+           FROM compromissos c
+           LEFT JOIN (SELECT compromisso_id, SUM(valor_cents) t FROM lancamentos_variaveis
+                      WHERE compromisso_id IS NOT NULL GROUP BY compromisso_id) pago
+             ON pago.compromisso_id = c.id
+           WHERE c.ativo = 1 AND c.id != ? AND substr(c.data_limite, 1, 7) = ?
+             AND c.valor_total_cents > COALESCE(pago.t, 0)""",
+        (exceto_id, competencia),
+    ).fetchone()["t"]
+    return fixas + outros
+
+
+def pendencias_compromissos(db: sqlite3.Connection, hoje_: date | None = None) -> list[dict]:
+    """Compromissos em aberto que merecem aviso hoje.
+
+    Mesma taxonomia das contas fixas (`antes`/`hoje`/`atraso`) e o mesmo
+    DIAS_ATRASO_MAX, para o dono não ter que aprender duas gramáticas de aviso.
+    Quitado nunca avisa, mesmo vencido.
+    """
+    hoje_ = hoje_ or hoje()
+    linhas = db.execute(
+        """SELECT c.*, COALESCE(SUM(l.valor_cents), 0) AS pago_cents
+           FROM compromissos c
+           LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+           WHERE c.ativo = 1 GROUP BY c.id"""
+    ).fetchall()
+
+    out = []
+    for c in linhas:
+        falta = c["valor_total_cents"] - c["pago_cents"]
+        if falta <= 0:
+            continue  # quitado
+        try:
+            venc = date.fromisoformat(c["data_limite"])
+        except ValueError:
+            continue  # data corrompida não derruba o job inteiro
+        dias = (venc - hoje_).days
+        antes = c["lembrete_dias_antes"] or 0
+        if dias == 0:
+            tipo = "hoje"
+        elif 0 < dias <= antes:
+            tipo = "antes"
+        elif -DIAS_ATRASO_MAX <= dias < 0:
+            tipo = "atraso"
+        else:
+            continue
+        out.append({
+            "chave": f"compromisso:{c['id']}:{tipo}",
+            "tipo": tipo,
+            "dias": dias,
+            "id": c["id"],
+            "nome": c["nome"],
+            "credor": c["credor"],
+            "falta_cents": falta,
+            "parcial": c["pago_cents"] > 0,
+            "vencimento": c["data_limite"],
+            "competencia": c["data_limite"][:7],
+        })
+    out.sort(key=lambda p: (p["vencimento"], p["nome"]))
+    return out
+
+
+def _mensagens_compromissos(db: sqlite3.Connection, pend: list[dict]) -> list[dict]:
+    """Um push por grupo (mesmo tipo e mesmo prazo), com o peso do mês junto."""
+    grupos: dict[tuple, list[dict]] = {}
+    for p in pend:
+        grupos.setdefault((p["tipo"], None if p["tipo"] == "atraso" else p["dias"]), []).append(p)
+
+    msgs = []
+    ordem = {"atraso": 0, "hoje": 1, "antes": 2}
+    for (tipo, dias), itens in sorted(grupos.items(), key=lambda kv: (ordem[kv[0][0]], kv[0][1] or 0)):
+        n = len(itens)
+        total = sum(i["falta_cents"] for i in itens)
+        if tipo == "hoje":
+            titulo = "Compromisso vence hoje" if n == 1 else f"{n} compromissos vencem hoje"
+        elif tipo == "antes":
+            quando = "amanhã" if dias == 1 else f"em {dias} dias"
+            titulo = f"Compromisso vence {quando}" if n == 1 else f"{n} compromissos vencem {quando}"
+        else:
+            titulo = "Compromisso atrasado" if n == 1 else f"{n} compromissos atrasados"
+
+        partes = []
+        for i in itens:
+            # "falta" e não o total: com pagamento parcial, anunciar o valor
+            # cheio faria o aviso pedir dinheiro que já saiu.
+            rotulo = f"{i['nome']}{f' ({i['credor']})' if i['credor'] else ''}"
+            partes.append(f"{rotulo}: {'falta ' if i['parcial'] else ''}{brl(i['falta_cents'])}")
+        corpo = " · ".join(partes)
+        if n > 1:
+            corpo += f" — {brl(total)} no total"
+
+        # Peso do mês: só faz sentido quando o grupo é de um mês só.
+        comps = {i["competencia"] for i in itens}
+        if len(comps) == 1:
+            comp = comps.pop()
+            outros = _comprometido_no_mes(db, comp, itens[0]["id"] if n == 1 else -1)
+            if outros > 0:
+                mes = MESES_PT[int(comp[5:7]) - 1]
+                corpo += f". {mes.capitalize()} já tem {brl(outros)} em contas fixas e compromissos"
+        msgs.append({"titulo": titulo, "corpo": corpo, "url": "/compromissos",
+                     "chaves": [i["chave"] for i in itens]})
+    return msgs
+
+
 # ---------- execução ----------
 
 def _ja_enviadas(db: sqlite3.Connection, chaves: list[str]) -> set[str]:
@@ -371,6 +490,13 @@ def enviar_lembretes(db: sqlite3.Connection, hoje_: date | None = None, forcar: 
         vistas = _ja_enviadas(db, [p["chave"] for p in pend])
         pend = [p for p in pend if p["chave"] not in vistas]
     msgs = _mensagens(pend)
+
+    # Compromissos a vencer — mesma dedup por chave dos avisos de conta fixa.
+    comp = pendencias_compromissos(db, hoje_)
+    if not forcar:
+        vistas = _ja_enviadas(db, [p["chave"] for p in comp])
+        comp = [p for p in comp if p["chave"] not in vistas]
+    msgs.extend(_mensagens_compromissos(db, comp))
 
     # Orçamentos em alerta (mês corrente + catch-up da virada) — junto do job
     # diário, com a mesma dedup por chave (nível×categoria×mês) dos outros avisos.

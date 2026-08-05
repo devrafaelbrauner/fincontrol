@@ -6,6 +6,7 @@ A chave do OpenRouter é criptografada (Fernet) ao salvar e nunca volta ao front
 
 import json
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,9 +17,18 @@ from ..cripto import criptografar
 from ..db import get_db
 from ..openrouter import OpenRouterError
 from ..routers.anexos import EXTENSAO_PARA_CONTENT_TYPE, UPLOADS_DIR
-from ..util import hoje, validar_competencia, gerar_lancamentos_fixos
+from ..util import hoje, validar_competencia, validar_data, gerar_lancamentos_fixos
 
 router = APIRouter(prefix="/ia", tags=["ia"])
+
+
+def _data_ok(valor: str) -> bool:
+    """Data que o modelo devolveu serve para gravar/recortar por mês?"""
+    try:
+        validar_data(valor)
+    except ValueError:
+        return False
+    return True
 
 
 # ---------- helpers de resumo (contexto para insights/estratégia/chat) ----------
@@ -90,6 +100,23 @@ def _contexto_financeiro(db: sqlite3.Connection, competencia: str, excluir_meta_
         partes.append(f"{rotulo}: " + "; ".join(
             f"{m['nome']} (guardado {reais(m['atual'])} de {reais(m['valor_total_cents'])}, prazo {m['prazo']})"
             for m in outras) + ".")
+    # Compromissos em aberto: dívida com prazo compete pelo mesmo dinheiro que
+    # meta e gasto variável. Sem eles no contexto, qualquer conselho de IA —
+    # inclusive o do assistente e o dos insights do mês — sugere guardar dinheiro
+    # que na verdade já está comprometido.
+    comps = db.execute(
+        """SELECT c.nome, c.credor, c.data_limite,
+                  c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
+           FROM compromissos c
+           LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+           WHERE c.ativo = 1 GROUP BY c.id HAVING falta_cents > 0
+           ORDER BY c.data_limite"""
+    ).fetchall()
+    if comps:
+        partes.append("Compromissos em aberto: " + "; ".join(
+            f"{c['nome']}" + (f" (para {c['credor']})" if c["credor"] else "")
+            + f" falta {reais(c['falta_cents'])}, vence {c['data_limite']}"
+            for c in comps) + ".")
     return "\n".join(partes)
 
 
@@ -363,3 +390,123 @@ def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
         return {"resposta": openrouter.perguntar(db, body.pergunta, contexto)}
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
+
+
+# ---------- compromissos financeiros ----------
+
+def _compromisso_para_ia(db: sqlite3.Connection, compromisso_id: int) -> dict:
+    row = db.execute(
+        """SELECT c.*, COALESCE(SUM(l.valor_cents), 0) AS pago_cents
+           FROM compromissos c
+           LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+           WHERE c.id = ? GROUP BY c.id""",
+        (compromisso_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Compromisso não encontrado")
+    falta = row["valor_total_cents"] - row["pago_cents"]
+    if falta <= 0:
+        # Pagar uma chamada de IA para orientar sobre dívida já quitada é queimar
+        # dinheiro do dono para dizer "não faça nada".
+        raise HTTPException(400, "Este compromisso já está quitado")
+    h = hoje()
+    return {
+        "nome": row["nome"], "credor": row["credor"],
+        "valor_total_cents": row["valor_total_cents"],
+        "pago_cents": row["pago_cents"], "falta_cents": falta,
+        "data_limite": row["data_limite"], "hoje": h.isoformat(),
+        "dias_restantes": (date.fromisoformat(row["data_limite"]) - h).days,
+    }
+
+
+@router.post("/orientacao-compromisso/{compromisso_id}")
+def orientacao_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Plano para quitar este compromisso. Salva em `orientacao_texto`.
+
+    Sob demanda, nunca automático: cada chamada é paga, e gerar orientação para
+    todo compromisso cadastrado cobraria o dono por texto que ele não pediu.
+    """
+    comp = _compromisso_para_ia(db, compromisso_id)
+    h = hoje()
+    try:
+        texto = openrouter.orientacao_compromisso(
+            db, comp, _contexto_financeiro(db, f"{h.year:04d}-{h.month:02d}"))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    db.execute("UPDATE compromissos SET orientacao_texto = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+               (texto, compromisso_id))
+    return {"orientacao": texto}
+
+
+@router.post("/priorizar-compromissos")
+def priorizar_compromissos(db: sqlite3.Connection = Depends(get_db)):
+    """Ordem sugerida de quitação — uma chamada olhando todos os abertos."""
+    linhas = db.execute(
+        """SELECT c.id, c.nome, c.credor, c.data_limite,
+                  c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
+           FROM compromissos c
+           LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
+           WHERE c.ativo = 1 GROUP BY c.id HAVING falta_cents > 0
+           ORDER BY c.data_limite"""
+    ).fetchall()
+    if len(linhas) < 2:
+        raise HTTPException(400, "Priorizar só faz sentido com dois ou mais compromissos em aberto")
+    h = hoje()
+    itens = [
+        {**dict(r), "dias_restantes": (date.fromisoformat(r["data_limite"]) - h).days}
+        for r in linhas if _data_ok(r["data_limite"])
+    ]
+    try:
+        dados = openrouter.priorizar_compromissos(
+            db, itens, _contexto_financeiro(db, f"{h.year:04d}-{h.month:02d}"))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    # O modelo pode inventar id ou esquecer algum: só passa o que existe, e a
+    # ordem é reconstruída aqui em vez de confiar no `posicao` que ele mandou.
+    validos = {i["id"] for i in itens}
+    ordem = [o for o in dados.get("ordem", [])
+             if isinstance(o, dict) and o.get("id") in validos]
+    ordem.sort(key=lambda o: o.get("posicao") if isinstance(o.get("posicao"), int) else 999)
+    vistos, limpa = set(), []
+    for pos, o in enumerate(ordem, start=1):
+        if o["id"] in vistos:
+            continue
+        vistos.add(o["id"])
+        limpa.append({"id": o["id"], "posicao": pos, "motivo": str(o.get("motivo", "")).strip()})
+    faltantes = [i["id"] for i in itens if i["id"] not in vistos]
+    return {"ordem": limpa, "sem_posicao": faltantes,
+            "resumo": str(dados.get("resumo", "")).strip()}
+
+
+@router.post("/plano-compromisso/{compromisso_id}")
+def plano_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """Parcelas sugeridas até o prazo. NÃO grava nada — o dono aceita o que quiser."""
+    comp = _compromisso_para_ia(db, compromisso_id)
+    h = hoje()
+    try:
+        dados = openrouter.plano_compromisso(
+            db, comp, _contexto_financeiro(db, f"{h.year:04d}-{h.month:02d}"))
+    except OpenRouterError as e:
+        raise HTTPException(502, str(e))
+    parcelas = []
+    for p in dados.get("parcelas", []):
+        if not isinstance(p, dict):
+            continue
+        valor = _valor_cents(p.get("valor_cents"))
+        data = str(p.get("data", "")).strip()
+        # Mesma régua do resto do app: valor ilegível ou data fora do padrão é
+        # descartado, e não gravado como R$ 0,00 ou data que some dos recortes.
+        if valor is None or valor <= 0 or not _data_ok(data):
+            continue
+        parcelas.append({"data": data, "valor_cents": valor})
+    parcelas.sort(key=lambda p: p["data"])
+    soma = sum(p["valor_cents"] for p in parcelas)
+    return {
+        "parcelas": parcelas,
+        "soma_cents": soma,
+        "falta_cents": comp["falta_cents"],
+        # A soma raramente fecha no centavo; a tela mostra a diferença em vez de
+        # fingir que o plano cobre tudo.
+        "diferenca_cents": comp["falta_cents"] - soma,
+        "analise": str(dados.get("analise", "")).strip(),
+    }
