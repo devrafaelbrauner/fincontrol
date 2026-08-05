@@ -104,6 +104,18 @@ describe("mensagemDeErro", () => {
     expect(mensagemDeErro(detail, "Erro")).toBe("prazo: Data inválida · valor_cents: Input should be greater than 0");
   });
 
+  it("ignora também o prefixo 'query', dos filtros de data validados no schema", () => {
+    // `GET /variaveis?de=15/08/2026` responde 422 com loc ["query", "de"];
+    // sem tirar o prefixo, o toast diria "query.de: ..." — o "query" não
+    // significa nada para quem está olhando o filtro na tela.
+    const detail = [
+      { loc: ["query", "de"], msg: "Value error, Data deve estar no formato YYYY-MM-DD (recebido: '15/08/2026')" },
+    ];
+    expect(mensagemDeErro(detail, "Erro")).toBe(
+      "de: Data deve estar no formato YYYY-MM-DD (recebido: '15/08/2026')",
+    );
+  });
+
   it("deixa passar o `detail` string dos HTTPException e cai no fallback quando não dá para ler", () => {
     expect(mensagemDeErro("Lançamento não encontrado", "Erro")).toBe("Lançamento não encontrado");
     expect(mensagemDeErro(undefined, "Bad Request")).toBe("Bad Request");

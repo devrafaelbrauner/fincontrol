@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataISO, somar_meses, vencimento
+from ..util import DataFiltro, DataISO, somar_meses, vencimento
 
 router = APIRouter(prefix="/variaveis", tags=["variaveis"])
 
@@ -31,8 +31,12 @@ class VariavelPatch(BaseModel):
 
 @router.get("")
 def listar(
-    de: str | None = None,
-    ate: str | None = None,
+    # Validado no schema, como os campos gravados: um `de` fora do padrão não
+    # dava erro — comparado como texto, '15/08/2026' < '2026-...', o WHERE
+    # virava sempre verdadeiro e a resposta vinha SEM FILTRO, com cara de
+    # filtrada. O 422 do schema nomeia o campo, que é o que a UI mostra.
+    de: DataFiltro = None,
+    ate: DataFiltro = None,
     categoria_id: int | None = None,
     db: sqlite3.Connection = Depends(get_db),
 ):

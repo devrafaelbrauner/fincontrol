@@ -105,3 +105,37 @@ def test_fk_inexistente_e_400_e_nao_500(db, autenticado):
     ).json()
     r = autenticado.patch(f"/api/variaveis/{novo['id']}", json={"anexo_id": 99_999})
     assert r.status_code == 400, r.text
+
+
+# ---------- filtros de leitura (`de`/`ate`) ----------
+#
+# Mesma classe, do lado da leitura: `de`/`ate` não eram validados em /variaveis
+# e /entradas. Comparados como texto, `'15/08/2026' < '2026-...'`, então o WHERE
+# ficava sempre verdadeiro e a lista voltava INTEIRA — sem filtro, com cara de
+# filtrada. `/busca` já validava (e responde 400, com o rótulo do parâmetro).
+
+
+@pytest.mark.parametrize("endpoint", ["/api/variaveis", "/api/entradas"])
+@pytest.mark.parametrize("param", ["de", "ate"])
+@pytest.mark.parametrize("data", DATAS_INVALIDAS[:-1])  # "" significa "sem filtro", não erro
+def test_filtro_de_data_invalido_e_recusado(db, autenticado, endpoint, param, data):
+    r = autenticado.get(endpoint, params={param: data})
+    assert r.status_code == 422, r.text
+
+
+def test_filtro_em_formato_brasileiro_nao_devolve_lista_inteira(db, autenticado):
+    """O caso que passava despercebido: não vinha lista vazia, vinha TUDO."""
+    autenticado.post("/api/variaveis", json={"descricao": "Mercado", "valor_cents": 5000, "data": "2026-08-15"})
+
+    assert autenticado.get("/api/variaveis", params={"de": "15/08/2026"}).status_code == 422
+    # O filtro válido continua filtrando de verdade nos dois sentidos:
+    assert autenticado.get("/api/variaveis", params={"de": "2026-09-01"}).json()["itens"] == []
+    assert len(autenticado.get("/api/variaveis", params={"de": "2026-08-01"}).json()["itens"]) == 1
+
+
+def test_filtro_de_data_vazio_significa_sem_filtro(db, autenticado):
+    autenticado.post("/api/entradas", json={"descricao": "Salário", "valor_cents": 900_000, "data": "2026-08-05"})
+
+    r = autenticado.get("/api/entradas", params={"de": "", "ate": ""})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["itens"]) == 1

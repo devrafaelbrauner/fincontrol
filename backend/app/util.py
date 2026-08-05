@@ -1,6 +1,7 @@
 import calendar
 import re
 import sqlite3
+import unicodedata
 from datetime import date, datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -32,6 +33,26 @@ def somar_meses(competencia: str, n: int) -> str:
     ano, mes = int(competencia[:4]), int(competencia[5:7])
     total = (ano * 12 + mes - 1) + n
     return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def normalizar_busca(texto: str | None) -> str | None:
+    """Texto reduzido a minúsculas SEM acento, para comparar em busca.
+
+    Existe porque o LIKE do SQLite só dobra caixa em ASCII: letra acentuada nunca
+    casa com sua versão em outra caixa, e a busca falhava em silêncio — 'água'
+    não encontrava "Água mineral", 'FARMÁCIA' não encontrava "Farmácia". Numa
+    base em português isso atinge quase tudo (mercado, cartão, alimentação).
+
+    Tirar o acento junto é de propósito, não efeito colateral: quem digita
+    'agua' ou 'farmacia' com pressa espera achar do mesmo jeito.
+    """
+    if texto is None:
+        return None
+    # NFD separa a letra do acento; a categoria 'Mn' são exatamente os acentos.
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn"
+    )
+    return sem_acento.casefold()
 
 
 def brl(cents: int) -> str:
@@ -70,6 +91,23 @@ def _e_data_real(valor: str) -> bool:
 # não em cada endpoint — que é como as datas de `/variaveis` e `/entradas` ficaram
 # sem checagem enquanto `/variaveis/parcelado` tinha a sua.
 DataISO = Annotated[str, AfterValidator(validar_data)]
+
+
+def _data_de_filtro(valor: str | None) -> str | None:
+    """Como DataISO, mas string vazia é 'sem filtro' — não erro.
+
+    Um `<input type=date>` em branco manda `de=`, e isso sempre significou "não
+    recorte por data". Só o que NÃO é vazio precisa ser uma data de verdade.
+    """
+    if not valor:
+        return None
+    return validar_data(valor)
+
+
+# Para os parâmetros `de`/`ate` das listagens: sem validação, uma data em outro
+# formato não filtrava nada — comparada como texto, '15/08/2026' < '2026-...',
+# o WHERE ficava sempre verdadeiro e a lista voltava inteira parecendo filtrada.
+DataFiltro = Annotated[str | None, AfterValidator(_data_de_filtro)]
 
 
 def gerar_lancamentos_fixos(db: sqlite3.Connection, competencia: str) -> None:

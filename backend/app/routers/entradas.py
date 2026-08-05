@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataISO
+from ..util import DataFiltro, DataISO
 
 router = APIRouter(prefix="/entradas", tags=["entradas"])
 
@@ -18,7 +18,13 @@ class EntradaIn(BaseModel):
 
 
 @router.get("")
-def listar(de: str | None = None, ate: str | None = None, db: sqlite3.Connection = Depends(get_db)):
+def listar(
+    # Mesmo motivo de /variaveis: sem validar, data em formato errado não filtra
+    # nada e a lista volta inteira parecendo filtrada.
+    de: DataFiltro = None,
+    ate: DataFiltro = None,
+    db: sqlite3.Connection = Depends(get_db),
+):
     where, params = ["1=1"], []
     if de:
         where.append("data >= ?")

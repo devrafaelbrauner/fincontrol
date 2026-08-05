@@ -2,6 +2,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from .util import normalizar_busca
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("FINCONTROL_DATA", BASE_DIR / "data"))
 DB_PATH = DATA_DIR / "fincontrol.db"
@@ -18,6 +20,11 @@ def connect() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA busy_timeout=5000")  # espera locks (writes concorrentes) em vez de falhar
+    # `norm(x)` deixa o LIKE da busca insensível a acento e caixa — o do SQLite
+    # sozinho só dobra caixa em ASCII. Ver util.normalizar_busca.
+    # deterministic=True: mesma entrada, mesma saída — permite ao SQLite usá-la
+    # em índices e views, e evita reavaliações desnecessárias.
+    conn.create_function("norm", 1, normalizar_busca, deterministic=True)
     return conn
 
 
