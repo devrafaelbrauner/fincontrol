@@ -5,7 +5,7 @@ import AddTransacaoModal from "./components/AddTransacaoModal";
 import BuscaGlobal from "./components/BuscaGlobal";
 import Logo from "./components/Logo";
 import {
-  IcAnalises, IcBusca, IcCalendario, IcChat, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
+  IcAnalises, IcBusca, IcCalendario, IcChat, IcCompromissos, IcConfig, IcEntradas, IcExpandir, IcFechar, IcFixas, IcGrip, IcImportar, IcLua, IcMais, IcMenu,
   IcMetas, IcRecolher, IcSair, IcSino, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
@@ -14,6 +14,7 @@ import { useTema } from "./tema";
 import Analises from "./pages/Analises";
 import Assistente from "./pages/Assistente";
 import Calendario from "./pages/Calendario";
+import Compromissos from "./pages/Compromissos";
 import Config from "./pages/Config";
 import ContasFixas from "./pages/ContasFixas";
 import Dashboard from "./pages/Dashboard";
@@ -32,6 +33,7 @@ const ABAS: { para: string; rotulo: string; icone: ReactNode }[] = [
   { para: "/variaveis", rotulo: "Variáveis", icone: <IcVariaveis /> },
   { para: "/entradas", rotulo: "Entradas", icone: <IcEntradas /> },
   { para: "/metas", rotulo: "Metas", icone: <IcMetas /> },
+  { para: "/compromissos", rotulo: "Compromissos", icone: <IcCompromissos /> },
   { para: "/calendario", rotulo: "Calendário", icone: <IcCalendario /> },
   { para: "/config", rotulo: "Configurações", icone: <IcConfig /> },
 ];
@@ -192,6 +194,7 @@ export default function App() {
             <Route path="/variaveis" element={<Variaveis />} />
             <Route path="/entradas" element={<Entradas />} />
             <Route path="/metas" element={<Metas />} />
+            <Route path="/compromissos" element={<Compromissos />} />
             <Route path="/calendario" element={<Calendario />} />
             <Route path="/config" element={<Config />} />
           </Routes>
