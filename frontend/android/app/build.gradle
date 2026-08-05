@@ -21,6 +21,16 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        debug {
+            // Pacote e nome próprios para o APK de teste conviver com o app de
+            // verdade no mesmo aparelho. Sem isto os dois têm o mesmo
+            // applicationId: instalar um SUBSTITUI o outro em silêncio, os dois
+            // aparecem como "FinControl" na gaveta, e não há como saber pelo
+            // celular qual backend o app instalado usa.
+            // O nome vem de src/debug/res/values/strings.xml — `resValue` aqui
+            // colidiria com o app_name já declarado no res/ principal.
+            applicationIdSuffix ".teste"
+        }
     }
 }
 
