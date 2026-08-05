@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from ..db import get_db
-from ..util import agora_iso
+from ..util import agora_iso, validar_competencia
 
 router = APIRouter(prefix="/contas-bancarias", tags=["contas-bancarias"])
 
@@ -133,6 +133,82 @@ def listar(incluir_arquivadas: bool = False, db: sqlite3.Connection = Depends(ge
         "variacao_total_cents": variacao_total,
         "variacao_total_pct": pct_total,
         "contas_sem_saldo": sum(1 for i in itens if i["saldo_cents"] is None),
+    }
+
+
+@router.get("/reconciliacao/{competencia}")
+def reconciliacao(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+    """Variação REAL dos saldos no mês × o que os lançamentos explicam.
+
+    Os dois eixos do app são independentes (ver migration 012), e é justamente
+    por isso que compará-los informa: a diferença é dinheiro que se moveu sem
+    passar por nenhum lançamento — transferência não registrada, rendimento,
+    tarifa, ou simplesmente um gasto que ficou de fora.
+
+    Não é um erro a corrigir automaticamente: é um teste de completude do
+    controle. Por isso a resposta traz os três números e não "conserta" nada.
+    """
+    try:
+        validar_competencia(competencia)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    # Primeira e última leitura DENTRO do mês, por conta. Sem leitura no mês a
+    # conta fica de fora: não há variação observada para comparar, e assumir
+    # zero misturaria "não mudou" com "não olhei".
+    linhas = db.execute(
+        """SELECT conta_id,
+                  MIN(registrado_em) AS primeira, MAX(registrado_em) AS ultima
+           FROM saldos_conta WHERE substr(registrado_em, 1, 7) = ?
+           GROUP BY conta_id""",
+        (competencia,),
+    ).fetchall()
+
+    variacao_saldos = 0
+    contas_medidas = 0
+    for r in linhas:
+        # O saldo de PARTIDA é a última leitura ANTERIOR ao mês; sem ela, a
+        # primeira do próprio mês (conta que nasceu no mês não "ganhou" o saldo
+        # inicial — ele não veio de lugar nenhum).
+        anterior = db.execute(
+            """SELECT valor_cents FROM saldos_conta
+               WHERE conta_id = ? AND substr(registrado_em, 1, 7) < ?
+               ORDER BY registrado_em DESC, id DESC LIMIT 1""",
+            (r["conta_id"], competencia),
+        ).fetchone()
+        fim = db.execute(
+            "SELECT valor_cents FROM saldos_conta WHERE conta_id = ? AND registrado_em = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (r["conta_id"], r["ultima"]),
+        ).fetchone()
+        if anterior is None:
+            continue  # nasceu neste mês: nada a reconciliar
+        variacao_saldos += fim["valor_cents"] - anterior["valor_cents"]
+        contas_medidas += 1
+
+    prefixo = competencia + "-%"
+    entradas = db.execute(
+        "SELECT COALESCE(SUM(valor_cents), 0) t FROM entradas WHERE data LIKE ?", (prefixo,)
+    ).fetchone()["t"]
+    variaveis = db.execute(
+        "SELECT COALESCE(SUM(valor_cents), 0) t FROM lancamentos_variaveis WHERE data LIKE ?", (prefixo,)
+    ).fetchone()["t"]
+    fixas = db.execute(
+        "SELECT COALESCE(SUM(valor_cents), 0) t FROM lancamentos_fixos "
+        "WHERE competencia = ? AND data_pagamento IS NOT NULL", (competencia,)
+    ).fetchone()["t"]
+    # Só conta fixa PAGA entra: a não paga não saiu da conta, então cobrá-la aqui
+    # criaria uma diferença que não existe.
+    explicado = entradas - variaveis - fixas
+
+    return {
+        "competencia": competencia,
+        "variacao_saldos_cents": variacao_saldos,
+        "explicado_lancamentos_cents": explicado,
+        "diferenca_cents": variacao_saldos - explicado,
+        "contas_medidas": contas_medidas,
+        "detalhe": {"entradas_cents": entradas, "variaveis_cents": variaveis,
+                    "fixas_pagas_cents": fixas},
     }
 
 

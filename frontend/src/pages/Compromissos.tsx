@@ -65,7 +65,7 @@ const corBarra = (c: Compromisso) =>
 
 export default function Compromissos() {
   const toast = useToast();
-  const { atualizar } = useAtualizacao();
+  const { versao, atualizar } = useAtualizacao();
   const [itens, setItens] = useState<Compromisso[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [erro, setErro] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export default function Compromissos() {
     } finally {
       setCarregando(false);
     }
-  }, [verArquivados]);
+  }, [verArquivados, versao]);
 
   useEffect(() => { carregar(); }, [carregar]);
 

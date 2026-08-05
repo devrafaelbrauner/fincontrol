@@ -53,7 +53,7 @@ let proximaKey = 1;
  *  um cartão editável; confirmar cria o lançamento com o comprovante anexado. */
 export default function Importar() {
   const toast = useToast();
-  const { atualizar } = useAtualizacao();
+  const { versao, atualizar } = useAtualizacao();
   const [itens, setItens] = useState<Item[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [sobre, setSobre] = useState(false);
@@ -63,7 +63,7 @@ export default function Importar() {
   useEffect(() => {
     api<Categoria[]>("/categorias").then(setCategorias).catch(() => {});
     api<{ configurada: boolean }>("/ia/config").then((c) => setIaConfigurada(c.configurada)).catch(() => {});
-  }, []);
+  }, [versao]);
 
   function mudar(key: number, mudancas: Partial<Item>) {
     setItens((l) => l.map((i) => (i.key === key ? { ...i, ...mudancas } : i)));
