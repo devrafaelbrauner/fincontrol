@@ -2,8 +2,9 @@
 
 O gasto comparado ao limite é SÓ o variável — conta fixa é previsível por
 natureza e entraria no orçamento como um "estouro" que não informa nada.
-O aviso push de estouro sai pelo job diário (lembretes.py), com a mesma
-garantia de não repetição dos outros lembretes.
+Os avisos push (chegando no limite aos 80%, estouro aos 100%) saem pelo job
+diário (lembretes.py), com a mesma garantia de não repetição dos outros
+lembretes — e contando só o que já saiu, ao contrário da barra na tela.
 """
 
 import sqlite3
@@ -21,17 +22,34 @@ class OrcamentoIn(BaseModel):
     limite_cents: int = Field(gt=0)
 
 
-def gastos_do_mes(db: sqlite3.Connection, competencia: str) -> dict[int, int]:
-    """Gasto variável por categoria na competência (só categorias com orçamento)."""
+def gastos_do_mes(
+    db: sqlite3.Connection, competencia: str, ate: str | None = None
+) -> dict[int, int]:
+    """Gasto variável por categoria na competência (só categorias com orçamento).
+
+    `ate` corta no dia, e os dois consumidores querem coisas diferentes:
+
+    - A **listagem** (barra na tela) não passa nada: a pergunta ali é quanto do
+      limite já está comprometido, e uma parcela que vence dia 20 compromete o
+      mês desde que a compra foi feita. Contar o mês inteiro é o certo.
+    - O **job de push** passa hoje. Compra em N× é materializada com a data do
+      mês de cada parcela, então sem o corte o job anunciaria "orçamento
+      estourado" no dia 5 por dinheiro que só sai no dia 20 — falso alarme
+      sobre algo que o usuário não pode mais evitar de qualquer forma.
+    """
+    where, params = "substr(l.data, 1, 7) = ?", [competencia]
+    if ate:
+        where += " AND l.data <= ?"
+        params.append(ate)
     return {
         r["categoria_id"]: r["t"]
         for r in db.execute(
-            """SELECT l.categoria_id, SUM(l.valor_cents) t
+            f"""SELECT l.categoria_id, SUM(l.valor_cents) t
                FROM lancamentos_variaveis l
                JOIN orcamentos o ON o.categoria_id = l.categoria_id
-               WHERE substr(l.data, 1, 7) = ?
+               WHERE {where}
                GROUP BY l.categoria_id""",
-            (competencia,),
+            params,
         )
     }
 

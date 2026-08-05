@@ -1,4 +1,5 @@
-"""Orçamentos por categoria: CRUD, gasto do mês e aviso push de estouro."""
+"""Orçamentos por categoria: CRUD, gasto do mês e os dois níveis de push
+(chegando no limite aos 80%, estouro aos 100%)."""
 
 from datetime import date
 
@@ -85,7 +86,7 @@ def test_estouro_gera_push_uma_unica_vez(db, enviados):
     mercado = cat(db, "Mercado push")
     db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 50_000)", (mercado,))
     db.commit()
-    gasto(db, mercado, 50_000)  # exatamente no limite já conta como estouro
+    gasto(db, mercado, 60_000)
 
     lembretes.enviar_lembretes(db, HOJE)
     assert len(enviados) == 1
@@ -98,11 +99,25 @@ def test_estouro_gera_push_uma_unica_vez(db, enviados):
     assert len(enviados) == 1
 
 
-def test_abaixo_do_limite_nao_avisa_e_mes_novo_reavisa(db, enviados):
+def test_gasto_exatamente_no_limite_nao_diz_estourado(db, enviados):
+    """Bater na régua notifica (o limite acabou), mas com o texto certo: o corpo
+    diz "R$ 500,00 de R$ 500,00", que sob "estourado" soaria como erro de conta."""
+    mercado = cat(db, "Régua push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 50_000)", (mercado,))
+    db.commit()
+    gasto(db, mercado, 50_000)
+
+    lembretes.enviar_lembretes(db, HOJE)
+    assert len(enviados) == 1
+    assert enviados[0]["titulo"] == "Orçamento no limite"
+    assert "R$ 500,00 de R$ 500,00" in enviados[0]["corpo"]
+
+
+def test_abaixo_do_aviso_nao_notifica_e_mes_novo_reavisa(db, enviados):
     lazer = cat(db, "Lazer push")
     db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 30_000)", (lazer,))
     db.commit()
-    gasto(db, lazer, 29_999)
+    gasto(db, lazer, 20_000)  # 66% — abaixo do PCT_AVISO
 
     lembretes.enviar_lembretes(db, HOJE)
     assert enviados == []
@@ -166,3 +181,102 @@ def test_dois_estouros_viram_um_push_so(db, enviados):
     assert len(enviados) == 1
     assert enviados[0]["titulo"] == "2 orçamentos estourados"
     assert "A push" in enviados[0]["corpo"] and "B push" in enviados[0]["corpo"]
+
+
+# ---------- aviso em 80% ----------
+#
+# Dashboard e Análises já pintam a barra de âmbar em `pct >= 80`, mas o push só
+# existia nos 100% — tarde demais para "mudar comportamento", que é o que a
+# migration 009 diz que orçamento existe para fazer.
+
+
+def test_aviso_aos_80_por_cento(db, enviados):
+    m = cat(db, "Aviso push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 100_000)", (m,))
+    db.commit()
+    gasto(db, m, 80_000)
+
+    lembretes.enviar_lembretes(db, HOJE)
+    assert len(enviados) == 1
+    assert enviados[0]["titulo"] == "Orçamento chegando no limite"
+    assert "R$ 800,00 de R$ 1.000,00" in enviados[0]["corpo"]
+
+
+def test_aviso_e_depois_estouro_sao_dois_pushes_distintos(db, enviados):
+    """Os dois níveis têm chave de dedup própria: passar dos 80% e depois
+    estourar no mesmo mês avisa duas vezes — é o ponto de ter dois níveis."""
+    m = cat(db, "Escalada push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 100_000)", (m,))
+    db.commit()
+
+    gasto(db, m, 85_000)
+    lembretes.enviar_lembretes(db, HOJE)
+    assert [e["titulo"] for e in enviados] == ["Orçamento chegando no limite"]
+
+    gasto(db, m, 30_000)
+    lembretes.enviar_lembretes(db, HOJE)
+    assert [e["titulo"] for e in enviados] == ["Orçamento chegando no limite", "Orçamento estourado"]
+
+    # E nada se repete numa terceira rodada.
+    lembretes.enviar_lembretes(db, HOJE)
+    assert len(enviados) == 2
+
+
+def test_estouro_direto_nao_manda_o_aviso_junto(db, enviados):
+    """Quem estoura de uma vez recebe só o push de estouro — o de 80% seria ruído."""
+    m = cat(db, "Direto push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 10_000)", (m,))
+    db.commit()
+    gasto(db, m, 50_000)
+
+    lembretes.enviar_lembretes(db, HOJE)
+    assert [e["titulo"] for e in enviados] == ["Orçamento estourado"]
+
+
+def test_niveis_diferentes_viram_notificacoes_separadas(db, enviados):
+    a, b = cat(db, "A perto"), cat(db, "B passou")
+    db.executemany("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 10_000)", [(a,), (b,)])
+    db.commit()
+    gasto(db, a, 9_000)   # 90% — aviso
+    gasto(db, b, 12_000)  # 120% — estouro
+
+    lembretes.enviar_lembretes(db, HOJE)
+
+    # Estouro primeiro: é o que precisa ser lido antes.
+    assert [e["titulo"] for e in enviados] == ["Orçamento estourado", "Orçamento chegando no limite"]
+    assert "B passou" in enviados[0]["corpo"] and "A perto" not in enviados[0]["corpo"]
+    assert "A perto" in enviados[1]["corpo"] and "B passou" not in enviados[1]["corpo"]
+
+
+# ---------- parcela futura ----------
+
+
+def test_push_ignora_parcela_que_ainda_nao_venceu(db, enviados, autenticado):
+    """Compra em N× é gravada com a data do mês de cada parcela. A do mês
+    corrente que vence DEPOIS de hoje não pode disparar "estourado" — o dinheiro
+    ainda não saiu. Na barra da tela ela conta, que é outra pergunta."""
+    m = cat(db, "Parcela push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 50_000)", (m,))
+    db.commit()
+    gasto(db, m, 20_000, data="2026-08-10")  # já saiu (HOJE é 15/08)
+    gasto(db, m, 40_000, data="2026-08-25")  # parcela que vence depois de hoje
+
+    lembretes.enviar_lembretes(db, HOJE)
+    assert enviados == []  # 20k de 50k realizados: nem o aviso de 80%
+
+    # A listagem, ao contrário, conta o mês inteiro — comprometimento é 60k/50k:
+    lista = autenticado.get("/api/orcamentos", params={"competencia": "2026-08"}).json()
+    assert [o["gasto_cents"] for o in lista if o["categoria_id"] == m] == [60_000]
+
+
+def test_push_dispara_quando_a_parcela_vence(db, enviados):
+    m = cat(db, "Vence push")
+    db.execute("INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, 50_000)", (m,))
+    db.commit()
+    gasto(db, m, 60_000, data="2026-08-25")
+
+    lembretes.enviar_lembretes(db, HOJE)  # 15/08 — ainda não
+    assert enviados == []
+
+    lembretes.enviar_lembretes(db, date(2026, 8, 25))
+    assert [e["titulo"] for e in enviados] == ["Orçamento estourado"]
