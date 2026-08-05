@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import hoje
+from ..util import DataISO, hoje
 
 router = APIRouter(prefix="/metas", tags=["metas"])
 
@@ -12,21 +12,23 @@ router = APIRouter(prefix="/metas", tags=["metas"])
 class MetaIn(BaseModel):
     nome: str
     valor_total_cents: int = Field(gt=0)
-    prazo: str  # YYYY-MM-DD
+    # Prazo malformado não é só um dado torto: `_meses_restantes` faz int(prazo[:4])
+    # e derrubaria a listagem inteira de metas com 500.
+    prazo: DataISO
     estrategia_texto: str | None = None
 
 
 class MetaPatch(BaseModel):
     nome: str | None = None
     valor_total_cents: int | None = Field(default=None, gt=0)
-    prazo: str | None = None
+    prazo: DataISO | None = None
     estrategia_texto: str | None = None
     ativa: bool | None = None
 
 
 class AporteIn(BaseModel):
     valor_cents: int = Field(gt=0)
-    data: str | None = None  # default: hoje
+    data: DataISO | None = None  # default: hoje
     observacao: str | None = None
 
 

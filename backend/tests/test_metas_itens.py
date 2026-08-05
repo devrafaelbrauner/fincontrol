@@ -24,7 +24,7 @@ def test_valor_cents_da_sugestao_da_ia(bruto, esperado):
 @pytest.fixture
 def meta(autenticado):
     r = autenticado.post("/api/metas", json={
-        "nome": "Viagem", "valor_total_cents": 500000, "prazo": "2027-12",
+        "nome": "Viagem", "valor_total_cents": 500000, "prazo": "2027-12-31",
     })
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
@@ -83,7 +83,7 @@ def test_item_de_outra_meta_nao_e_alcancavel(autenticado, meta):
     item_id = autenticado.post(f"/api/metas/{meta}/itens",
                                json={"nome": "Reserva", "valor_cents": 1000}).json()["id"]
     outra = autenticado.post("/api/metas", json={
-        "nome": "Notebook", "valor_total_cents": 400000, "prazo": "2027-06",
+        "nome": "Notebook", "valor_total_cents": 400000, "prazo": "2027-06-30",
     }).json()["id"]
 
     assert autenticado.patch(f"/api/metas/{outra}/itens/{item_id}",

@@ -2,10 +2,14 @@ import calendar
 import re
 import sqlite3
 from datetime import date, datetime
+from typing import Annotated
 from zoneinfo import ZoneInfo
+
+from pydantic import AfterValidator
 
 TZ = ZoneInfo("America/Sao_Paulo")
 RE_COMPETENCIA = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def hoje() -> date:
@@ -37,6 +41,35 @@ def brl(cents: int) -> str:
 def validar_competencia(competencia: str) -> None:
     if not RE_COMPETENCIA.match(competencia):
         raise ValueError("Competência deve estar no formato YYYY-MM")
+
+
+def validar_data(valor: str) -> str:
+    """Aceita só 'YYYY-MM-DD' de calendário; devolve a própria string.
+
+    O regex vem ANTES do parse porque `date.fromisoformat` (Python ≥3.11) também
+    aceita "20260815", "2026-W33-1" e afins — e é a string CRUA que vai para o
+    banco, onde todo recorte mensal é por prefixo ('YYYY-MM'). Uma data em outro
+    formato entra sem erro e some do dashboard, das análises, dos orçamentos e
+    dos lembretes, continuando a somar nos totais sem filtro: dinheiro fantasma.
+    O parse, depois, é o que barra "2026-13-45", que tem o formato mas não existe.
+    """
+    if not RE_DATA.match(valor) or not _e_data_real(valor):
+        raise ValueError(f"Data deve estar no formato YYYY-MM-DD (recebido: {valor!r})")
+    return valor
+
+
+def _e_data_real(valor: str) -> bool:
+    try:
+        date.fromisoformat(valor)
+    except ValueError:
+        return False
+    return True
+
+
+# Tipo de campo para toda data que é gravada: a validação acontece no schema, e
+# não em cada endpoint — que é como as datas de `/variaveis` e `/entradas` ficaram
+# sem checagem enquanto `/variaveis/parcelado` tinha a sua.
+DataISO = Annotated[str, AfterValidator(validar_data)]
 
 
 def gerar_lancamentos_fixos(db: sqlite3.Connection, competencia: str) -> None:

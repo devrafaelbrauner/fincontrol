@@ -1,26 +1,22 @@
 """Busca global: texto, período e/ou faixa de valor sobre gastos variáveis,
 entradas e contas fixas — de qualquer tela, numa chamada só."""
 
-import re
 import sqlite3
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..db import get_db
+from ..util import validar_data
 
 router = APIRouter(prefix="/busca", tags=["busca"])
 
-# Regex + parse: o regex barra os formatos alternativos que fromisoformat
-# (3.11+) aceitaria; o parse barra "2026-99-99", que tem o formato mas não é data.
-RE_DATA = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
 
 def _validar_data(rotulo: str, valor: str) -> None:
+    """Mesma regra dos campos gravados (util.validar_data), com a mensagem
+    apontando qual parâmetro veio torto. Aqui é 400 e não o 422 do schema porque
+    são parâmetros de query, tratados à mão para poder nomear o rótulo."""
     try:
-        if not RE_DATA.match(valor):
-            raise ValueError
-        date.fromisoformat(valor)
+        validar_data(valor)
     except ValueError:
         raise HTTPException(400, f"'{rotulo}' deve ser uma data YYYY-MM-DD válida")
 

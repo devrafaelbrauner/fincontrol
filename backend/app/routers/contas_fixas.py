@@ -4,7 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import gerar_lancamentos_fixos, hoje, status_lancamento, validar_competencia, vencimento
+from ..util import (
+    DataISO,
+    gerar_lancamentos_fixos,
+    hoje,
+    status_lancamento,
+    validar_competencia,
+    vencimento,
+)
 
 router = APIRouter(prefix="/contas-fixas", tags=["contas-fixas"])
 
@@ -27,7 +34,9 @@ class ContaFixaPatch(BaseModel):
 
 
 class PagamentoIn(BaseModel):
-    data_pagamento: str | None = None  # default: hoje
+    # Data torta aqui não some da tela (a linha é da competência), mas quebra o
+    # `status_lancamento` e o "pago em" — e o .ics compara string com string.
+    data_pagamento: DataISO | None = None  # default: hoje
     valor_cents: int | None = Field(default=None, ge=0)
 
 

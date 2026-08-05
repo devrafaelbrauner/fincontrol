@@ -168,11 +168,14 @@ def _totais_do_mes(db: sqlite3.Connection, competencia: str) -> dict:
             "saldo": entradas - fixas - variaveis}
 
 
-def _insight_do_mes(db: sqlite3.Connection, competencia: str) -> str | None:
+def _insight_do_mes(db: sqlite3.Connection, competencia: str, gerar: bool = True) -> str | None:
     """Gera (e guarda no cache que o Dashboard lê) os insights do mês fechado.
 
     Devolve a frase de destaque para o push, ou None se não houver IA configurada
     ou a chamada falhar — o resumo numérico vai assim mesmo.
+
+    `gerar=False` só olha o cache: é o que a prévia usa para mostrar o resumo sem
+    pagar uma análise de IA por clique em "Ver lembretes de hoje".
     """
     from . import openrouter  # tardio: evita ciclo com routers.ia e custo de import no boot
     from .routers.ia import _contexto_financeiro
@@ -186,6 +189,8 @@ def _insight_do_mes(db: sqlite3.Connection, competencia: str) -> str | None:
     if cache:
         return _destaque(json.loads(cache["dados_json"]))
 
+    if not gerar:
+        return None
     if not openrouter.api_key(db):
         return None
     # _contexto_financeiro roda a geração on-access de 3 meses, ou seja, ESCREVE.
@@ -224,7 +229,7 @@ def _destaque(dados: dict) -> str | None:
     return texto or None
 
 
-def _mensagem_resumo(db: sqlite3.Connection, competencia: str) -> dict | None:
+def _mensagem_resumo(db: sqlite3.Connection, competencia: str, gerar_ia: bool = True) -> dict | None:
     t = _totais_do_mes(db, competencia)
     if not (t["entradas"] or t["fixas"] or t["variaveis"]):
         # Mês sem nenhum movimento (instalação nova, app parado): não há resumo a
@@ -235,7 +240,7 @@ def _mensagem_resumo(db: sqlite3.Connection, competencia: str) -> dict | None:
         f"Saldo {brl(t['saldo'])} · entradas {brl(t['entradas'])} · "
         f"gastos {brl(t['fixas'] + t['variaveis'])}"
     ]
-    destaque = _insight_do_mes(db, competencia)
+    destaque = _insight_do_mes(db, competencia, gerar=gerar_ia)
     if destaque:
         linhas.append(destaque)
     return {"titulo": f"Resumo de {mes} de {competencia[:4]}", "corpo": "\n".join(linhas),
