@@ -15,12 +15,33 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
-if [ -z "$IP" ]; then
-  echo "ERRO: não achei o IP desta máquina na rede local (en0/en1)." >&2
-  echo "      Conecte-se ao Wi-Fi e rode de novo." >&2
+# Varre as interfaces e descarta o que não serve. Pegar "a primeira que
+# responde" é armadilha: com bridge Thunderbolt ou iPhone tetherado, en0 pode
+# devolver um 169.254.x.x (link-local, autoatribuído porque o DHCP falhou) ou a
+# sub-rede do tethering — endereços que o celular no Wi-Fi não alcança. O
+# checar-api-base.mjs só recusa loopback, então isso passaria e congelaria no
+# bundle, reproduzindo exatamente o "app só fica girando" que este script existe
+# para evitar.
+CANDIDATOS=()
+for IFACE in $(networksetup -listallhardwareports 2>/dev/null | awk '/Device:/{print $2}'); do
+  ADDR="$(ipconfig getifaddr "$IFACE" 2>/dev/null || true)"
+  case "$ADDR" in
+    ""|169.254.*) continue ;;   # sem IP, ou link-local (DHCP falhou)
+  esac
+  CANDIDATOS+=("$IFACE=$ADDR")
+done
+
+if [ ${#CANDIDATOS[@]} -eq 0 ]; then
+  echo "ERRO: nenhuma interface com IP de rede utilizável." >&2
+  echo "      Conecte-se ao Wi-Fi e rode de novo (169.254.x.x não serve: é DHCP falhado)." >&2
   exit 1
 fi
+if [ ${#CANDIDATOS[@]} -gt 1 ]; then
+  echo "AVISO: mais de uma interface com IP — usando a primeira."
+  printf '       %s\n' "${CANDIDATOS[@]}"
+  echo "       Se o celular não conectar, é provável que seja a rede errada."
+fi
+IP="${CANDIDATOS[0]#*=}"
 
 PORTA="${FINCONTROL_PORTA:-8000}"
 BASE="http://$IP:$PORTA"
@@ -29,14 +50,36 @@ echo "==> Backend alvo: $BASE"
 FINCONTROL_BUILD_LOCAL=1 FINCONTROL_ANDROID_TESTE_LOCAL=1 VITE_API_BASE="$BASE" npm run android
 
 echo "==> Compilando o APK (variante debug, que libera tráfego em texto claro)"
-: "${ANDROID_HOME:=/opt/homebrew/share/android-commandlinetools}"
-export ANDROID_HOME
+# (3) `brew --prefix X` imprime o caminho e sai 0 MESMO com a fórmula não
+# instalada, então o caminho precisa ser conferido — senão o gradle falha com
+# "JAVA_HOME is not a valid JDK" em vez de "instale o openjdk@21".
 if [ -z "${JAVA_HOME:-}" ] && command -v brew >/dev/null; then
-  JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
-  export JAVA_HOME
+  CANDIDATO="$(brew --prefix openjdk@21 2>/dev/null || true)/libexec/openjdk.jdk/Contents/Home"
+  if [ -x "$CANDIDATO/bin/java" ]; then
+    JAVA_HOME="$CANDIDATO"; export JAVA_HOME
+  fi
 fi
-[ -n "${JAVA_HOME:-}" ] && export PATH="$JAVA_HOME/bin:$PATH"
-echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+  export PATH="$JAVA_HOME/bin:$PATH"
+elif ! command -v java >/dev/null; then
+  echo "ERRO: nenhum JDK encontrado. Instale com: brew install openjdk@21" >&2
+  exit 1
+fi
+
+# (2) NÃO sobrescreve um local.properties que já funciona: o padrão daqui é o
+# caminho do Homebrew, e numa máquina com o SDK do Android Studio
+# (~/Library/Android/sdk) isso apontaria para um diretório inexistente — e o
+# estrago sobreviveria ao script, quebrando o assembleRelease documentado.
+if [ ! -f android/local.properties ]; then
+  SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/homebrew/share/android-commandlinetools}}"
+  if [ ! -d "$SDK/platforms" ]; then
+    echo "ERRO: SDK do Android não encontrado em $SDK." >&2
+    echo "      Defina ANDROID_HOME, ou crie frontend/android/local.properties com sdk.dir=<caminho>." >&2
+    exit 1
+  fi
+  echo "sdk.dir=$SDK" > android/local.properties
+  echo "==> local.properties criado apontando para $SDK"
+fi
 
 (cd android && ./gradlew assembleDebug -q)
 

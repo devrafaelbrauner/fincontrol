@@ -178,6 +178,11 @@ custaram um APK que não funcionava:
 cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+Se você usar outra porta, passe a MESMA nos dois lados —
+`FINCONTROL_PORTA=8010 npm run apk:teste` e `--port 8010`. O script imprime o
+comando já com a porta certa; divergir aqui produz o mesmo "app só fica
+girando", agora por porta e não por IP.
+
 Isso expõe o backend de desenvolvimento à rede local — use só na sua rede, e
 não deixe rodando assim.
 
