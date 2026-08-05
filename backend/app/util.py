@@ -17,6 +17,15 @@ def hoje() -> date:
     return datetime.now(TZ).date()
 
 
+def agora_iso() -> str:
+    """Data e hora no fuso do app, 'YYYY-MM-DD HH:MM:SS'.
+
+    Não use CURRENT_TIMESTAMP do SQLite para carimbo que o usuário vai LER: ele
+    é UTC, e mostraria 3h à frente do relógio de quem registrou o saldo.
+    """
+    return datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def vencimento(competencia: str, dia: int) -> str:
     """Data de vencimento na competência; dia 31 num mês curto cai no último dia."""
     ano, mes = int(competencia[:4]), int(competencia[5:7])
