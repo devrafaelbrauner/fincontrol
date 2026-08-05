@@ -113,9 +113,7 @@ def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
     # A prévia precisa cobrir TODO tipo de aviso do job — mentir por omissão
     # aqui é o usuário ver a lista vazia e às 8h chegar um push "inexistente".
     atual = competencia_de(hoje())
-    estourados = lembretes.orcamentos_estourados(db)
-    if estourados:
-        msgs.append(lembretes._mensagem_orcamentos(estourados, atual))
+    msgs.extend(lembretes._mensagens_orcamentos(lembretes.orcamentos_em_alerta(db), atual))
     if hoje().day <= lembretes.DIA_LIMITE_RESUMO:
         # `gerar_ia=False`: a prévia mostra os números do mês fechado (e o insight
         # que já estiver em cache), mas não paga uma análise nova a cada clique —
