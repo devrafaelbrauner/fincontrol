@@ -38,11 +38,27 @@ def test_refresh_rotaciona_o_token(cliente):
     assert _refresh(cliente, novo).status_code == 200
 
 
-def test_reuso_de_token_rotacionado_revoga_todas_as_sessoes(cliente):
-    """Token já gasto reaparecendo = provável vazamento: derruba a família toda."""
+def _envelhecer_graca(segundos: int = 3600) -> None:
+    """Recua o `rotacionado_em` das linhas em graça, simulando tempo decorrido.
+
+    Mexer no relógio é mais honesto do que zerar JANELA_GRACA_SEGUNDOS: o que se
+    quer testar é o comportamento DEPOIS da janela, não uma configuração
+    diferente da de produção.
+    """
+    db = connect()
+    db.execute("UPDATE refresh_tokens SET rotacionado_em = rotacionado_em - ? "
+               "WHERE rotacionado_em IS NOT NULL", (segundos,))
+    db.commit()
+    db.close()
+
+
+def test_reuso_fora_da_janela_de_graca_revoga_todas_as_sessoes(cliente):
+    """Token já gasto reaparecendo MUITO depois = provável vazamento: derruba a
+    família toda. É o que a janela de graça não pode ter enfraquecido."""
     vazado = _login(cliente)
     outra_sessao = _login(cliente)
     corrente = _refresh(cliente, vazado).json()["refresh_token"]
+    _envelhecer_graca()
 
     r = _refresh(cliente, vazado)
     assert r.status_code == 401
@@ -50,6 +66,105 @@ def test_reuso_de_token_rotacionado_revoga_todas_as_sessoes(cliente):
     # A revogação vale para tudo, inclusive para quem não estava envolvido.
     assert _refresh(cliente, corrente).status_code == 401
     assert _refresh(cliente, outra_sessao).status_code == 401
+
+
+def test_jti_nunca_emitido_revoga_tudo(cliente):
+    """Token forjado com jti inventado (assinatura válida) continua sendo alarme."""
+    import time as _t
+
+    import jwt as _jwt
+
+    sessao = _login(cliente)
+    forjado = _jwt.encode(
+        {"sub": "dono", "type": "refresh", "ver": 0, "jti": "0" * 32,
+         "exp": int(_t.time()) + 3600},
+        auth.SECRET_KEY, algorithm="HS256",
+    )
+    r = _refresh(cliente, forjado)
+    assert r.status_code == 401 and "revogado" in r.json()["detail"]
+    assert _refresh(cliente, sessao).status_code == 401
+
+
+# ---------- corrida de renovação (o defeito que motivou a janela) ----------
+
+def test_replay_dentro_da_graca_devolve_o_sucessor_sem_revogar_nada(cliente):
+    """A segunda de N chamadas simultâneas chega com o token já rotacionado.
+
+    Antes isso era lido como vazamento e zerava a tabela de sessões — um F5 no
+    navegador derrubava iPhone e Mac. Agora a resposta é idempotente.
+    """
+    outro_aparelho = _login(cliente)
+    inicial = _login(cliente)
+
+    primeiro = _refresh(cliente, inicial)
+    assert primeiro.status_code == 200
+    sucessor = primeiro.json()["refresh_token"]
+
+    # Mesmo token, de novo — a chamada que perdeu a corrida:
+    segundo = _refresh(cliente, inicial)
+    assert segundo.status_code == 200
+    assert segundo.json()["refresh_token"] == sucessor, "deve devolver o MESMO sucessor"
+
+    # E ninguém foi derrubado:
+    assert _refresh(cliente, outro_aparelho).status_code == 200
+    assert _refresh(cliente, sucessor).status_code == 200
+
+
+def test_replay_em_graca_nao_multiplica_sessoes(cliente):
+    """Rotacionar a cada chamada em corrida encheria a tabela de sessões órfãs,
+    empurrando aparelhos ociosos contra o teto."""
+    _login(cliente)
+    inicial = _login(cliente)
+    corrente = _refresh(cliente, inicial).json()["refresh_token"]
+    for _ in range(5):
+        assert _refresh(cliente, inicial).status_code == 200
+
+    db = connect()
+    vivas = db.execute("SELECT COUNT(*) n FROM refresh_tokens WHERE rotacionado_em IS NULL").fetchone()["n"]
+    db.close()
+    assert vivas == 2, "duas sessões de verdade, sem órfãs"
+    assert _refresh(cliente, corrente).status_code == 200
+
+
+def test_seis_renovacoes_simultaneas_nao_derrubam_os_outros_aparelhos(cliente):
+    """Reprodução do defeito original: 6 chamadas paralelas com o MESMO token
+    zeravam a tabela e deslogavam aparelhos que não tinham feito nada."""
+    import threading
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    mac = _login(cliente)
+    iphone = _login(cliente)
+
+    resultados: list[int | None] = [None] * 6
+
+    def renova(i: int) -> None:
+        c = TestClient(app)
+        resultados[i] = c.post(
+            "/api/auth/refresh", headers={**NATIVO, "X-Refresh-Token": iphone}
+        ).status_code
+
+    threads = [threading.Thread(target=renova, args=(i,)) for i in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert all(s == 200 for s in resultados), f"toda renovação em graça deve passar: {resultados}"
+    # O invariante que importa, seja qual for o entrelaçamento:
+    assert _refresh(cliente, mac).status_code == 200, "o Mac não fez nada e não pode cair"
+
+    # E o compare-and-swap da rotação: uma única troca, sem sessões órfãs. Sem
+    # ele, as 6 rotacionavam em paralelo (todas leem "vigente" antes de qualquer
+    # escrita) e sobravam 5 sessões fantasma empurrando aparelhos contra o teto.
+    db = connect()
+    vivas = db.execute(
+        "SELECT COUNT(*) n FROM refresh_tokens WHERE rotacionado_em IS NULL AND vigente = 1"
+    ).fetchone()["n"]
+    db.close()
+    assert vivas == 2, f"Mac + iPhone renovado, sem órfãs (encontradas {vivas})"
 
 
 def test_despejo_por_lotacao_nao_derruba_as_outras_sessoes(cliente):
@@ -74,6 +189,44 @@ def test_logout_exige_refresh_token_valido(cliente):
     assert _refresh(cliente, sessao).status_code == 200, "logout anônimo não pode revogar nada"
 
     assert cliente.post("/api/auth/logout", headers={**NATIVO, "X-Refresh-Token": sessao}).status_code == 200
+
+
+def test_logout_encerra_so_este_aparelho(cliente):
+    """Sair no navegador do trabalho não pode derrubar o iPhone no meio do uso."""
+    iphone = _login(cliente)
+    web = _login(cliente)
+
+    cliente.cookies.clear()
+    assert cliente.post("/api/auth/logout", headers={**NATIVO, "X-Refresh-Token": web}).status_code == 200
+
+    assert _refresh(cliente, web).status_code == 401, "o aparelho que saiu não renova mais"
+    assert _refresh(cliente, iphone).status_code == 200, "o iPhone continua logado"
+
+
+def test_logout_todos_derruba_todo_mundo(cliente):
+    """A revogação global vira exceção explícita (aparelho perdido), não o padrão."""
+    iphone = _login(cliente)
+    web = _login(cliente)
+
+    cliente.cookies.clear()
+    r = cliente.post("/api/auth/logout?todos=1", headers={**NATIVO, "X-Refresh-Token": web})
+    assert r.status_code == 200
+
+    assert _refresh(cliente, web).status_code == 401
+    assert _refresh(cliente, iphone).status_code == 401
+
+
+def test_logout_nao_deixa_o_antecessor_em_graca_ressuscitar_a_sessao(cliente):
+    """Sair logo depois de renovar: o token anterior ainda está na janela e
+    devolveria o sucessor recém-revogado se a cadeia não fosse apagada junto."""
+    anterior = _login(cliente)
+    atual = _refresh(cliente, anterior).json()["refresh_token"]
+
+    cliente.cookies.clear()
+    assert cliente.post("/api/auth/logout", headers={**NATIVO, "X-Refresh-Token": atual}).status_code == 200
+
+    assert _refresh(cliente, atual).status_code == 401
+    assert _refresh(cliente, anterior).status_code == 401, "o antecessor em graça não pode reabrir a sessão"
 
 
 def test_codigo_totp_nao_vale_duas_vezes_mesmo_com_login_intercalado(cliente):

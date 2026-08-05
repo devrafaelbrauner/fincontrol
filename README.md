@@ -46,7 +46,9 @@ Acesse http://localhost:5173 e faça login com a senha definida no setup.
 
 **Auth:** access token JWT curto (30 min) via `Authorization: Bearer` + refresh token
 em cookie httpOnly (30 dias, rota `/api/auth/refresh`, rotacionado a cada uso).
-`POST /api/auth/logout` invalida todos os refresh tokens. Login tem rate limit (5/min por IP).
+`POST /api/auth/logout` encerra a sessão **deste aparelho**; `?todos=1` invalida todos os refresh tokens (aparelho perdido). Login tem rate limit (5/min por IP).
+
+A rotação do refresh token tem uma **janela de graça de 30s** (`auth.JANELA_GRACA_SEGUNDOS`): reapresentar um token recém-rotacionado devolve o sucessor já emitido, em vez de acusar vazamento. Fora dela, reuso continua revogando todas as sessões.
 
 **Push (opcional, Fase 4):** gere as chaves com `.venv/bin/python -m app.gerar_vapid` e
 exporte `FINCONTROL_VAPID_PUBLIC` / `FINCONTROL_VAPID_PRIVATE` / `FINCONTROL_VAPID_SUBJECT`
