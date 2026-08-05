@@ -175,8 +175,15 @@ custaram um APK que não funcionava:
    teste em rede é preciso:
 
 ```bash
-cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+cd backend && FINCONTROL_SECRET_KEY=$(openssl rand -hex 32) \
+  .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+**O `FINCONTROL_SECRET_KEY` não é opcional aqui.** Sem ele o backend cai no
+default `dev-insecure-troque-em-producao`, que é público neste repositório — e
+com o bind em `0.0.0.0` qualquer um na rede forja um JWT válido e lê ou altera
+seus dados. Em `127.0.0.1` isso não importava; ao expor, passa a importar.
+Encerre o backend quando terminar o teste.
 
 Se você usar outra porta, passe a MESMA nos dois lados —
 `FINCONTROL_PORTA=8010 npm run apk:teste` e `--port 8010`. O script imprime o

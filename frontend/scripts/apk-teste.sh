@@ -88,6 +88,8 @@ DESTINO="${1:-$HOME/Downloads/Android/fincontrol-teste-local.apk}"
 mkdir -p "$(dirname "$DESTINO")"
 cp "$APK" "$DESTINO"
 
+CHAVE="$(openssl rand -hex 32)"
+
 cat <<FIM
 
 APK pronto: $DESTINO   (aponta para $BASE)
@@ -95,7 +97,13 @@ APK pronto: $DESTINO   (aponta para $BASE)
 Antes de abrir no celular, suba o backend ACESSÍVEL NA REDE — o comando de
 sempre usa 127.0.0.1 e o celular não enxerga:
 
-  cd backend && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORTA
+  cd backend && FINCONTROL_SECRET_KEY=$CHAVE \\
+    .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORTA
+
+A chave acima foi sorteada agora. NÃO rode sem ela: em modo dev o SECRET_KEY
+cai no default "dev-insecure-troque-em-producao", que é PÚBLICO no repositório
+— com o backend em 0.0.0.0, qualquer um na sua rede forjaria um token válido e
+leria (ou alteraria) seus dados. Encerre o backend quando terminar o teste.
 
 O celular precisa estar na mesma rede Wi-Fi. Se o IP desta máquina mudar,
 rode este script de novo: o APK antigo passa a apontar para o vazio.
