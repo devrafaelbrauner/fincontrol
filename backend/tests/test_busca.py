@@ -110,3 +110,45 @@ def test_truncamento_no_limite(db, autenticado):
     r = buscar(autenticado, q="lote")
     assert len(r["itens"]) == 50
     assert r["truncado"] is True
+
+
+# ---------- acento e caixa ----------
+#
+# O LIKE do SQLite só dobra caixa em ASCII: letra acentuada nunca casa com sua
+# versão em outra caixa. Na prática 'água' não encontrava "Água mineral" e
+# 'FARMÁCIA' não encontrava "Farmácia" — falhando em silêncio, com a tela
+# dizendo "nenhum resultado". Numa base em português isso pega quase tudo.
+# A correção normaliza os dois lados (util.normalizar_busca, exposta ao SQL
+# como `norm()`), o que de quebra torna a busca insensível a acento.
+
+
+@pytest.mark.parametrize(
+    "termo",
+    ["açúcar", "Açúcar", "AÇÚCAR", "acucar", "ACUCAR", "AçÚcAr", "pão", "PÃO", "pao"],
+)
+def test_acento_e_caixa_nao_mudam_o_resultado(db, autenticado, termo):
+    itens = buscar(autenticado, q=termo)["itens"]
+    assert [i["descricao"] for i in itens] == ["Mercado Pão de Açúcar"]
+
+
+@pytest.mark.parametrize("termo", ["farmácia", "Farmácia", "FARMÁCIA", "farmacia", "FARMACIA"])
+def test_acento_e_caixa_na_variavel_simples(db, autenticado, termo):
+    itens = buscar(autenticado, q=termo)["itens"]
+    assert [i["descricao"] for i in itens] == ["Farmácia"]
+
+
+@pytest.mark.parametrize("termo", ["salário", "SALÁRIO", "salario"])
+def test_acento_e_caixa_na_entrada(db, autenticado, termo):
+    itens = buscar(autenticado, q=termo)["itens"]
+    assert [i["tipo"] for i in itens] == ["entrada"]
+
+
+def test_acento_e_caixa_tambem_na_conta_fixa(db, autenticado):
+    """A conta fixa tem consulta própria (o vencimento é calculado no SQL);
+    sem `norm()` nela, o acerto valeria só para duas das três fontes."""
+    db.execute("UPDATE contas_fixas SET nome = 'Assinatura Água e Luz'")
+    db.commit()
+
+    for termo in ("água", "ÁGUA", "agua"):
+        itens = buscar(autenticado, q=termo)["itens"]
+        assert [i["tipo"] for i in itens] == ["fixa"], termo

@@ -54,8 +54,13 @@ export function mensagemDeErro(detail: unknown, fallback: string): string {
   if (Array.isArray(detail)) {
     const partes = detail.map((d) => {
       const e = d as { loc?: unknown[]; msg?: string };
-      // loc é ["body", "campo"] — o prefixo é ruído para quem lê.
-      const campo = Array.isArray(e.loc) ? e.loc.filter((l) => l !== "body" && typeof l === "string").join(".") : "";
+      // loc é ["body", "campo"] — ou ["query", "de"], desde que os filtros de
+      // data também validam no schema. Onde o valor veio é ruído para quem lê:
+      // o que importa é o nome do campo.
+      const ORIGENS = ["body", "query", "path"];
+      const campo = Array.isArray(e.loc)
+        ? e.loc.filter((l) => typeof l === "string" && !ORIGENS.includes(l)).join(".")
+        : "";
       const msg = (e.msg ?? "").replace(/^Value error, /, "");
       return campo && msg ? `${campo}: ${msg}` : msg || campo;
     }).filter(Boolean);

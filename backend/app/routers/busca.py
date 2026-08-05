@@ -6,7 +6,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..db import get_db
-from ..util import validar_data
+from ..util import normalizar_busca, validar_data
 
 router = APIRouter(prefix="/busca", tags=["busca"])
 
@@ -26,8 +26,14 @@ LIMITE = 50
 
 
 def _like(q: str) -> str:
-    """Padrão LIKE com curingas do usuário neutralizados (busca literal)."""
-    escapado = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    """Padrão LIKE normalizado, com curingas do usuário neutralizados.
+
+    Normaliza ANTES de escapar: a normalização não toca em `\\`, `%` nem `_`
+    (são ASCII sem acento), mas fazer na ordem inversa deixaria o escape à mercê
+    dela. A coluna recebe o mesmo `norm()` no SQL — os dois lados têm de estar
+    na mesma forma, senão a comparação continua sensível a acento.
+    """
+    escapado = normalizar_busca(q).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escapado}%"
 
 
@@ -50,7 +56,7 @@ def buscar(
     def clausulas(col_texto: str, col_data: str, col_valor: str) -> tuple[str, list]:
         where, params = ["1=1"], []
         if q:
-            where.append(f"{col_texto} LIKE ? ESCAPE '\\'")
+            where.append(f"norm({col_texto}) LIKE ? ESCAPE '\\'")
             params.append(_like(q))
         if de:
             where.append(f"{col_data} >= ?")
@@ -93,7 +99,7 @@ def buscar(
     # válidos que nem chegaram a sair do banco — e ainda mentiria no `truncado`.
     where_f, params_f = ["1=1"], []
     if q:
-        where_f.append("cf.nome LIKE ? ESCAPE '\\'")
+        where_f.append("norm(cf.nome) LIKE ? ESCAPE '\\'")
         params_f.append(_like(q))
     if valor_min is not None:
         where_f.append("l.valor_cents >= ?")
