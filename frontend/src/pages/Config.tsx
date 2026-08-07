@@ -172,7 +172,6 @@ export default function Config() {
 
   return (
     <>
-      <h2>Configurações</h2>
       <p className="sub">Integração de IA e notificações.</p>
 
       <section className="card surgir" style={{ maxWidth: 560 }}>

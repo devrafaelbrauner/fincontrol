@@ -81,7 +81,6 @@ export default function Calendario() {
 
   return (
     <>
-      <h2>Calendário</h2>
       <p className="sub">Vencimentos das contas fixas do mês. Hoje: {hoje.toLocaleDateString("pt-BR")}.</p>
       {erro && <p className="erro">{erro}</p>}
 

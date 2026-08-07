@@ -79,7 +79,6 @@ export default function ContasFixas() {
 
   return (
     <>
-      <h2>Contas fixas</h2>
       <p className="sub">
         Competência {mesExtenso} · total <strong className="num">{brl(totalMes)}</strong> (troque o mês no topo)
       </p>

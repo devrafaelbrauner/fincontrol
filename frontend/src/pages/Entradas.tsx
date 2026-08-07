@@ -39,7 +39,6 @@ export default function Entradas() {
 
   return (
     <>
-      <h2>Entradas</h2>
       <p className="sub">Total do mês: <strong className="num positivo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
       {erro && <p className="erro">{erro}</p>}
 

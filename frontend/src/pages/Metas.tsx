@@ -191,7 +191,6 @@ export default function Metas() {
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <h2>Metas</h2>
           <p className="sub">Guarde para objetivos com prazo e acompanhe o progresso.</p>
         </div>
         <button className="btn btn-primario" onClick={() => setNovaAberta(true)}><IcMais />Nova meta</button>

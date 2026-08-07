@@ -224,7 +224,6 @@ export default function Importar() {
 
   return (
     <>
-      <h2>Importar documentos</h2>
       <p className="sub">
         Solte boletos, notas, recibos ou fotos de comprovantes — a IA lê cada um e preenche
         valor, data, descrição e categoria para você só conferir e confirmar.
