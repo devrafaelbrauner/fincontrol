@@ -174,8 +174,8 @@ export default function Config() {
     <>
       <p className="sub">Integração de IA e notificações.</p>
 
-      <section className="card surgir" style={{ maxWidth: 560 }}>
-        <h3>IA (OpenRouter)</h3>
+      <section className="ficha surgir" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">IA (OpenRouter)</h3>
         <p className="sub">
           A chave é criptografada no servidor e nunca volta ao navegador. Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
         </p>
@@ -206,8 +206,8 @@ export default function Config() {
         {erro && <p className="erro">{erro}</p>}
       </section>
 
-      <section className="card surgir secao" style={{ maxWidth: 560 }}>
-        <h3>Segurança (MFA)</h3>
+      <section className="surgir secao" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">Segurança (MFA)</h3>
         {mfaAtivo === null && <p className="sub">Carregando…</p>}
         {mfaAtivo === false && !mfaQr && (
           <>
@@ -241,8 +241,8 @@ export default function Config() {
 
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
           instalada pela tela de início (iOS ≥ 16.4). */}
-      {!Capacitor.isNativePlatform() && <section className="card surgir secao" style={{ maxWidth: 560 }}>
-        <h3>Notificações push</h3>
+      {!Capacitor.isNativePlatform() && <section className="surgir secao" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">Notificações push</h3>
         {push?.habilitado ? (
           <>
             <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
@@ -273,8 +273,8 @@ export default function Config() {
         )}
       </section>}
 
-      <section className="card surgir secao" style={{ maxWidth: 560 }}>
-        <h3>Barra lateral</h3>
+      <section className="surgir secao" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">Barra lateral</h3>
         <p className="sub">Você pode reordenar os itens do menu arrastando pela alça (ou com ↑/↓ pelo teclado). Para voltar ao layout original:</p>
         <button className="btn" onClick={() => { resetarOrdem(); setOrdemMsg("Ordem padrão restaurada."); }}>
           Restaurar ordem padrão

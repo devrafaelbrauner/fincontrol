@@ -40,7 +40,7 @@ export default function Assistente() {
     <>
       <p className="sub">Pergunte sobre suas finanças. As respostas usam seus dados reais (últimos meses e metas) como contexto.</p>
 
-      <div className="card chat" role="log" aria-live="polite">
+      <div className="chat" role="log" aria-live="polite">
         {falas.length === 0 && (
           <div className="chat-vazio">
             <IcChat />
