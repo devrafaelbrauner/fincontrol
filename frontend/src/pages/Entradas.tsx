@@ -3,6 +3,7 @@ import { api, brl } from "../api";
 import { IcEntradas } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
+import ValorHero from "../components/ValorHero";
 
 type Entrada = { id: number; descricao: string; valor_cents: number; data: string; recorrente: number };
 
@@ -39,15 +40,21 @@ export default function Entradas() {
 
   return (
     <>
-      <p className="sub">Total do mês: <strong className="num positivo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
+      <div className="visao-hero" style={{ marginBottom: "26px" }}>
+        <div className="eyebrow">Entradas no mês</div>
+        <div className="hero-linha">
+          <span className="hero-valor num" style={{ color: "var(--positive)" }}><ValorHero cents={total} /></span>
+        </div>
+        <p className="leitura">Troque o mês no topo, ou use “Transação” para lançar.</p>
+      </div>
       {erro && <p className="erro">{erro}</p>}
 
       {carregando ? (
         <div className="skeleton" style={{ height: 200 }} />
       ) : itens.length === 0 ? (
-        <p className="card sub">Nenhuma entrada lançada ainda.</p>
+        <p className="sub">Nenhuma entrada lançada ainda.</p>
       ) : (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="tabela-lisa">
           <table>
             <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th></th></tr></thead>
             <tbody>

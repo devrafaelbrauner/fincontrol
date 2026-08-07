@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
+import ValorHero from "../components/ValorHero";
 import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -46,15 +47,6 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
       {serie && serie.length > 1 && <div className="trilho-spark"><Sparkline valores={serie} cor={cor} /></div>}
     </div>
   );
-}
-
-/** Valor grande do topo, com os centavos menores e apagados — é o que deixa o
- *  número legível de longe sem que a vírgula roube a atenção. */
-function ValorHero({ cents }: { cents: number }) {
-  const texto = brl(cents);
-  const i = texto.lastIndexOf(",");
-  if (i === -1) return <>{texto}</>;
-  return <>{texto.slice(0, i)}<span className="hero-cents">{texto.slice(i)}</span></>;
 }
 
 function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {

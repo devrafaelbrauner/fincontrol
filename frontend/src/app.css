@@ -362,14 +362,23 @@ input[aria-invalid="true"] {
    Tabelas
    ============================================================ */
 table { width: 100%; border-collapse: collapse; }
+/* Cabeçalho em mono caixa alta: mesma voz do `.eyebrow` e dos títulos de seção,
+   para a tabela pertencer à página em vez de parecer um componente importado. */
 thead th {
-  text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--content-3); padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--edge-strong);
+  text-align: left; font: 500 10.5px var(--font-mono); text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--content-3); padding: 0 0.75rem 8px;
+  border-bottom: 1px solid var(--edge);
 }
-tbody td { padding: 0.65rem 0.75rem; border-top: 1px solid var(--edge); vertical-align: middle; }
+/* `--rule-soft` entre linhas e `--edge` no cabeçalho: a hierarquia da tabela
+   vem da diferença entre as duas réguas, não de uma caixa em volta. */
+tbody td { padding: 0.7rem 0.75rem; border-top: 1px solid var(--rule-soft); vertical-align: middle; }
 tbody tr { transition: background var(--dur) var(--ease); }
 tbody tr:hover { background: var(--surface-hover); }
+/* Linha de total: régua de 2px a separa do corpo. */
+tfoot td {
+  padding: 0.8rem 0.75rem; border-top: 2px solid var(--edge-strong);
+  font-weight: 600;
+}
 
 /* Badges de status (cor + rótulo, nunca só cor). */
 .badge {
@@ -584,6 +593,19 @@ tbody tr:hover { background: var(--surface-hover); }
 
 /* Tabela sem a caixa: as réguas entre linhas já separam. */
 .tabela-lisa table { width: 100%; }
+
+/* Faixa de indicadores. A borda PONTILHADA é deliberada: distingue "recorte de
+   um total" de um card de conteúdo, sem precisar de fundo nem sombra. */
+.kpi-faixa {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 26px;
+}
+.kpi {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 12px; border: 1px dashed var(--content-3); border-radius: 6px;
+  text-align: center;
+}
+.kpi-valor { font: 600 20px var(--font-mono); letter-spacing: -0.03em; white-space: nowrap; }
 
 /* Nome de categoria é texto do usuário: encolhe com reticências em vez de
    empurrar o valor para fora. */
