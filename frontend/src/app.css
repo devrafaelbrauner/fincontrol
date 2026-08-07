@@ -1,12 +1,19 @@
 /* ============================================================
-   FinControl — Design system "Premium Flat"
-   Superfícies planas, borda 1px como separador, tipografia Inter,
-   verde = entradas, vermelho = saídas, âmbar = alerta.
+   FinControl — Design system "Mono editorial"
+   Sem cards decorativos: hierarquia por réguas de 1px e por um
+   único número dominante em cada tela. IBM Plex Sans no texto,
+   JetBrains Mono em todo número, rótulo e título de seção.
+   Verde = entradas, vermelho = saídas, âmbar = alerta.
    Tema escuro padrão + claro (via [data-theme] no <html>).
    ============================================================ */
 
 @import "tailwindcss";
-@import "@fontsource-variable/inter/index.css";
+/* Auto-hospedadas de propósito. O handoff sugeria Google Fonts, mas a CSP de
+   produção (deploy/Caddyfile) tem `font-src 'self'` e `style-src 'self'`: o
+   navegador recusaria a folha e os arquivos, e a fonte externa também não entra
+   no precache da PWA — o app quebraria offline. */
+@import "@fontsource-variable/ibm-plex-sans/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
@@ -15,74 +22,76 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --page: #000000;            /* fundo da página (preto puro) */
-  --surface: #0d0d0d;         /* cards, sidebar */
-  --surface-2: #141414;       /* modais, popovers, sheet */
-  --surface-hover: #1c1c1c;   /* hover de linhas/nav, tracks */
-  --field: #0a0a0a;           /* fundo de inputs */
-  --edge: #282828;            /* borda 1px padrão */
-  --edge-strong: #3c3c3c;     /* divisores fortes, dashed */
-  --content: #f5f5f5;         /* texto primário */
-  --content-2: #7f7f7f;       /* secundário (cinza da paleta) */
-  --content-3: #5a5a5a;       /* terciário/placeholder */
+  --surface: #080808;         /* sidebar, trilho lateral, painéis */
+  --surface-2: #0c0c0c;       /* modais, popovers, bottom sheet */
+  --surface-hover: #1a1a1a;   /* hover de linhas/nav, tracks */
+  --field: #0e0e0e;           /* inputs, chips, botões secundários */
+  --edge: #232323;            /* régua 1px principal */
+  --edge-strong: #2e2e2e;     /* divisores fortes, dashed */
+  --rule-soft: #1a1a1a;       /* divisor entre linhas de lista/tabela */
+  --content: #f2f2f2;         /* texto primário */
+  --content-2: #8a8a8a;       /* secundário */
+  --content-3: #767676;       /* terciário — subiu de #5a5a5a: ~5,4:1 no preto */
 
   --accent: #0068ff;          /* ações, links, foco, info */
   --accent-vivid: #3d8bff;    /* accent legível como texto no escuro */
   --positive: #2ecf0c;        /* entradas */
-  --negative: #ff0000;        /* saídas, erros */
+  --negative: #ff4d4d;        /* saídas, erros — era #ff0000, ilegível como texto */
   --warning: #ffa119;         /* alertas, metas em risco */
 
-  --card: color-mix(in srgb, var(--surface) 80%, transparent); /* deixa o glow tingir */
-  --shadow-card: none;        /* no escuro a borda separa */
-  --shadow-pop: 0 16px 48px -16px rgba(0, 0, 0, 0.75);
+  /* Fundos tonais de badges e chips. */
+  --positive-bg: rgba(46, 207, 12, 0.10);
+  --negative-bg: rgba(255, 77, 77, 0.10);
+  --warning-bg: rgba(255, 161, 25, 0.10);
+  --accent-bg: rgba(0, 104, 255, 0.10);
 
-  /* Plano de fundo: textura de pontos + glows nas cores da marca sobre o preto. */
-  --fundo:
-    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1.6px) 0 0 / 26px 26px,
-    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.22), transparent 62%),
-    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.10), transparent 55%),
-    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.10), transparent 60%),
-    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.09), transparent 55%),
-    var(--page);
+  --card: var(--surface);
+  --shadow-card: none;        /* no escuro a régua separa */
+  --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+  /* Fundo chapado: o redesign troca os glows decorativos por hierarquia
+     tipográfica. Segue como variável para o body::before não quebrar. */
+  --fundo: var(--page);
 
   /* Paleta categórica na família da marca. */
   --chart-1: #0068ff; --chart-2: #ffa119; --chart-3: #2ecf0c;
-  --chart-4: #ff0000; --chart-5: #8f8f8f; --chart-6: #66a3ff;
-  --chart-neutral: #5a5a5a;
+  --chart-4: #ff4d4d; --chart-5: #8f8f8f; --chart-6: #66a3ff;
+  --chart-neutral: #767676;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --page: #edeff4;            /* cinza-azulado: os cards brancos saltam do fundo */
-  --surface: #ffffff;
+  --page: #f7f5f0;            /* papel, não branco */
+  --surface: #fbfaf7;
   --surface-2: #ffffff;
-  --surface-hover: #f2f3f8;
-  --field: #f7f8fb;           /* inputs levemente tintados sobre cards brancos */
-  --edge: #e0e3eb;
-  --edge-strong: #c7ccd9;
-  --content: #101114;
-  --content-2: #626573;
-  --content-3: #9296a3;
+  --surface-hover: #efece5;
+  --field: #ffffff;
+  --edge: #dedad1;
+  --edge-strong: #c7c1b4;
+  --rule-soft: #e6e2d9;
+  --content: #17171a;
+  --content-2: #57544c;
+  --content-3: #9b9588;
 
   --accent: #0068ff;
   --accent-vivid: #0056d6;    /* accent legível como texto no claro */
   --positive: #1f9c05;
-  --negative: #dd0000;
+  --negative: #c0392b;
   --warning: #b26400;
 
-  --card: #ffffff;            /* opaco: contraste nítido com o fundo tintado */
-  --shadow-card: 0 1px 2px rgba(16, 20, 40, 0.06), 0 6px 20px -12px rgba(16, 20, 40, 0.10);
-  --shadow-pop: 0 12px 32px -12px rgba(16, 20, 40, 0.2);
+  --positive-bg: #eef7ea;
+  --negative-bg: #fbf0ee;
+  --warning-bg: #fdf3e4;
+  --accent-bg: #e9f1ff;
 
-  --fundo:
-    radial-gradient(rgba(13, 15, 25, 0.05) 1px, transparent 1.6px) 0 0 / 26px 26px,
-    radial-gradient(1100px 750px at 88% -12%, rgba(0, 104, 255, 0.13), transparent 62%),
-    radial-gradient(950px 700px at -12% 8%, rgba(255, 0, 0, 0.06), transparent 55%),
-    radial-gradient(850px 650px at 108% 82%, rgba(255, 161, 25, 0.09), transparent 60%),
-    radial-gradient(800px 620px at 8% 108%, rgba(46, 207, 12, 0.08), transparent 55%),
-    var(--page);
+  --card: var(--surface);
+  --shadow-card: 0 1px 2px rgba(20, 25, 50, 0.06);
+  --shadow-pop: 0 16px 40px -16px rgba(20, 25, 50, 0.22);
 
-  --chart-1: #0059db; --chart-2: #e08300; --chart-3: #229f0a;
-  --chart-4: #d60000; --chart-5: #7f7f7f; --chart-6: #4d8fe6;
+  --fundo: var(--page);
+
+  --chart-1: #0068ff; --chart-2: #b26400; --chart-3: #1f9c05;
+  --chart-4: #c0392b; --chart-5: #8f8f8f; --chart-6: #4d8fe6;
   --chart-neutral: #b0b0b0;
 }
 
@@ -110,12 +119,19 @@
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
   --color-chart-neutral: var(--chart-neutral);
+  --color-rule-soft: var(--rule-soft);
+  --color-positive-bg: var(--positive-bg);
+  --color-negative-bg: var(--negative-bg);
+  --color-warning-bg: var(--warning-bg);
+  --color-accent-bg: var(--accent-bg);
 
-  --font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 14px;
+  --radius-pill: 20px;
 
   --ease-out-fast: cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -125,6 +141,21 @@
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
   --dur: 150ms;
   --dur-entrada: 200ms;
+
+  /* Escala tipográfica do redesign. Um valor dominante por tela (--fs-hero),
+     título da tela, seções em caixa alta e o corpo — todos em px porque a
+     proporção entre eles é parte do desenho, não do zoom do navegador. */
+  --fs-hero: 54px;        /* valor dominante   mono 700 / -.055em */
+  --fs-hero-mobile: 38px;
+  --fs-h1: 27px;          /* título da tela    mono 700 / -.045em */
+  --fs-h3: 13.5px;        /* seção, CAIXA ALTA mono 700 / -.02em  */
+  --fs-eyebrow: 9.5px;    /* rótulo do número  mono 500 / .16em   */
+  --fs-body: 13.5px;      /* corpo e listas    sans 400           */
+  --fs-num: 13px;         /* número em tabela  mono 600           */
+  --fs-meta: 11px;        /* legenda           sans 400           */
+
+  --gap-1: 6px;  --gap-2: 10px; --gap-3: 14px;
+  --gap-4: 20px; --gap-5: 26px; --gap-6: 34px;
 }
 
 /* ============================================================
@@ -161,7 +192,14 @@
   button, input, select, textarea { font: inherit; color: inherit; }
 
   /* Números financeiros: tabular para alinhar casas. */
-  .num, .valor { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  /* Todo número em mono é a marca do redesign. O nowrap não é enfeite: sem ele
+     a JetBrains Mono quebra o "R$" numa linha e o valor na seguinte. */
+  .num, .valor {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
 
   :focus-visible {
     outline: 2px solid var(--accent);
