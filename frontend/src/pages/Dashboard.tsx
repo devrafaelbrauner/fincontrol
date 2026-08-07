@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
-import { AreaChart, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, SerieMes } from "../components/graficos";
-import { IcEconomia, IcEntradas, IcExtrair, IcMetas, IcVariaveis } from "../components/icones";
-import StatCard from "../components/StatCard";
+import AnimatedNumber from "../components/AnimatedNumber";
+import { AreaChart, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
+import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
 type Dash = {
@@ -24,6 +24,39 @@ type Orcamento = { categoria_id: number; nome: string; cor: string | null; limit
 const corOrcamento = (pct: number) => (pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)");
 
 /** O mês contado numa única barra: entradas consumidas por fixas e variáveis; o que resta é a sobra. */
+/** Item do trilho lateral: rótulo, variação, valor e sparkline, separados por
+ *  régua. Substitui o card com ícone e borda — no redesign o que separa é o
+ *  espaço e a linha de 1px, não uma caixa. */
+function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
+  rotulo: string; cents: number; cor: string;
+  variacao?: number | null; menosMelhor?: boolean; serie?: number[];
+}) {
+  const bom = v == null ? null : menosMelhor ? v <= 0 : v >= 0;
+  return (
+    <div className="trilho-item">
+      <div className="trilho-topo">
+        <span className="trilho-rotulo">{rotulo}</span>
+        {v != null && (
+          <span className="trilho-var num" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
+            {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="trilho-valor num" style={{ color: cor }}><AnimatedNumber cents={cents} /></div>
+      {serie && serie.length > 1 && <div className="trilho-spark"><Sparkline valores={serie} cor={cor} /></div>}
+    </div>
+  );
+}
+
+/** Valor grande do topo, com os centavos menores e apagados — é o que deixa o
+ *  número legível de longe sem que a vírgula roube a atenção. */
+function ValorHero({ cents }: { cents: number }) {
+  const texto = brl(cents);
+  const i = texto.lastIndexOf(",");
+  if (i === -1) return <>{texto}</>;
+  return <>{texto.slice(0, i)}<span className="hero-cents">{texto.slice(i)}</span></>;
+}
+
 function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {
   const despesas = fixas + variaveis;
   const base = Math.max(entradas, despesas, 1);
@@ -32,16 +65,20 @@ function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: num
   return (
     <div className="fio">
       <div className="fio-barra" role="img"
-        aria-label={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "sobra" : "excedente"} ${brl(Math.abs(sobra))}`}>
+        aria-label={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "economia" : "excedente"} ${brl(Math.abs(sobra))}`}>
         {fixas > 0 && <span className="seg fixas" style={{ width: pct(fixas) }} />}
         {variaveis > 0 && <span className="seg variaveis" style={{ width: pct(variaveis) }} />}
         {sobra > 0 && <span className="seg sobra" style={{ width: pct(sobra) }} />}
       </div>
+      {/* Sem "Entradas" na legenda: o total já é a barra inteira, e ele aparece
+          por extenso no parágrafo de leitura logo acima. */}
       <div className="fio-legenda">
-        <span><i className="entradas" />Entradas <b className="num">{brl(entradas)}</b></span>
         <span><i className="fixas" />Fixas <b className="num">{brl(fixas)}</b></span>
         <span><i className="variaveis" />Variáveis <b className="num">{brl(variaveis)}</b></span>
-        <span><i className={sobra >= 0 ? "sobra" : "excede"} />{sobra >= 0 ? "Sobra" : "Excedente"} <b className="num">{brl(Math.abs(sobra))}</b></span>
+        <span>
+          <i className={sobra >= 0 ? "sobra" : "excede"} />
+          {sobra >= 0 ? "Economia" : "Excedente"} <b className="num">{brl(Math.abs(sobra))}</b>
+        </span>
       </div>
       {entradas === 0 && despesas > 0 && (
         <p className="sub" style={{ fontSize: "0.78rem" }}>Sem entradas neste mês — registre suas receitas para o fio fazer sentido.</p>
@@ -180,30 +217,37 @@ export default function Dashboard() {
     <>
       <p className="sub">Resumo de {mesCurto(competencia)} de {competencia.slice(0, 4)}</p>
 
-      <section className="card hero-mes surgir">
-        <div className="hero-topo">
-          <div>
-            <span className="eyebrow">{atual.saldo_cents >= 0 ? "Sobra do mês" : "Faltando no mês"}</span>
-            <div className="hero-valor num" style={{ color: atual.saldo_cents >= 0 ? "var(--positive)" : "var(--negative)" }}>
-              {brl(atual.saldo_cents)}
-            </div>
-          </div>
-          {varSaldo != null && (
-            <span className="chip" title="Variação do saldo vs. mês anterior">
-              {varSaldo > 0 ? "▲" : varSaldo < 0 ? "▼" : "•"} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+      <div className="visao-topo surgir">
+        <div className="visao-hero">
+          <div className="eyebrow">{atual.saldo_cents >= 0 ? "Economia mensal" : "Faltando no mês"}</div>
+          <div className="hero-linha">
+            <span className="hero-valor num" style={{ color: atual.saldo_cents >= 0 ? "var(--positive)" : "var(--negative)" }}>
+              <ValorHero cents={atual.saldo_cents} />
             </span>
-          )}
+            {varSaldo != null && (
+              <span className={`chip-var ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
+                {varSaldo > 0 ? "▲" : varSaldo < 0 ? "▼" : "•"} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+              </span>
+            )}
+          </div>
+          <p className="leitura">
+            Você recebeu <b className="num">{brl(atual.entradas_cents)}</b>
+            {atual.entradas_cents > 0 && <> e comprometeu <b>{Math.round((despesas(atual) / atual.entradas_cents) * 100)}%</b> disso</>}
+            {" "}com contas fixas e gastos variáveis.{" "}
+            {atual.saldo_cents >= 0 ? "No ritmo atual, fecha o mês com economia." : "No ritmo atual, o mês fecha no vermelho."}
+          </p>
+          <FioDoMes entradas={atual.entradas_cents} fixas={atual.fixas_cents} variaveis={atual.variaveis_cents} />
         </div>
-        <FioDoMes entradas={atual.entradas_cents} fixas={atual.fixas_cents} variaveis={atual.variaveis_cents} />
-      </section>
 
-      <div className="grid-stats secao">
-        <StatCard rotulo="Receitas" cents={atual.entradas_cents} icone={<IcEntradas />} cor="var(--positive)" atraso={1}
-          variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
-        <StatCard rotulo="Despesas" cents={despesas(atual)} icone={<IcVariaveis />} cor="var(--negative)" atraso={2} menosMelhor
-          variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
-        <StatCard rotulo={ehMesAtual ? "Gasto variável/dia (até hoje)" : "Gasto variável/dia"} cents={mediaDia}
-          icone={<IcEconomia />} cor="var(--warning)" atraso={3} />
+        <div className="visao-divisor" />
+
+        <div className="trilho">
+          <TrilhoItem rotulo="Receitas" cents={atual.entradas_cents} cor="var(--positive)"
+            variacao={ant ? variacao(atual.entradas_cents, ant.entradas_cents) : null} serie={serie((d) => d.entradas_cents)} />
+          <TrilhoItem rotulo="Despesas" cents={despesas(atual)} cor="var(--negative)" menosMelhor
+            variacao={ant ? variacao(despesas(atual), despesas(ant)) : null} serie={serie(despesas)} />
+          <TrilhoItem rotulo={ehMesAtual ? "Variável por dia (até hoje)" : "Variável por dia"} cents={mediaDia} cor="var(--warning)" />
+        </div>
       </div>
 
       <div className="grid-2 secao">
