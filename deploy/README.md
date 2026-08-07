@@ -171,41 +171,22 @@ custaram um APK que não funcionava:
 1. **O IP fica congelado no bundle.** Trocar de rede — ou o DHCP renovar —
    invalida o APK sem nada avisar: o app só fica girando.
 2. **O backend padrão sobe em `--host 127.0.0.1`**, que aceita conexão só da
-   própria máquina. Mesmo com o IP certo no APK, o celular não alcança. Para o
-   teste em rede é preciso:
+   própria máquina. Mesmo com o IP certo no APK, o celular não alcança.
 
-O comando exato sai impresso no fim do script, com as duas variáveis já
-preenchidas. Ele tem esta forma:
+Por isso o script termina imprimindo o comando do backend, já com o bind certo,
+a porta certa e as chaves preenchidas — **use o que ele imprime**, e não uma
+cópia daqui, que envelhece. O porquê de cada chave sai junto no mesmo texto; em
+resumo, o `FINCONTROL_SECRET_KEY` é sorteado porque o default do repositório é
+público e em `0.0.0.0` qualquer um na rede forjaria um JWT, e o
+`FINCONTROL_FERNET_KEY` vai fixo junto porque, sem ele, o sorteio tornaria
+ilegível a chave do OpenRouter guardada no banco.
 
-```bash
-cd backend && FINCONTROL_SECRET_KEY=<sorteada> \
-  FINCONTROL_FERNET_KEY=<a mesma de sempre> \
-  .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
+Se você usar outra porta, passe a MESMA nos dois lados:
+`FINCONTROL_PORTA=8010 npm run apk:teste`. Divergir aqui produz o mesmo "app só
+fica girando", agora por porta e não por IP.
 
-**O `FINCONTROL_SECRET_KEY` não é opcional aqui.** Sem ele o backend cai no
-default `dev-insecure-troque-em-producao`, que é público neste repositório — e
-com o bind em `0.0.0.0` qualquer um na rede forja um JWT válido e lê ou altera
-seus dados. Em `127.0.0.1` isso não importava; ao expor, passa a importar.
-Encerre o backend quando terminar o teste.
-
-**E o `FINCONTROL_FERNET_KEY` vai junto por causa disso.** Sem ele, o backend
-deriva do `SECRET_KEY` a master key que decifra a chave do OpenRouter guardada
-no banco (`backend/app/cripto.py`). Com um `SECRET_KEY` sorteado, essa chave
-vira ilegível — e o sintoma é mudo: `descriptografar` devolve `None`,
-`/ia/config` responde `"configurada": false`, e toda a IA (extração de anexo,
-categorização, insights, estratégia de meta) para de funcionar bem no meio do
-teste. Fixar a Fernet na derivação de sempre mantém os dados legíveis com e sem
-o teste, e deixa o sorteio só onde importa: na chave que assina o JWT. Como
-essa é nova a cada execução, a sessão cai e você faz login de novo.
-
-Se você usar outra porta, passe a MESMA nos dois lados —
-`FINCONTROL_PORTA=8010 npm run apk:teste` e `--port 8010`. O script imprime o
-comando já com a porta certa; divergir aqui produz o mesmo "app só fica
-girando", agora por porta e não por IP.
-
-Isso expõe o backend de desenvolvimento à rede local — use só na sua rede, e
-não deixe rodando assim.
+Isso expõe o backend de desenvolvimento à rede local — use só na sua rede,
+encerre quando terminar, e não deixe rodando assim.
 
 O `usesCleartextTraffic` vive em `app/src/debug/AndroidManifest.xml`, sobrepondo o
 `false` do manifesto principal só na variante debug; e o `allowMixedContent` depende
