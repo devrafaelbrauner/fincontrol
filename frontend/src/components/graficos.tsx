@@ -143,17 +143,24 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
 export type FatiaDonut = { rotulo: string; valor: number; cor: string };
 
 /** Lista de barras horizontais ranqueadas (ex.: gastos por categoria). */
-export function BarrasRank({ fatias }: { fatias: FatiaDonut[] }) {
+/** Ranking horizontal por valor. Com `total`, mostra também a fatia em % —
+ *  é o que o redesign pede em "onde foi o variável". */
+export function BarrasRank({ fatias, total }: { fatias: FatiaDonut[]; total?: number }) {
   const max = Math.max(...fatias.map((f) => f.valor), 1);
   if (fatias.length === 0) return <p className="sub">Sem dados.</p>;
   return (
     <div className="legenda" style={{ gap: "0.7rem" }}>
       {fatias.map((f) => (
         <div key={f.rotulo}>
-          <div className="item" style={{ marginBottom: "0.25rem" }}>
+          {/* min-width:0 no nome: categoria é texto do usuário, e sem isto um
+              nome longo empurra o valor para fora do card em vez de encolher. */}
+          <div className="item" style={{ marginBottom: "0.25rem", minWidth: 0 }}>
             <span className="ponto" style={{ background: f.cor }} />
-            <span>{f.rotulo}</span>
-            <span className="pct">{brl(f.valor)}</span>
+            <span className="rank-nome">{f.rotulo}</span>
+            <span className="pct num">
+              {brl(f.valor)}
+              {total ? <span className="rank-pct"> · {Math.round((f.valor / Math.max(total, 1)) * 100)}%</span> : null}
+            </span>
           </div>
           <div className="progresso"><i style={{ width: `${(f.valor / max) * 100}%`, background: f.cor }} /></div>
         </div>

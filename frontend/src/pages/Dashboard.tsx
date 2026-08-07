@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
-import { AreaChart, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
+import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -212,6 +212,8 @@ export default function Dashboard() {
   const diasBase = ehMesAtual ? agora.getDate() : new Date(anoC, mesC, 0).getDate();
   const mediaDia = Math.round(atual.variaveis_cents / Math.max(diasBase, 1));
   const varSaldo = ant ? variacao(atual.saldo_cents, ant.saldo_cents) : null;
+  // "MAR — AGO": diz de quando a quando o gráfico fala, sem ocupar um eixo.
+  const periodoFluxo = meses.length > 1 ? `${mesCurto(meses[0].competencia)} — ${mesCurto(atual.competencia)}` : "";
 
   return (
     <>
@@ -251,8 +253,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid-2 secao">
-        <section className="card surgir">
-          <h3>Fluxo financeiro</h3>
+        <section className="surgir">
+          <div className="secao-regua">
+            <h3 className="secao-titulo">Fluxo dos últimos 6 meses</h3>
+            <span className="eyebrow">{periodoFluxo}</span>
+          </div>
           <AreaChart dados={fluxo} />
           <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
             <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Receitas</span>
@@ -261,17 +266,21 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="card surgir" style={{ display: "flex", flexDirection: "column" }}>
-          <h3>Distribuição de despesas</h3>
-          <div style={{ flex: 1, display: "grid", alignItems: "center" }}>
-            <Donut fatias={donut} />
+        {/* Barras no lugar do donut: o design ranqueia para responder "onde foi
+            o dinheiro", pergunta que uma rosca responde pior — comparar arcos é
+            mais difícil que comparar comprimentos. */}
+        <section className="surgir">
+          <div className="secao-regua">
+            <h3 className="secao-titulo">Onde foi o variável</h3>
+            <span className="eyebrow">{brl(atual.variaveis_cents)}</span>
           </div>
+          <BarrasRank fatias={donut.slice(0, 5)} total={atual.variaveis_cents} />
         </section>
       </div>
 
       <div className="grid-2 secao">
-        <section className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <h3>Metas em andamento</h3>
+        <section className="surgir">
+          <div className="secao-regua"><h3 className="secao-titulo">Metas em andamento</h3></div>
           {metas.length === 0 ? (
             <p className="sub">Nenhuma meta ativa. <NavLink to="/metas" style={{ color: "var(--accent-vivid)", fontWeight: 600 }}>Crie a primeira</NavLink> e planeje os itens dela.</p>
           ) : (
@@ -291,11 +300,11 @@ export default function Dashboard() {
         </section>
 
         <section className="surgir">
-        <h3 style={{ marginBottom: "0.75rem" }}>Próximos vencimentos</h3>
+        <div className="secao-regua"><h3 className="secao-titulo">Próximos vencimentos</h3></div>
         {atual.proximos_vencimentos.length === 0 ? (
-          <p className="card sub">Nada pendente neste mês. 🎉</p>
+          <p className="sub">Nada pendente neste mês. 🎉</p>
         ) : (
-          <div className="card" style={{ padding: 0 }}>
+          <div className="tabela-lisa">
             <table>
               <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead>
               <tbody>
@@ -315,8 +324,8 @@ export default function Dashboard() {
       </div>
 
       {orcamentos.length > 0 && (
-        <section className="card surgir secao">
-          <h3>Orçamentos do mês</h3>
+        <section className="surgir secao">
+          <div className="secao-regua"><h3 className="secao-titulo">Orçamentos do mês</h3></div>
           {/* O limite não é versionado por mês — num mês antigo, o vermelho
               compara o gasto de lá com o limite DE HOJE. Dizer isso evita o
               susto de "estourei março" num mês em que o orçamento nem existia. */}
@@ -341,14 +350,14 @@ export default function Dashboard() {
 
       <section className="secao">
         <div className="insights-cabecalho">
-          <h3>Insights de IA</h3>
+          <h3 className="secao-titulo">Insights de IA</h3>
           <button className="btn btn-primario" onClick={pedirInsights} disabled={iaCarregando}>
             <IcExtrair />{iaCarregando ? "Analisando…" : insights ? "Recalcular" : "Analisar mês"}
           </button>
         </div>
         {iaErro && <p className="erro">{iaErro}</p>}
         {!insights && !iaCarregando && !iaErro && (
-          <p className="card sub">Clique em “Analisar mês” para a IA comentar suas finanças.</p>
+          <p className="sub">Clique em “Analisar mês” para a IA comentar suas finanças.</p>
         )}
         {iaCarregando && !insights && <div className="skeleton" style={{ height: 120 }} />}
         {insights && (
