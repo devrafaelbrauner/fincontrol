@@ -22,16 +22,37 @@ fi
 
 como_app() { sudo -u fincontrol -H "$@"; }
 
+# O Caddyfile referencia {$FINCONTROL_DOMAIN}, {$FINCONTROL_FRONTEND_DIST} e
+# {$FINCONTROL_ACME_EMAIL}. O serviço do Caddy recebe essas variáveis por
+# EnvironmentFile, mas o shell do root NÃO herda o Environment= de um serviço —
+# então, sem carregar o mesmo arquivo aqui, o `caddy validate` lá embaixo veria
+# tudo vazio. E vazio não é inofensivo: a linha do site vira "{" sozinha, que o
+# parser lê como BLOCO GLOBAL, o `encode` passa a ser opção global inválida, e
+# todo deploy abortaria sem nunca recarregar o Caddy. Mesma fonte de verdade
+# para os dois lados é o que impede esse desencontro de voltar.
+CADDY_ENV="${FINCONTROL_CADDY_ENV:-/etc/fincontrol/caddy.env}"
+if [ ! -f "$CADDY_ENV" ]; then
+	echo "ERRO: $CADDY_ENV não existe. Crie-o com FINCONTROL_DOMAIN," >&2
+	echo "      FINCONTROL_FRONTEND_DIST e FINCONTROL_ACME_EMAIL (ver deploy/README.md, passo 7)." >&2
+	exit 1
+fi
+set -a; . "$CADDY_ENV"; set +a
+: "${FINCONTROL_DOMAIN:?defina em $CADDY_ENV}"
+: "${FINCONTROL_FRONTEND_DIST:?defina em $CADDY_ENV}"
+: "${FINCONTROL_ACME_EMAIL:?defina em $CADDY_ENV}"
+
 echo "==> Validando backend/.env (preflight)"
 "$RAIZ/deploy/preflight.sh" check
 
+echo "==> Atualizando código (git pull --ff-only)"
+como_app git -C "$RAIZ" pull --ff-only
+
 echo "==> Conferindo o hash CSP do script inline"
+# Depois do pull, de propósito: rodando antes, esta checagem validava o
+# index.html VELHO e deixava passar exatamente a mudança que veio no pull.
 # Um index.html alterado sem atualizar o script-src passa despercebido: o app
 # sobe, mas o navegador bloqueia o script do tema em silêncio.
 "$RAIZ/deploy/csp-hash.sh" check
-
-echo "==> Atualizando código (git pull --ff-only)"
-como_app git -C "$RAIZ" pull --ff-only
 
 echo "==> Backend: venv + dependências"
 cd "$RAIZ/backend"
@@ -76,9 +97,12 @@ if ! diff -q "$RAIZ/deploy/Caddyfile" /etc/caddy/Caddyfile >/dev/null 2>&1; then
 		echo "       ou exporte FINCONTROL_CADDY_MANUAL=1 se a divergência for intencional." >&2
 		exit 1
 	fi
-else
-	CADDYFILE=/etc/caddy/Caddyfile "$RAIZ/deploy/csp-hash.sh" check
 fi
+
+# Fora do else de propósito: o que importa é o arquivo que o Caddy REALMENTE
+# serve. Dentro do else, o modo manual — justamente o caso em que a config do
+# servidor diverge do repo — pulava a checagem que mais fazia falta ali.
+CADDYFILE=/etc/caddy/Caddyfile "$RAIZ/deploy/csp-hash.sh" check
 
 echo "==> Recarregando Caddy (config validada antes)"
 if caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
