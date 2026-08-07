@@ -174,8 +174,12 @@ custaram um APK que não funcionava:
    própria máquina. Mesmo com o IP certo no APK, o celular não alcança. Para o
    teste em rede é preciso:
 
+O comando exato sai impresso no fim do script, com as duas variáveis já
+preenchidas. Ele tem esta forma:
+
 ```bash
-cd backend && FINCONTROL_SECRET_KEY=$(openssl rand -hex 32) \
+cd backend && FINCONTROL_SECRET_KEY=<sorteada> \
+  FINCONTROL_FERNET_KEY=<a mesma de sempre> \
   .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -184,6 +188,16 @@ default `dev-insecure-troque-em-producao`, que é público neste repositório �
 com o bind em `0.0.0.0` qualquer um na rede forja um JWT válido e lê ou altera
 seus dados. Em `127.0.0.1` isso não importava; ao expor, passa a importar.
 Encerre o backend quando terminar o teste.
+
+**E o `FINCONTROL_FERNET_KEY` vai junto por causa disso.** Sem ele, o backend
+deriva do `SECRET_KEY` a master key que decifra a chave do OpenRouter guardada
+no banco (`backend/app/cripto.py`). Com um `SECRET_KEY` sorteado, essa chave
+vira ilegível — e o sintoma é mudo: `descriptografar` devolve `None`,
+`/ia/config` responde `"configurada": false`, e toda a IA (extração de anexo,
+categorização, insights, estratégia de meta) para de funcionar bem no meio do
+teste. Fixar a Fernet na derivação de sempre mantém os dados legíveis com e sem
+o teste, e deixa o sorteio só onde importa: na chave que assina o JWT. Como
+essa é nova a cada execução, a sessão cai e você faz login de novo.
 
 Se você usar outra porta, passe a MESMA nos dois lados —
 `FINCONTROL_PORTA=8010 npm run apk:teste` e `--port 8010`. O script imprime o
