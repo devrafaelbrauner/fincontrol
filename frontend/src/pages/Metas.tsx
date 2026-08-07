@@ -200,13 +200,13 @@ export default function Metas() {
       {carregando ? (
         <div className="grid-metas">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 150 }} />)}</div>
       ) : metas.length === 0 ? (
-        <p className="card sub">Nenhuma meta ainda. Crie a primeira.</p>
+        <p className="sub">Nenhuma meta ainda. Crie a primeira.</p>
       ) : (
         <div className="grid-metas">
           {metas.map((m) => {
             const pct = Math.min((m.valor_atual_cents / m.valor_total_cents) * 100, 100);
             return (
-              <article key={m.id} className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <article key={m.id} className="ficha surgir" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ display: "flex", gap: "0.9rem", alignItems: "center" }}>
                   <ProgressRing pct={pct} cor={corPct(pct)} />
                   <div style={{ minWidth: 0 }}>

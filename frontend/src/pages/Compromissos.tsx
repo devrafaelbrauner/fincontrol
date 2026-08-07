@@ -288,13 +288,13 @@ export default function Compromissos() {
       {carregando ? (
         <div className="grid-metas">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 150 }} />)}</div>
       ) : itens.length === 0 ? (
-        <p className="card sub">Nenhum compromisso ainda. Cadastre o primeiro — IPVA, IPTU, um acordo, dinheiro que você pegou emprestado.</p>
+        <p className="sub">Nenhum compromisso ainda. Cadastre o primeiro — IPVA, IPTU, um acordo, dinheiro que você pegou emprestado.</p>
       ) : (
         <div className="grid-metas">
           {itens.map((c) => {
             const pct = Math.min((c.pago_cents / c.valor_total_cents) * 100, 100);
             return (
-              <article key={c.id} className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.7rem", opacity: c.ativo ? 1 : 0.6 }}>
+              <article key={c.id} className="ficha surgir" style={{ display: "flex", flexDirection: "column", gap: "0.7rem", opacity: c.ativo ? 1 : 0.6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
                   <div style={{ minWidth: 0 }}>
                     <strong style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
