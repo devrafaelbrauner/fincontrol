@@ -182,9 +182,9 @@ export default function Analises() {
         <div className="skeleton" style={{ height: 260 }} />
       ) : (
         <>
-          <section className="card surgir">
+          <section className="ficha surgir">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-              <h3>Entradas × Gastos</h3>
+              <h3 className="secao-titulo">Entradas × Gastos</h3>
               <div className="seg" role="group" aria-label="Período do histórico">
                 {PERIODOS.map((p) => (
                   <button key={p} type="button" className={periodo === p ? "btn btn-primario" : "btn"}
@@ -201,8 +201,8 @@ export default function Analises() {
             </div>
           </section>
 
-          <section className="card surgir secao">
-            <h3>Mês vs mês anterior</h3>
+          <section className="surgir secao">
+            <h3 className="secao-titulo">Mês vs mês anterior</h3>
             {comp ? (
               <div style={{ overflowX: "auto" }}>
                 <table>
@@ -227,8 +227,8 @@ export default function Analises() {
             )}
           </section>
 
-          <section className="card surgir secao">
-            <h3>Tendência por categoria</h3>
+          <section className="surgir secao">
+            <h3 className="secao-titulo">Tendência por categoria</h3>
             <p className="sub">Gastos fixos + variáveis por mês, maiores do período primeiro. O donut abaixo mostra só as variáveis do mês.</p>
             {tendencias.length === 0 ? (
               <p className="sub">Sem gastos categorizáveis no período.</p>
@@ -256,21 +256,21 @@ export default function Analises() {
           </section>
 
           <div className="grid-2 secao">
-            <section className="card surgir">
-              <h3>Gastos por categoria</h3>
+            <section className="ficha surgir">
+              <h3 className="secao-titulo">Gastos por categoria</h3>
               <Donut fatias={porCategoria} />
               <div style={{ marginTop: "1rem" }}><BarrasRank fatias={porCategoria} /></div>
             </section>
-            <section className="card surgir">
-              <h3>Por forma de pagamento</h3>
+            <section className="ficha surgir">
+              <h3 className="secao-titulo">Por forma de pagamento</h3>
               <BarrasRank fatias={porForma} />
             </section>
           </div>
         </>
       )}
 
-      <section className="card surgir secao">
-        <h3>Orçamentos por categoria</h3>
+      <section className="surgir secao">
+        <h3 className="secao-titulo">Orçamentos por categoria</h3>
         <p className="sub">Limite mensal para gastos variáveis. Ao estourar, chega um aviso push (com os lembretes diários). Barras do mês selecionado.</p>
         <div className="legenda" style={{ gap: "0.8rem", margin: "0.75rem 0" }}>
           {orcamentos.length === 0 && <span className="sub">Nenhum orçamento definido ainda.</span>}
@@ -307,8 +307,8 @@ export default function Analises() {
         </form>
       </section>
 
-      <section className="card surgir secao">
-        <h3>Categorias</h3>
+      <section className="surgir secao">
+        <h3 className="secao-titulo">Categorias</h3>
         <p className="sub">Crie categorias para classificar seus gastos. Atribua nos gastos (aba Variáveis) ou no cadastro de transação.</p>
         {/* A lista veio com todas=1 (os gráficos precisam das desativadas);
             aqui, que é gestão, só as ativas aparecem. */}
