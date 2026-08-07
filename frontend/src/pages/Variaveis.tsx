@@ -4,6 +4,7 @@ import AnexoCampo from "../components/AnexoCampo";
 import { IcBusca, IcExportar, IcExtrair, IcVariaveis } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
+import ValorHero from "../components/ValorHero";
 
 const ultimoDia = (comp: string) => new Date(Number(comp.slice(0, 4)), Number(comp.slice(5)), 0).getDate();
 
@@ -131,7 +132,16 @@ export default function Variaveis() {
 
   return (
     <>
-      <p className="sub">Total do mês: <strong className="num negativo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
+      <div className="visao-hero" style={{ marginBottom: "26px" }}>
+        <div className="eyebrow">Gasto variável no mês</div>
+        <div className="hero-linha">
+          <span className="hero-valor num" style={{ color: "var(--negative)" }}><ValorHero cents={total} /></span>
+        </div>
+        <p className="leitura">
+          {itens.length} {itens.length === 1 ? "lançamento" : "lançamentos"} nesta competência. Troque o mês no topo,
+          ou use “Transação” para lançar.
+        </p>
+      </div>
 
       <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1rem", flexWrap: "wrap" }}>
         <div className="card" style={{ flex: 1, minWidth: 180, padding: "0.4rem 0.6rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -152,9 +162,9 @@ export default function Variaveis() {
       {carregando ? (
         <div className="skeleton" style={{ height: 220 }} />
       ) : filtrados.length === 0 ? (
-        <p className="card sub">Nenhum gasto {busca ? "encontrado" : "lançado ainda"}.</p>
+        <p className="sub">Nenhum gasto {busca ? "encontrado" : "lançado ainda"}.</p>
       ) : (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="tabela-lisa">
           <table>
             <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>

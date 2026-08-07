@@ -74,22 +74,42 @@ export default function ContasFixas() {
   }
 
   const totalMes = lancamentos.reduce((s, l) => s + l.valor_cents, 0);
+  // Os quatro indicadores da faixa. "Em aberto" inclui o atrasado de propósito:
+  // é o que ainda vai sair do bolso, e separar as duas coisas faria a soma dos
+  // quatro números não fechar com o total.
+  const somaSe = (p: (s: string) => boolean) =>
+    lancamentos.reduce((s, l) => s + (p(l.status) ? l.valor_cents : 0), 0);
+  const totalPago = somaSe((s) => s === "pago");
+  const totalAberto = totalMes - totalPago;
+  const totalAtrasado = somaSe((s) => s === "atrasado");
   const mesExtenso = new Date(Number(competencia.slice(0, 4)), Number(competencia.slice(5)) - 1)
     .toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   return (
     <>
       <p className="sub">
-        Competência {mesExtenso} · total <strong className="num">{brl(totalMes)}</strong> (troque o mês no topo)
+        Competência {mesExtenso} · troque o mês no topo
       </p>
       {erro && <p className="erro">{erro}</p>}
+
+      {!carregando && lancamentos.length > 0 && (
+        <div className="kpi-faixa">
+          <div className="kpi"><span className="eyebrow">Total do mês</span><span className="kpi-valor num">{brl(totalMes)}</span></div>
+          <div className="kpi"><span className="eyebrow">Pago</span><span className="kpi-valor num" style={{ color: "var(--positive)" }}>{brl(totalPago)}</span></div>
+          <div className="kpi"><span className="eyebrow">Em aberto</span><span className="kpi-valor num">{brl(totalAberto)}</span></div>
+          <div className="kpi"><span className="eyebrow">Atrasado</span><span className="kpi-valor num" style={{ color: totalAtrasado > 0 ? "var(--negative)" : undefined }}>{brl(totalAtrasado)}</span></div>
+        </div>
+      )}
 
       {carregando ? (
         <div className="skeleton" style={{ height: 220 }} />
       ) : lancamentos.length === 0 ? (
-        <p className="card sub">Nenhuma conta fixa. Adicione uma pelo botão “Adicionar transação”.</p>
+        <p className="sub">Nenhuma conta fixa. Adicione uma pelo botão “Adicionar transação”.</p>
       ) : (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="tabela-lisa">
+          <div className="secao-regua">
+            <h3 className="secao-titulo">{lancamentos.length} {lancamentos.length === 1 ? "conta fixa" : "contas fixas"}</h3>
+          </div>
           <table>
             <thead><tr><th>Conta</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>
@@ -110,6 +130,14 @@ export default function ContasFixas() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td />
+                <td className="num">{brl(totalMes)}</td>
+                <td colSpan={3} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
