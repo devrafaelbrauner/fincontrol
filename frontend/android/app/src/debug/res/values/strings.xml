@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Nome só da variante debug: na gaveta do celular, o APK de teste precisa ser
+     distinguível do app de verdade. Com o mesmo nome (e, antes do
+     applicationIdSuffix, o mesmo pacote) não havia como saber qual backend o
+     app instalado usa. -->
+<resources>
+    <string name="app_name">FinControl teste</string>
+    <string name="title_activity_main">FinControl teste</string>
+</resources>

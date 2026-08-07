@@ -13,7 +13,8 @@
     "test": "vitest run",
     "cap:sync": "npm run build && npx cap sync",
     "ios": "node scripts/checar-api-base.mjs && npm run build && npx cap sync ios && npx cap open ios",
-    "android": "node scripts/checar-api-base.mjs && npm run build && npx cap sync android"
+    "android": "node scripts/checar-api-base.mjs && npm run build && npx cap sync android",
+    "apk:teste": "bash scripts/apk-teste.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
