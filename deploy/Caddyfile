@@ -1,8 +1,20 @@
 # Caddy — HTTPS automático (Let's Encrypt) + reverse proxy para o FinControl.
-# Substitua o domínio e o caminho do build, ou defina as variáveis de ambiente
-# FINCONTROL_DOMAIN e FINCONTROL_FRONTEND_DIST no serviço do Caddy.
+#
+# As três variáveis abaixo vêm de /etc/fincontrol/caddy.env, carregado tanto pelo
+# serviço do Caddy (EnvironmentFile=, via drop-in) quanto pelo deploy/deploy.sh
+# antes de rodar `caddy validate`. Os dois lados precisam da MESMA fonte: com as
+# variáveis vazias este arquivo não é uma config válida — o endereço do site
+# some e sobra um bloco sem nome. Isso é proposital: falhar no validate é muito
+# melhor do que subir servindo o domínio errado, ou sem contato ACME.
 #
 # Instalar: copie para /etc/caddy/Caddyfile e rode `sudo systemctl reload caddy`.
+
+{
+	# Contato ACME. Sem ele o Let's Encrypt não tem para onde avisar que um
+	# certificado está para expirar ou que a renovação automática travou — e a
+	# primeira notícia seria o site fora do ar com aviso de segurança.
+	email {$FINCONTROL_ACME_EMAIL}
+}
 
 {$FINCONTROL_DOMAIN} {
 	encode gzip zstd

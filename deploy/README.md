@@ -73,16 +73,36 @@ cp /opt/fincontrol/deploy/fincontrol.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now fincontrol
 
-# 7. Caddy — domínio e caminho do build via ambiente do serviço
+# 7. Caddy — domínio, build e contato ACME num arquivo só
+# Fonte de verdade única: o serviço do Caddy lê por EnvironmentFile, e o
+# deploy/deploy.sh carrega o MESMO arquivo antes de rodar `caddy validate`.
+# Com Environment= inline, o validate rodado pelo root veria as variáveis
+# vazias — e o Caddyfile sem domínio vira um bloco global inválido, o que
+# fazia todo deploy abortar sem recarregar o Caddy.
+install -d -m 755 /etc/fincontrol
+tee /etc/fincontrol/caddy.env >/dev/null <<'EOF'
+FINCONTROL_DOMAIN=fincontrol.seudominio.com
+FINCONTROL_FRONTEND_DIST=/opt/fincontrol/frontend/dist
+FINCONTROL_ACME_EMAIL=voce@exemplo.com
+EOF
+chmod 644 /etc/fincontrol/caddy.env    # sem segredo; o usuário caddy precisa ler
+
 mkdir -p /etc/systemd/system/caddy.service.d
 tee /etc/systemd/system/caddy.service.d/fincontrol.conf >/dev/null <<'EOF'
 [Service]
-Environment=FINCONTROL_DOMAIN=fincontrol.seudominio.com
-Environment=FINCONTROL_FRONTEND_DIST=/opt/fincontrol/frontend/dist
+EnvironmentFile=/etc/fincontrol/caddy.env
 EOF
 cp /opt/fincontrol/deploy/Caddyfile /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile     # domínio vazio derruba o Caddy inteiro
+
+# Confirme que o DNS já resolve ANTES de subir: o Let's Encrypt limita 5 falhas
+# de validação por hora, e reiniciar às cegas queima essa cota.
+dig +short fincontrol.seudominio.com @1.1.1.1
+
+# O validate precisa do mesmo ambiente do serviço (o shell não o herda):
+set -a; . /etc/fincontrol/caddy.env; set +a
+caddy validate --config /etc/caddy/Caddyfile
 systemctl daemon-reload && systemctl restart caddy
+journalctl -u caddy -f     # acompanhe até "certificate obtained"
 
 # 8. Primeiro build do frontend
 cd /opt/fincontrol/frontend
@@ -218,5 +238,7 @@ aapt dump xmltree app/build/outputs/apk/release/app-release.apk AndroidManifest.
   `/calendar/*` ao backend. Trate a URL como senha; regenere pelo app se vazar.
 - **Cookie de refresh:** exige HTTPS (`FINCONTROL_COOKIE_SECURE=1`) — por isso o Caddy
   na frente é obrigatório em produção.
-- **ACME/Let's Encrypt:** adicione `email seu@email` num bloco global do Caddyfile para
-  receber avisos de renovação de certificado.
+- **ACME/Let's Encrypt:** o contato sai de `FINCONTROL_ACME_EMAIL` em
+  `/etc/fincontrol/caddy.env` (passo 7) — é por ele que o Let's Encrypt avisa se a
+  renovação automática travar. Não adicione o `email` direto no `/etc/caddy/Caddyfile`:
+  o `deploy.sh` compara esse arquivo com o versionado e abortaria todo deploy.
