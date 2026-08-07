@@ -10,7 +10,14 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       // Default não inclui woff2: offline cairia na fonte do sistema.
-      injectManifest: { globPatterns: ["**/*.{js,css,html,png,svg,woff2}"] },
+      // Os subsets não-latinos ficam de fora do precache: o @fontsource emite um
+      // woff2 por subset e o navegador só baixa os que o unicode-range pede — mas
+      // o precache baixaria TODOS. São 111 KB de cirílico, grego e vietnamita que
+      // um app em português nunca renderiza. Continuam servidos sob demanda.
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
+        globIgnores: ["**/*-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2"],
+      },
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
