@@ -6,7 +6,7 @@ avisando sobre o que já foi resolvido é a forma mais rápida de ensinar o dono
 ignorar os avisos.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 
@@ -36,11 +36,25 @@ def enviados(monkeypatch):
     return capturados
 
 
+# Relógio fixo para os testes de lembrete, como já fazem test_lembretes.py e
+# test_orcamentos.py: `enviar_lembretes` aceita a data, e fixá-la tira do
+# caminho tudo que dependia do dia real — o resumo mensal dos dias 1 a 5, e a
+# antecedência das contas fixas. O dia 15 está longe dos dois.
+HOJE = date(2026, 8, 15)
+
+
+def prazo(dias: int) -> str:
+    """Data-limite contada a partir do relógio fixo dos lembretes."""
+    return (HOJE + timedelta(days=dias)).isoformat()
+
+
 def em(dias: int) -> str:
+    """Data-limite contada a partir de hoje de verdade — para o que passa por
+    endpoint, que usa o relógio do servidor e não aceita data injetada."""
     return (hoje() + timedelta(days=dias)).isoformat()
 
 
-def proximo(enviados, url: str) -> dict:
+def push_de(enviados, url: str) -> dict:
     """O push de um dado destino, sem depender da ordem de saída."""
     achados = [e for e in enviados if e["url"] == url]
     assert len(achados) == 1, f"esperava 1 push para {url}, veio {enviados}"
@@ -57,8 +71,8 @@ def criar(autenticado, **campos):
 # ---------- lembretes ----------
 
 def test_avisa_antes_no_dia_e_no_atraso(db, autenticado, enviados):
-    criar(autenticado, nome="Vence em 3", data_limite=em(3), lembrete_dias_antes=3)
-    lembretes.enviar_lembretes(db)
+    criar(autenticado, nome="Vence em 3", data_limite=prazo(3), lembrete_dias_antes=3)
+    lembretes.enviar_lembretes(db, HOJE)
     assert [e["titulo"] for e in enviados] == ["Compromisso vence em 3 dias"]
     assert "Vence em 3" in enviados[0]["corpo"]
     assert enviados[0]["url"] == "/compromissos"
@@ -66,74 +80,74 @@ def test_avisa_antes_no_dia_e_no_atraso(db, autenticado, enviados):
     enviados.clear()
     db.execute("DELETE FROM compromissos")
     db.commit()
-    criar(autenticado, nome="Hoje", data_limite=em(0))
-    lembretes.enviar_lembretes(db)
+    criar(autenticado, nome="Hoje", data_limite=prazo(0))
+    lembretes.enviar_lembretes(db, HOJE)
     assert [e["titulo"] for e in enviados] == ["Compromisso vence hoje"]
 
     enviados.clear()
     db.execute("DELETE FROM compromissos")
     db.execute("DELETE FROM lembretes_enviados")
     db.commit()
-    criar(autenticado, nome="Atrasado", data_limite=em(-2))
-    lembretes.enviar_lembretes(db)
+    criar(autenticado, nome="Atrasado", data_limite=prazo(-2))
+    lembretes.enviar_lembretes(db, HOJE)
     assert [e["titulo"] for e in enviados] == ["Compromisso atrasado"]
 
 
 def test_nao_repete_e_quitado_para_de_avisar(db, autenticado, enviados):
-    cid = criar(autenticado, data_limite=em(0))
-    lembretes.enviar_lembretes(db)
+    cid = criar(autenticado, data_limite=prazo(0))
+    lembretes.enviar_lembretes(db, HOJE)
     assert len(enviados) == 1
 
-    lembretes.enviar_lembretes(db)  # restart, segunda execução do dia
+    lembretes.enviar_lembretes(db, HOJE)  # restart, segunda execução do dia
     assert len(enviados) == 1
 
     # Quitar e limpar a dedup: nem assim volta a avisar.
     autenticado.post(f"/api/compromissos/{cid}/pagamentos", json={"valor_cents": 120_000})
     db.execute("DELETE FROM lembretes_enviados")
     db.commit()
-    lembretes.enviar_lembretes(db)
+    lembretes.enviar_lembretes(db, HOJE)
     assert len(enviados) == 1, "compromisso quitado não avisa"
 
 
 def test_pagamento_parcial_avisa_o_que_falta(db, autenticado, enviados):
     """Anunciar o valor cheio faria o aviso cobrar dinheiro que já saiu."""
-    cid = criar(autenticado, valor_total_cents=120_000, data_limite=em(0))
+    cid = criar(autenticado, valor_total_cents=120_000, data_limite=prazo(0))
     autenticado.post(f"/api/compromissos/{cid}/pagamentos", json={"valor_cents": 90_000})
 
-    lembretes.enviar_lembretes(db)
+    lembretes.enviar_lembretes(db, HOJE)
     assert "falta R$ 300,00" in enviados[0]["corpo"], enviados[0]["corpo"]
 
 
 def test_arquivado_nao_avisa(db, autenticado, enviados):
-    cid = criar(autenticado, data_limite=em(0))
+    cid = criar(autenticado, data_limite=prazo(0))
     autenticado.patch(f"/api/compromissos/{cid}", json={"ativo": False})
-    lembretes.enviar_lembretes(db)
+    lembretes.enviar_lembretes(db, HOJE)
     assert enviados == []
 
 
 def test_varios_no_mesmo_prazo_viram_um_push(db, autenticado, enviados):
-    criar(autenticado, nome="A", valor_total_cents=10_000, data_limite=em(0))
-    criar(autenticado, nome="B", valor_total_cents=20_000, data_limite=em(0))
+    criar(autenticado, nome="A", valor_total_cents=10_000, data_limite=prazo(0))
+    criar(autenticado, nome="B", valor_total_cents=20_000, data_limite=prazo(0))
 
-    lembretes.enviar_lembretes(db)
+    lembretes.enviar_lembretes(db, HOJE)
     assert len(enviados) == 1
     assert enviados[0]["titulo"] == "2 compromissos vencem hoje"
     assert "R$ 300,00 no total" in enviados[0]["corpo"]
 
 
-def test_peso_do_mes_entra_na_mensagem(db, autenticado, enviados):
+def test_peso_do_mes_entra_na_mensagprazo(db, autenticado, enviados):
     """O "alerta de conflito" é contexto na mensagem que já ia sair, não um push
     a mais com limiar arbitrário."""
     db.execute("INSERT INTO contas_fixas (nome, dia_vencimento, valor_estimado_cents) "
                "VALUES ('Aluguel', 10, 200_000)")
     db.commit()
-    criar(autenticado, data_limite=em(0))
+    criar(autenticado, data_limite=prazo(0))
 
-    lembretes.enviar_lembretes(db)
+    lembretes.enviar_lembretes(db, HOJE)
     # Pelo url, não pela posição: nos dias em que o próprio Aluguel (dia 10) cai
     # dentro da antecedência padrão de 3 dias, o aviso da conta fixa sai antes e
     # ocupa enviados[0] — o que quebrava este teste do dia 7 ao 10 de cada mês.
-    corpo = proximo(enviados, "/compromissos")["corpo"]
+    corpo = push_de(enviados, "/compromissos")["corpo"]
     assert "em contas fixas e compromissos" in corpo
     assert "R$ 2.000,00" in corpo
 
