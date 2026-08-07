@@ -287,11 +287,11 @@ export default function Recursos() {
       {carregando ? (
         <div className="grid-metas">{[0, 1].map((i) => <div key={i} className="skeleton" style={{ height: 140 }} />)}</div>
       ) : itens.length === 0 ? (
-        <p className="card sub">Nenhuma conta cadastrada. Comece pelo banco onde está a maior parte do seu dinheiro.</p>
+        <p className="sub">Nenhuma conta cadastrada. Comece pelo banco onde está a maior parte do seu dinheiro.</p>
       ) : (
         <div className="grid-metas">
           {itens.map((c) => (
-            <article key={c.id} className="card surgir" style={{ display: "flex", flexDirection: "column", gap: "0.6rem", opacity: c.ativa ? 1 : 0.6 }}>
+            <article key={c.id} className="ficha surgir" style={{ display: "flex", flexDirection: "column", gap: "0.6rem", opacity: c.ativa ? 1 : 0.6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
                 <div style={{ minWidth: 0 }}>
                   <strong style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>

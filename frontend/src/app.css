@@ -594,6 +594,22 @@ tfoot td {
 /* Tabela sem a caixa: as réguas entre linhas já separam. */
 .tabela-lisa table { width: 100%; }
 
+/* Ficha: item de lista que era card. Sem fundo, sem borda, sem raio — o que
+   separa um do outro é a régua, como no resto do redesign. */
+.ficha {
+  display: flex; flex-direction: column; gap: 0.7rem;
+  padding: 18px 0; background: none; border: 0; border-radius: 0; box-shadow: none;
+}
+.ficha + .ficha { border-top: 1px solid var(--rule-soft); }
+.ficha:first-child { padding-top: 0; }
+
+/* Bloco de leitura da IA: barra de 2px à esquerda em vez de caixa. */
+.insights-sugestao,
+.insights-texto {
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  border-left: 2px solid var(--accent); padding: 2px 0 2px 14px;
+}
+
 /* Faixa de indicadores. A borda PONTILHADA é deliberada: distingue "recorte de
    um total" de um card de conteúdo, sem precisar de fundo nem sombra. */
 .kpi-faixa {
