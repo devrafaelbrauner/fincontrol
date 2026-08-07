@@ -569,6 +569,27 @@ tbody tr:hover { background: var(--surface-hover); }
 /* Grids de cards */
 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
 
+/* ---------- Cabeçalho de seção ----------
+   Substitui o título dentro de card: uma régua de 1px separa, e o lado direito
+   carrega o contexto (período, total) sem virar outro card. */
+.secao-regua {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;
+  border-bottom: 1px solid var(--edge);
+  padding-bottom: 8px; margin-bottom: 16px;
+}
+.secao-titulo {
+  margin: 0; font: 700 var(--fs-h3) / 1.2 var(--font-mono);
+  letter-spacing: -0.02em; text-transform: uppercase;
+}
+
+/* Tabela sem a caixa: as réguas entre linhas já separam. */
+.tabela-lisa table { width: 100%; }
+
+/* Nome de categoria é texto do usuário: encolhe com reticências em vez de
+   empurrar o valor para fora. */
+.rank-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-pct { color: var(--content-3); }
+
 /* ---------- Visão geral: hero + fio à esquerda, trilho à direita ----------
    O divisor é uma COLUNA de 1px do grid, não uma borda: assim ele acompanha a
    altura do lado mais alto sem ninguém precisar saber qual é. */
