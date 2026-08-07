@@ -235,13 +235,9 @@ a.card:hover, button.card:hover, .card.clicavel:hover {
   transform: translateY(-1px);
 }
 
-/* Filete da marca nos títulos de card/seção. */
+/* O filete colorido antes dos títulos saiu com o redesign: quem separa seção
+   agora é a régua de 1px do `.secao-regua`, e os dois juntos competiam. */
 .card > h3, .secao > h3 { display: flex; align-items: center; gap: 0.55rem; }
-.card > h3::before, .secao > h3::before {
-  content: "";
-  width: 4px; height: 15px; border-radius: 2px; flex: 0 0 4px;
-  background: linear-gradient(180deg, var(--accent), var(--positive));
-}
 
 /* Popover (tooltips de gráfico etc.) */
 .pop {
