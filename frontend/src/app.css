@@ -768,7 +768,7 @@ tfoot td {
 .auth-hero {
   flex: 1.05; position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
-  padding: 3rem 3.75rem; color: #f4f6f9;
+  padding: 3rem 3.75rem; color: var(--content);
   background: linear-gradient(160deg, #0a1630 0%, #0d2148 55%, #0a2a3f 100%);
 }
 @keyframes auth-drift { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(30px, -24px); } }
@@ -795,8 +795,8 @@ tfoot td {
 .auth-hero .marca .nome { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
 .auth-hero-meio { position: relative; display: flex; flex-direction: column; gap: 1.1rem; max-width: 520px; }
 .auth-hero-meio h1 { font-size: 2.4rem; line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; }
-.auth-hero-meio .frase { font-size: 0.97rem; line-height: 1.6; color: #96a3ba; max-width: 380px; }
-.auth-hero .rodape { position: relative; font-size: 0.78rem; color: #5f6f8c; }
+.auth-hero-meio .frase { font-size: 0.97rem; line-height: 1.6; color: var(--content-2); max-width: 380px; }
+.auth-hero .rodape { position: relative; font-size: 0.78rem; color: var(--content-3); }
 
 /* Cards decorativos de vidro (dados ilustrativos) */
 .auth-mockups { display: flex; align-items: flex-end; margin-top: 0.6rem; height: 230px; transform-origin: left bottom; }
@@ -805,8 +805,8 @@ tfoot td {
   background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
 }
-.auth-vidro .titulo { font-size: 0.69rem; font-weight: 700; color: #8b9ab5; text-transform: uppercase; letter-spacing: 0.06em; }
-.auth-vidro .valor { font-size: 1.35rem; font-weight: 800; color: #fff; margin: 0.25rem 0 0.7rem; }
+.auth-vidro .titulo { font-size: 0.69rem; font-weight: 700; color: var(--content-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.auth-vidro .valor { font-size: 1.35rem; font-weight: 800; color: var(--content); margin: 0.25rem 0 0.7rem; }
 .auth-vidro.esq { transform: rotate(-4deg) translateY(6px); z-index: 1; }
 .auth-vidro.dir { transform: rotate(4deg) translateY(6px); z-index: 2; }
 .auth-vidro.centro {
@@ -816,11 +816,11 @@ tfoot td {
 }
 .auth-barras { display: flex; align-items: flex-end; gap: 5px; height: 64px; }
 .auth-barras span { flex: 1; background: rgba(255, 255, 255, 0.18); border-radius: 4px 4px 0 0; }
-.auth-barras span:last-child { background: #2ecc71; }
-.auth-linha-mini { display: flex; justify-content: space-between; font-size: 0.72rem; color: #c6d1e4; }
+.auth-barras span:last-child { background: var(--positive); }
+.auth-linha-mini { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--content-2); }
 .auth-progresso { height: 8px; background: rgba(255, 255, 255, 0.14); border-radius: 4px; overflow: hidden; margin-bottom: 0.85rem; }
-.auth-progresso span { display: block; height: 100%; width: 68%; border-radius: 4px; background: linear-gradient(90deg, #3b82f6, #2ecc71); }
-.auth-legenda { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: #c6d1e4; }
+.auth-progresso span { display: block; height: 100%; width: 68%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--positive)); }
+.auth-legenda { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--content-2); }
 .auth-legenda i { width: 8px; height: 8px; border-radius: 2px; }
 
 /* Lado do formulário: sempre claro */
@@ -831,43 +831,46 @@ tfoot td {
    100% passava a ser medido contra o pai que já tinha inchado para caber nele. */
 .auth-form-side {
   flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center;
-  padding: 3rem 1.5rem; background: #fbfcfd; color: #111318;
+  padding: 3rem 1.5rem; background: var(--page); color: var(--content);
 }
 @keyframes auth-pop { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .auth-form { width: 400px; max-width: 100%; display: flex; flex-direction: column; gap: 1.1rem; animation: auth-pop 0.35s var(--ease); }
-.auth-form h2 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; color: #111318; }
-.auth-form .sub { color: #6b7280; font-size: 0.9rem; }
-.auth-form label { font-size: 0.84rem; font-weight: 700; color: #374151; }
+.auth-form h2 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; color: var(--content); }
+.auth-form .sub { color: var(--content-2); font-size: 0.9rem; }
+.auth-form label { font-size: 0.84rem; font-weight: 700; color: var(--content-2); }
 .auth-form .campo { display: flex; flex-direction: column; gap: 0.45rem; }
 .auth-form input:not([type="checkbox"]) {
-  height: 48px; padding: 0 1rem; border: 1px solid #e5e8ed; border-radius: 12px;
-  font-size: 0.95rem; color: #111318; background: #f5f6f8;
+  height: 48px; padding: 0 1rem; border: 1px solid var(--edge); border-radius: 12px;
+  font-size: 0.95rem; color: var(--content); background: var(--field);
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
 }
-.auth-form input::placeholder { color: #9aa3b2; }
+.auth-form input::placeholder { color: var(--content-3); }
+/* O foco muda a BORDA, não o fundo. Antes era `background: #fff`, o que fazia
+   sentido num formulário sempre claro; com tokens, inverter o fundo no foco
+   acendia um retângulo branco no tema escuro. */
 .auth-form input:focus {
-  outline: none; border-color: #3b82f6; background: #fff;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14);
+  outline: none; border-color: var(--accent); background: var(--field);
+  box-shadow: 0 0 0 4px var(--accent-bg);
 }
-.auth-form a { color: #2563eb; font-weight: 600; font-size: 0.82rem; }
-.auth-form a:hover { color: #1d4ed8; }
+.auth-form a { color: var(--accent); font-weight: 600; font-size: 0.82rem; }
+.auth-form a:hover { color: var(--accent-vivid); }
 .auth-senha-wrap { position: relative; }
 .auth-senha-wrap input { width: 100%; padding-right: 3.5rem; }
 .auth-ver {
   position: absolute; right: 8px; top: 8px; height: 32px; padding: 0 10px;
   border: none; border-radius: 8px; background: transparent; cursor: pointer;
-  color: #8b93a3; font-size: 0.78rem; font-weight: 700; font-family: inherit;
+  color: var(--content-3); font-size: 0.78rem; font-weight: 700; font-family: inherit;
 }
-.auth-ver:hover { background: #eceef2; color: #374151; }
+.auth-ver:hover { background: var(--surface-hover); color: var(--content-2); }
 .auth-erro {
-  padding: 0.7rem 0.95rem; background: #fef2f2; border: 1px solid #fecaca;
-  border-radius: 12px; font-size: 0.84rem; color: #dc2626; font-weight: 500;
+  padding: 0.7rem 0.95rem; background: var(--negative-bg); border: 1px solid var(--negative);
+  border-radius: 12px; font-size: 0.84rem; color: var(--negative); font-weight: 500;
 }
-.auth-lembrar { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; color: #4b5563; cursor: pointer; user-select: none; font-weight: 500; }
-.auth-lembrar input { width: 16px; height: 16px; accent-color: #2563eb; }
+.auth-lembrar { display: flex; align-items: center; gap: 0.55rem; font-size: 0.88rem; color: var(--content-2); cursor: pointer; user-select: none; font-weight: 500; }
+.auth-lembrar input { width: 16px; height: 16px; accent-color: var(--accent); }
 .auth-entrar {
   height: 50px; border: none; border-radius: 12px; cursor: pointer;
-  background: linear-gradient(180deg, #2f7bf6, #1d5fe0); color: #fff;
+  background: linear-gradient(180deg, var(--accent), var(--accent-vivid)); color: var(--content);
   font-size: 0.97rem; font-weight: 700; font-family: inherit;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
@@ -877,17 +880,17 @@ tfoot td {
 .auth-entrar:disabled { opacity: 0.7; transform: none; cursor: default; }
 .auth-secundario {
   height: 40px; border: none; background: transparent; cursor: pointer;
-  color: #6b7280; font-size: 0.88rem; font-weight: 600; font-family: inherit;
+  color: var(--content-2); font-size: 0.88rem; font-weight: 600; font-family: inherit;
 }
-.auth-secundario:hover { color: #374151; }
+.auth-secundario:hover { color: var(--content-2); }
 .auth-form .codigo-mfa {
   height: 58px; border-radius: 14px; font-size: 1.5rem; font-weight: 700;
   letter-spacing: 10px; text-align: center;
 }
-.auth-form .chip { border-color: #e5e8ed; color: #6b7280; }
-.auth-form .chip.ok { border-color: #16a34a; color: #16a34a; }
-.auth-qr { align-self: center; border-radius: 8px; background: #fff; padding: 6px; border: 1px solid #e5e8ed; }
-.auth-troca { text-align: center; font-size: 0.88rem; color: #6b7280; margin-top: 0.25rem; }
+.auth-form .chip { border-color: var(--edge); color: var(--content-2); }
+.auth-form .chip.ok { border-color: var(--positive); color: var(--positive); }
+.auth-qr { align-self: center; border-radius: 8px; background: var(--content); padding: 6px; border: 1px solid var(--edge); }
+.auth-troca { text-align: center; font-size: 0.88rem; color: var(--content-2); margin-top: 0.25rem; }
 .auth-troca a { font-size: 0.88rem; font-weight: 700; }
 
 /* Telas médias: o hero encolhe os mockups; estreitas: só o formulário */
