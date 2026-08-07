@@ -38,7 +38,6 @@ export default function Assistente() {
 
   return (
     <>
-      <h2>Assistente</h2>
       <p className="sub">Pergunte sobre suas finanças. As respostas usam seus dados reais (últimos meses e metas) como contexto.</p>
 
       <div className="card chat" role="log" aria-live="polite">

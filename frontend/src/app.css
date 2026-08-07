@@ -192,6 +192,13 @@
   button, input, select, textarea { font: inherit; color: inherit; }
 
   /* Números financeiros: tabular para alinhar casas. */
+  /* Rótulo pequeno acima de um número ou de um grupo. Vocabulário do redesign:
+     é ele que substitui os títulos de card que sumiram. */
+  .eyebrow {
+    font: 500 var(--fs-eyebrow) / 1 var(--font-mono);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--content-3);
+  }
+
   /* Todo número em mono é a marca do redesign. O nowrap não é enfeite: sem ele
      a JetBrains Mono quebra o "R$" numa linha e o valor na seguinte. */
   .num, .valor {
@@ -420,8 +427,9 @@ tbody tr:hover { background: var(--surface-hover); }
    ============================================================ */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-larg, 248px) 1fr;
+  grid-template-columns: var(--sidebar-larg, 236px) 1fr;
   min-height: 100dvh;
+  background: var(--page);
   transition: grid-template-columns var(--dur) var(--ease);
 }
 .app.recolhido { --sidebar-larg: 76px; }
@@ -429,35 +437,42 @@ tbody tr:hover { background: var(--surface-hover); }
 /* Sidebar */
 .sidebar {
   position: sticky; top: 0; height: 100dvh;
-  display: flex; flex-direction: column; gap: 0.4rem;
-  padding: 1.1rem 0.8rem;
-  background: color-mix(in srgb, var(--surface) 65%, transparent);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  display: flex; flex-direction: column;
+  padding: 24px 18px;
+  background: var(--surface);
   border-right: 1px solid var(--edge);
   overflow: hidden;
 }
 .sidebar .marca {
   display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.3rem 0.55rem 0.9rem;
-  font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em;
+  padding: 0 0 4px;
+  font: 700 15px/1 var(--font-mono); letter-spacing: -0.03em;
 }
 .sidebar .marca .logo {
-  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px;
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
   display: grid; place-items: center;
   background: var(--content); color: var(--page);
 }
-.sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+/* Grupos: o rótulo é o que dá sentido à ordem, e some quando a barra recolhe. */
+.sidebar nav { display: flex; flex-direction: column; flex: 1; }
+.nav-grupo { display: flex; flex-direction: column; gap: 1px; }
+.nav-grupo-rotulo { margin: 18px 0 9px; padding: 0 10px; }
+.app.recolhido .nav-grupo-rotulo { margin: 12px 0 6px; }
+
 .sidebar nav a {
   display: flex; align-items: center; gap: 0.7rem;
-  padding: 0.55rem 0.6rem; border-radius: 10px;
-  color: var(--content-2); font-size: 0.9rem;
+  padding: 8px 10px; border-radius: 7px;
+  color: var(--content-2); font-size: var(--fs-body);
   white-space: nowrap;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .sidebar nav a svg { flex: 0 0 20px; }
 .sidebar nav a:hover { background: var(--surface-hover); color: var(--content); }
-.sidebar nav a.active { background: var(--surface-hover); color: var(--content); font-weight: 550; }
+.sidebar nav a.active {
+  background: var(--surface-hover); color: var(--content); font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
 
 /* Item reordenável (alça de arrastar) */
 .nav-item { display: flex; align-items: center; border-radius: 10px; }
@@ -477,22 +492,39 @@ tbody tr:hover { background: var(--surface-hover); }
 
 .sidebar .usuario {
   display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.55rem; margin-top: 0.4rem;
-  border-radius: var(--radius-md); border: 1px solid var(--edge);
+  padding: 14px 2px 0; margin-top: 18px;
+  border-top: 1px solid var(--edge);
 }
 .sidebar .usuario .avatar {
-  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 600; font-size: 0.9rem;
-  background: var(--surface-hover); color: var(--content); border: 1px solid var(--edge);
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
+  display: grid; place-items: center; font-weight: 600; font-size: 0.85rem;
+  background: var(--accent); color: #fff;
 }
-.sidebar .usuario .nome { font-size: 0.85rem; font-weight: 500; }
-.sidebar .usuario .sub { font-size: 0.72rem; color: var(--content-3); }
+/* min-width:0 + ellipsis: um nome longo encolhe em vez de empurrar os botões
+   para fora da barra. */
+.sidebar .usuario > .rotulo { min-width: 0; }
+.sidebar .usuario .nome,
+.sidebar .usuario .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar .usuario .nome { font-size: 12.5px; font-weight: 600; }
+.sidebar .usuario .sub { font-size: var(--fs-meta); color: var(--content-3); }
+/* 28px em vez dos 38px do .btn-icone padrão: a 236px de barra, os dois botões
+   cheios comiam a largura do texto e "Conta pessoal" quebrava em duas linhas. */
+.sidebar .usuario-acoes { display: flex; gap: 2px; margin-left: auto; flex: 0 0 auto; }
+.sidebar .usuario-acoes .btn-icone { width: 28px; height: 28px; padding: 0; }
+.sidebar .usuario-acoes svg { width: 16px; height: 16px; }
+.app.recolhido .sidebar .usuario { flex-direction: column; }
+.app.recolhido .sidebar .usuario-acoes { margin-left: 0; }
 
+/* Dentro da sidebar, alinhado à marca: pendurado para fora ele flutuava sobre a
+   régua do conteúdo, sem pertencer visualmente a nenhum dos dois lados. */
 .recolher {
-  position: absolute; top: 1.2rem; right: -12px; z-index: 3;
+  position: absolute; top: 24px; right: 14px; z-index: 3;
   width: 24px; height: 24px; border-radius: 6px; padding: 0;
   display: grid; place-items: center;
+  opacity: 0; transition: opacity var(--dur) var(--ease);
 }
+.sidebar:hover .recolher, .recolher:focus-visible { opacity: 1; }
+.app.recolhido .recolher { position: static; opacity: 1; margin: 0 auto 8px; }
 
 /* Conteúdo */
 .conteudo { display: flex; flex-direction: column; min-width: 0; }
@@ -505,12 +537,28 @@ tbody tr:hover { background: var(--surface-hover); }
   -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid var(--edge);
 }
-.topo .saudacao { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.02em; }
-.topo .data { font-size: 0.8rem; color: var(--content-2); }
+.topo-titulo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.tela-titulo {
+  font: 700 var(--fs-h1) / 1 var(--font-mono);
+  letter-spacing: -0.045em; margin: 0;
+}
 .topo .espaco { flex: 1; }
 .topo .acoes { display: flex; align-items: center; gap: 0.5rem; }
 .competencia-seletor { display: flex; align-items: center; gap: 0.15rem; }
-.competencia-rotulo { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4.6em; text-align: center; font-size: 0.9rem; }
+.competencia-rotulo { font-weight: 600; min-width: 4.6em; text-align: center; font-size: 0.9rem; }
+
+/* Chip do atalho de busca: mostra a tecla em vez de esconder atrás de uma lupa. */
+.chip-atalho {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 6px 10px; border-radius: var(--radius-pill);
+  border: 1px solid var(--edge); background: var(--field);
+  color: var(--content-2); font-size: var(--fs-meta); cursor: pointer;
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.chip-atalho:hover { border-color: var(--edge-strong); color: var(--content); }
+.chip-atalho svg { width: 15px; height: 15px; }
+.chip-atalho-tecla { font-size: var(--fs-meta); letter-spacing: 0; }
+@media (max-width: 640px) { .chip-atalho-tecla { display: none; } }
 
 .pagina { padding: 1.5rem; max-width: 1200px; width: 100%; margin: 0 auto; }
 .pagina > h2 { font-size: 1.4rem; margin-bottom: 0.25rem; }

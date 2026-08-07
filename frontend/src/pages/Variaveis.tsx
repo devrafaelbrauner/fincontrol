@@ -131,7 +131,6 @@ export default function Variaveis() {
 
   return (
     <>
-      <h2>Gastos variáveis</h2>
       <p className="sub">Total do mês: <strong className="num negativo">{brl(total)}</strong> · troque o mês no topo · use “Adicionar transação” para lançar.</p>
 
       <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1rem", flexWrap: "wrap" }}>

@@ -240,7 +240,6 @@ export default function Compromissos() {
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <h2>Compromissos</h2>
           <p className="sub">Dívidas e obrigações com valor total e prazo — o que falta quitar.</p>
         </div>
         <button className="btn btn-primario" onClick={() => abrirForm(null)}><IcMais />Novo compromisso</button>

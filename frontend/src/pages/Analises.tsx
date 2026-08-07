@@ -176,7 +176,6 @@ export default function Analises() {
 
   return (
     <>
-      <h2>Análises</h2>
       <p className="sub">Entradas × gastos, evolução histórica e distribuição por categoria — {mesExtenso} (troque o mês no topo).</p>
 
       {carregando ? (

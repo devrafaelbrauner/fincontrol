@@ -154,7 +154,6 @@ export default function Dashboard() {
   if (carregando) {
     return (
       <>
-        <h2>Visão geral</h2>
         <div className="grid-stats">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 150 }} />)}</div>
       </>
     );
@@ -179,7 +178,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <h2>Visão geral</h2>
       <p className="sub">Resumo de {mesCurto(competencia)} de {competencia.slice(0, 4)}</p>
 
       <section className="card hero-mes surgir">

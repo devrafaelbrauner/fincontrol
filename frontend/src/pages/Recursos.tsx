@@ -196,7 +196,6 @@ export default function Recursos() {
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
         <div>
-          <h2>Otimização de Recursos</h2>
           <p className="sub">Onde seu dinheiro está hoje, e como cada conta variou.</p>
         </div>
         <button className="btn btn-primario" onClick={() => setNovaAberta(true)}><IcMais />Nova conta</button>
