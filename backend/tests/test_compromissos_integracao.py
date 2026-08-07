@@ -40,6 +40,13 @@ def em(dias: int) -> str:
     return (hoje() + timedelta(days=dias)).isoformat()
 
 
+def proximo(enviados, url: str) -> dict:
+    """O push de um dado destino, sem depender da ordem de saída."""
+    achados = [e for e in enviados if e["url"] == url]
+    assert len(achados) == 1, f"esperava 1 push para {url}, veio {enviados}"
+    return achados[0]
+
+
 def criar(autenticado, **campos):
     corpo = {"nome": "IPVA", "valor_total_cents": 120_000, "data_limite": em(3)} | campos
     r = autenticado.post("/api/compromissos", json=corpo)
@@ -123,8 +130,12 @@ def test_peso_do_mes_entra_na_mensagem(db, autenticado, enviados):
     criar(autenticado, data_limite=em(0))
 
     lembretes.enviar_lembretes(db)
-    assert "em contas fixas e compromissos" in enviados[0]["corpo"]
-    assert "R$ 2.000,00" in enviados[0]["corpo"]
+    # Pelo url, não pela posição: nos dias em que o próprio Aluguel (dia 10) cai
+    # dentro da antecedência padrão de 3 dias, o aviso da conta fixa sai antes e
+    # ocupa enviados[0] — o que quebrava este teste do dia 7 ao 10 de cada mês.
+    corpo = proximo(enviados, "/compromissos")["corpo"]
+    assert "em contas fixas e compromissos" in corpo
+    assert "R$ 2.000,00" in corpo
 
 
 def test_previa_inclui_compromissos(db, autenticado):
