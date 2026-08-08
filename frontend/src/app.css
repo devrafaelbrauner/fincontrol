@@ -765,7 +765,25 @@ tfoot td {
    (não segue o tema do app — o hero é sempre escuro e o formulário sempre claro). */
 .auth-split { min-height: 100dvh; display: flex; align-items: stretch; }
 
+/* ILHA SEMPRE ESCURA.
+   O gradiente marinho abaixo é fixo: ele não acompanha o tema, e o resto da
+   decoração daqui (vidro, barras, trilho) já é rgba(255,255,255,…), o que
+   confirma que este lado sempre foi desenhado para ser escuro.
+   A tinta, porém, vinha dos tokens globais. No tema claro isso punha
+   --content: #17171a — quase preto — sobre o marinho: a marca, o título, a
+   frase e todo o texto dos mockups ficavam ilegíveis (contraste ~1,2:1).
+   Sobrevivia só o que tinha hex cravado no JSX, o que mascarava o problema.
+   Redefinir os tokens AQUI resolve de uma vez: todo descendente herda a tinta
+   clara sem precisar saber que está numa ilha. Os valores são os do tema
+   escuro, então o hero renderiza igual nos dois. */
 .auth-hero {
+  --content: #f2f2f2;
+  --content-2: #8a8a8a;
+  --content-3: #767676;
+  --positive: #2ecf0c;
+  --negative: #ff4d4d;
+  --accent: #0068ff;
+
   flex: 1.05; position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 3rem 3.75rem; color: var(--content);
@@ -823,7 +841,8 @@ tfoot td {
 .auth-legenda { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--content-2); }
 .auth-legenda i { width: 8px; height: 8px; border-radius: 2px; }
 
-/* Lado do formulário: sempre claro */
+/* Lado do formulário: acompanha o tema (era fixo em branco antes do redesign
+   do login — o comentário anterior dizia "sempre claro" e já estava velho). */
 /* O `min-width: 0` não é enfeite: sem ele, um item de flex não encolhe abaixo do
    próprio conteúdo (min-width: auto), então este lado se fixava em 440px — os
    400px do .auth-form mais os 40px de padding — e estourava a tela de qualquer
