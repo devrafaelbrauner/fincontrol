@@ -46,6 +46,7 @@ TABELAS_MOVIMENTO = (
     "metas_aportes", "metas_itens", "metas",
     "orcamentos", "saldos_conta", "contas_bancarias",
     "lembretes_enviados", "push_subscriptions", "insights_cache",
+    "conversa_mensagens",
 )
 
 

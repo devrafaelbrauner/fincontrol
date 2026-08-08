@@ -43,7 +43,11 @@ export default function Assistente() {
 
   async function enviar(texto: string) {
     const q = texto.trim();
-    if (!q || pensando) return;
+    // `carregando` também barra: o efeito de montagem SUBSTITUI `falas` pelo que
+    // veio do servidor. Uma pergunta enviada antes de o GET responder teria a
+    // própria bolha apagada por essa substituição, e a resposta apareceria
+    // sozinha na tela, sem a pergunta que a motivou.
+    if (!q || pensando || carregando) return;
     setFalas((f) => [...f, { de: "voce", texto: q }]);
     setPergunta("");
     setPensando(true);
@@ -63,6 +67,10 @@ export default function Assistente() {
   }
 
   async function limpar() {
+    // Apagar com uma pergunta em voo desfaria a promessa do próprio diálogo: o
+    // DELETE esvazia a tabela, o POST termina depois e grava a rodada na thread
+    // recém-limpa. A tela diria "apagada" e um reload traria tudo de volta.
+    if (pensando) return;
     if (!confirm("Apagar toda a conversa? O assistente perde a memória do que foi dito.")) return;
     try {
       await api("/ia/conversa", { method: "DELETE" });
@@ -83,7 +91,8 @@ export default function Assistente() {
         {/* nowrap: o texto do parágrafo ao lado é longo e, sem isto, o botão
             encolhe até quebrar em duas linhas dentro da régua. */}
         {falas.length > 0 && (
-          <button type="button" className="btn" style={{ whiteSpace: "nowrap" }} onClick={limpar}>
+          <button type="button" className="btn" style={{ whiteSpace: "nowrap" }}
+            disabled={pensando} onClick={limpar}>
             Apagar conversa
           </button>
         )}
@@ -111,8 +120,8 @@ export default function Assistente() {
 
       <form onSubmit={onSubmit} className="linha-form" style={{ marginTop: "0.75rem" }}>
         <input value={pergunta} onChange={(e) => setPergunta(e.target.value)} placeholder="Pergunte algo…"
-          aria-label="Sua pergunta" style={{ flex: 1 }} />
-        <button className="btn btn-primario" type="submit" disabled={pensando || !pergunta.trim()}>Enviar</button>
+          aria-label="Sua pergunta" disabled={carregando} style={{ flex: 1 }} />
+        <button className="btn btn-primario" type="submit" disabled={pensando || carregando || !pergunta.trim()}>Enviar</button>
       </form>
     </>
   );

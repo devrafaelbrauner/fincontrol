@@ -21,6 +21,3 @@ CREATE TABLE conversa_mensagens (
   criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- A leitura é sempre "as últimas N, em ordem", tanto para montar a chamada
--- quanto para desenhar a tela.
-CREATE INDEX idx_conversa_id ON conversa_mensagens (id DESC);

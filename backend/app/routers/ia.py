@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import openrouter
 from ..cripto import criptografar
@@ -378,7 +378,11 @@ def interpretar(body: InterpretarIn, db: sqlite3.Connection = Depends(get_db)):
 # ---------- assistente / chat ----------
 
 class PerguntarIn(BaseModel):
-    pergunta: str
+    # O teto de 200 falas guardadas só limita a CONTAGEM. Sem limitar o
+    # tamanho, colar um documento como pergunta grava o documento inteiro, e
+    # ele fica lá até 200 rodadas o empurrarem para fora — além de ir para o
+    # modelo nesta mesma chamada, que o orçamento de memória não cobre.
+    pergunta: str = Field(max_length=2000)
 
 
 # Quanta conversa passada acompanha cada pergunta.
@@ -415,6 +419,12 @@ def _historico(db: sqlite3.Connection) -> list[dict]:
             break
         recentes.append({"role": r["papel"], "content": r["texto"]})
     recentes.reverse()
+    # O corte cai no meio de uma rodada quando a pergunta que sobrou de fora era
+    # a longa. Sem isto o histórico começaria por uma resposta órfã — uma
+    # afirmação sobre números, sem a pergunta que a motivou à vista. É a receita
+    # para o modelo resolver uma referência errada.
+    while recentes and recentes[0]["role"] == "assistant":
+        recentes.pop(0)
     return recentes
 
 
@@ -448,6 +458,15 @@ def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
         # que falha deixaria uma fala do usuário pendurada sem par, que na
         # próxima pergunta iria para o modelo como se tivesse sido respondida.
         raise HTTPException(502, str(e))
+
+    if not resposta:
+        # Resposta vazia (completion só de espaço, ou cortada no max_tokens) é
+        # tratada como falha, e não gravada. Guardá-la envenenaria a memória:
+        # um bloco de conteúdo vazio é RECUSADO pela API do modelo, então toda
+        # pergunta seguinte passaria a falhar com 400 — sem retry que resolva,
+        # e sem nada na tela ligando o defeito a esta resposta. O chat ficaria
+        # quebrado até alguém descobrir o botão de apagar a conversa.
+        raise HTTPException(502, "O modelo devolveu uma resposta vazia — tente de novo")
 
     db.executemany(
         "INSERT INTO conversa_mensagens (papel, texto) VALUES (?, ?)",

@@ -114,6 +114,37 @@ def test_memoria_corta_pelas_falas_mais_antigas(db, autenticado, modelo, monkeyp
     assert "ANTIGA" not in conteudos
 
 
+def test_corte_nao_deixa_resposta_orfa_abrindo_o_historico(db, autenticado, modelo, monkeypatch):
+    """O corte cai no meio de uma rodada quando a pergunta que ficou de fora era
+    a longa. Sem limpar, o histórico começaria por uma RESPOSTA sem a pergunta
+    dela à vista — uma afirmação sobre números pairando sozinha, que é a receita
+    para o modelo resolver uma referência errada."""
+    monkeypatch.setattr(ia, "MEMORIA_CARACTERES", 120)
+    perguntar(autenticado, "ANTIGA " + "x" * 100)
+    perguntar(autenticado, "RECENTE")
+    perguntar(autenticado, "atual")
+    historico = [m for m in modelo[-1] if m["role"] != "system"][:-1]
+    assert historico, "o corte não pode zerar o histórico inteiro"
+    assert historico[0]["role"] == "user"
+
+
+def test_resposta_vazia_nao_envenena_a_memoria(db, autenticado, monkeypatch):
+    """Um bloco de conteúdo vazio é RECUSADO pela API do modelo. Guardado, ele
+    entraria em toda chamada seguinte e o chat passaria a falhar com 400 — sem
+    retry que resolva, e sem nada ligando o defeito a esta resposta."""
+    monkeypatch.setattr("app.openrouter.chamar", lambda *a, **k: "   ")
+    r = perguntar(autenticado, "Pergunta boa")
+    assert r.status_code == 502
+    assert db.execute("SELECT COUNT(*) n FROM conversa_mensagens").fetchone()["n"] == 0
+
+
+def test_pergunta_gigante_e_recusada(db, autenticado, modelo):
+    """O teto de falas guardadas limita a CONTAGEM, não o tamanho: sem isto,
+    colar um documento grava o documento."""
+    assert perguntar(autenticado, "x" * 2001).status_code == 422
+    assert db.execute("SELECT COUNT(*) n FROM conversa_mensagens").fetchone()["n"] == 0
+
+
 def test_falha_do_modelo_nao_deixa_pergunta_pendurada(db, autenticado, monkeypatch):
     """Sem isto, a pergunta ficaria gravada sem par e iria para a chamada
     seguinte como se tivesse sido respondida."""
