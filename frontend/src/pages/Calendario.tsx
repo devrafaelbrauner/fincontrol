@@ -108,7 +108,12 @@ export default function Calendario() {
                 <div key={dia} className={`cal-dia${ehHoje ? " hoje" : ""}`}
                   aria-label={`Dia ${dia}${contas.length ? `, ${contas.length} vencimento(s)` : ""}`}>
                   <span className="n">{dia}</span>
-                  {contas.length > 0 && <span className="ponto-venc" style={{ background: `var(--${pior === "pago" ? "verde" : pior === "pendente" ? "laranja" : "vermelho"})` }} />}
+                  {/* Tokens semânticos: --verde/--laranja/--vermelho nunca
+                      existiram no app.css, então este ponto — que é o ÚNICO
+                      indicador de status no mobile, onde os rótulos .cal-venc
+                      são escondidos — vinha sendo pintado com uma cor inválida,
+                      ou seja, com nada. */}
+                  {contas.length > 0 && <span className="ponto-venc" style={{ background: `var(--${pior === "pago" ? "positive" : pior === "pendente" ? "warning" : "negative"})` }} />}
                   {contas.slice(0, 2).map((c) => (
                     <span key={c.id} className={`cal-venc ${c.status}`} title={`${c.nome} — ${brl(c.valor_cents)} (${c.status})`}>{c.nome}</span>
                   ))}

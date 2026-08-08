@@ -1,12 +1,122 @@
 import { useId, useState } from "react";
 import { brl } from "../api";
 
-/** Paleta categórica validada (dataviz) — cores via tokens temáticos --chart-*. */
+/** Paleta categórica — os valores moram nos tokens --chart-* do app.css, que é
+ *  onde estão os comentários sobre o que ela precisa cumprir. Ao mexer nas
+ *  cores, revalidar com o validador do dataviz nos DOIS temas; a paleta
+ *  anterior trazia um comentário dizendo-se validada e reprovava em três das
+ *  cinco checagens. */
 export const PALETA_SERIES = [
   "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
   "var(--chart-4)", "var(--chart-5)", "var(--chart-6)",
 ];
 export const COR_SEM_CATEGORIA = "var(--chart-neutral)";
+export const ROTULO_SEM_CATEGORIA = "Sem categoria";
+
+/** Rótulo dentro do SVG. O cabeçalho do app.css manda "JetBrains Mono em todo
+ *  número, rótulo e título de seção", e os gráficos eram o único lugar do app
+ *  que ainda desenhava texto em sans. */
+const TEXTO_EIXO = { fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" } as const;
+
+/** Cor de uma categoria. Depende só da identidade dela — nunca da posição na
+ *  lista, nem do período em tela.
+ *
+ *  Cada tela sorteava por um índice próprio, e o índice significava coisas
+ *  diferentes em cada uma: em Análises ele andava por LANÇAMENTO (a cor saía de
+ *  quantas transações vieram antes), no Dashboard pela POSIÇÃO no ranking do
+ *  mês. Dava para ver a mesma categoria em duas cores na mesma tela, e trocar
+ *  de mês repintava todas — desfazendo o "Mercado é o azul" que o leitor tinha
+ *  acabado de aprender. */
+export function corDaCategoria(cat: { id: number; cor?: string | null } | null | undefined): string {
+  if (cat == null) return COR_SEM_CATEGORIA;
+  if (cat.cor) return cat.cor;
+  // ids são sequenciais, então o resto já distribui bem pelas seis vagas.
+  return PALETA_SERIES[Math.abs(cat.id) % PALETA_SERIES.length];
+}
+
+/** Rótulo da linha que resume a cauda.
+ *
+ *  NÃO é "Outros": a migration 004 semeia uma categoria de verdade com esse
+ *  nome exato (variável e entrada). Como as somas são chaveadas por nome, um
+ *  mês com sete categorias incluindo a "Outros" real produziria duas linhas
+ *  homônimas, com cores e valores diferentes, na mesma legenda. */
+export const ROTULO_DEMAIS = "Demais categorias";
+
+export type CategoriaCor = { id: number | null; cor?: string | null };
+
+/** Resolve as cores de uma tela inteira de uma vez.
+ *
+ *  Chame UMA vez por página, com as categorias na ordem de importância (as que
+ *  o leitor vai ver primeiro), e distribua o resultado para todas as seções.
+ *
+ *  É essa chamada única que faz as duas coisas ao mesmo tempo:
+ *    · a mesma categoria tem a mesma cor em todas as seções, porque todas leem
+ *      do mesmo mapa;
+ *    · as primeiras seis ficam com cores distintas, porque a atribuição
+ *      enxerga o conjunto todo antes de decidir.
+ *
+ *  Desempatar dentro de cada componente já foi tentado e produziu o pior dos
+ *  dois mundos: como só a seção que dobrava passava pelo desempate, "Casa"
+ *  saía âmbar em "Tendência por categoria" e azul em "Gastos por categoria",
+ *  logo abaixo, na mesma tela.
+ *
+ *  `id % 6` sozinho também não bastava: com ids sequenciais, duas das seis
+ *  linhas visíveis colidiam quase sempre (Casa=9 e Transporte=3 caem na mesma
+ *  vaga). Aqui a paleta é distribuída entre quem de fato aparece. */
+export function resolverCores(cats: CategoriaCor[]): Map<number, string> {
+  const mapa = new Map<number, string>();
+  const usadas = new Set<string>();
+  // Quem tem cor escolhida na cartela vem primeiro: escolha do usuário não se
+  // mexe, e as vagas que ela ocupa saem da disputa.
+  for (const c of cats) {
+    if (c.id != null && c.cor && !mapa.has(c.id)) { mapa.set(c.id, c.cor); usadas.add(c.cor); }
+  }
+  for (const c of cats) {
+    if (c.id == null || mapa.has(c.id)) continue;
+    // Sem vaga livre (mais de seis categorias em tela), cai no slot
+    // determinístico: repete uma cor, mas de forma estável e previsível.
+    const livre = PALETA_SERIES.find((p) => !usadas.has(p)) ?? corDaCategoria(c as { id: number });
+    usadas.add(livre);
+    mapa.set(c.id, livre);
+  }
+  return mapa;
+}
+
+/** SOBRE COLISÃO DE COR — por que não há desempate dentro dos componentes.
+ *
+ *  Houve uma versão que desempatava dentro de `dobrarEmOutros`. Ela foi
+ *  removida depois de ser vista rodando: o desempate só acontecia onde a lista
+ *  passa por lá, e Análises pinta as MESMAS categorias em dois lugares —
+ *  "Gastos por categoria" (que dobra) e "Tendência por categoria" (que não).
+ *  Na tela, "Casa" saía âmbar em cima e azul logo abaixo, e "Lazer" verde em
+ *  cima e laranja abaixo.
+ *
+ *  Quem desempata agora é `resolverCores`, uma vez por página. Os componentes
+ *  daqui recebem a cor pronta e nunca a alteram — é o que garante que a
+ *  mesma categoria saia igual em todas as seções. Quem quiser fixar uma cor
+ *  específica usa a cartela, e aí ela vale em toda parte porque vem do banco. */
+
+/** Dobra a cauda para nunca reciclar matiz: repetir uma cor na sétima
+ *  categoria é dizer que ela é a mesma coisa que a primeira.
+ *
+ *  Também substitui o `slice(0, 5)` que o Dashboard fazia, e que era pior que
+ *  isto: ele escondia a cauda sem somá-la em lugar nenhum, então as
+ *  porcentagens exibidas não fechavam com o total ao lado. */
+export function dobrarEmOutros(fatias: FatiaDonut[], limite = PALETA_SERIES.length): FatiaDonut[] {
+  const ordenadas = [...fatias].sort((a, b) => b.valor - a.valor);
+  if (ordenadas.length <= limite) return ordenadas;
+  // "Sem categoria" desce junto com a cauda: ele e a linha de resumo já
+  // significam ambos "aqui não há identidade", e manter os dois poria dois
+  // cinzas na legenda.
+  const nomeadas = ordenadas.filter((f) => f.rotulo !== ROTULO_SEM_CATEGORIA);
+  const anonimas = ordenadas.filter((f) => f.rotulo === ROTULO_SEM_CATEGORIA);
+  const topo = nomeadas.slice(0, limite - 1);
+  const resto = [...nomeadas.slice(limite - 1), ...anonimas].reduce((s, f) => s + f.valor, 0);
+  // A linha sai mesmo somando zero. `valor_cents` aceita 0 (CHECK >= 0 na
+  // migration 001), então uma cauda inteira de lançamentos zerados faria
+  // categorias reais sumirem da lista sem nada explicando a ausência.
+  return [...topo, { rotulo: ROTULO_DEMAIS, valor: resto, cor: COR_SEM_CATEGORIA }];
+}
 
 /** Sparkline minimalista (linha) sobre uma série de valores. */
 export function Sparkline({ valores, cor = "var(--accent)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
@@ -69,7 +179,8 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
             <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" strokeDasharray="3 4" />
+        {/* Sólida: tracejado lê como "projeção" ou "limiar", e isto é só o zero. */}
+        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" />
         {modo === "area" && (
           <polygon points={`${x(0)},${y(0)} ${serie((d) => d.saldo)} ${x(dados.length - 1)},${y(0)}`} fill={`url(#${idFill})`} />
         )}
@@ -82,7 +193,7 @@ export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: 
             {linhas.map(([, cor, sel]) => hover === i && <circle key={cor} cx={x(i)} cy={y(sel(d))} r="3.2" fill={cor} />)}
             <rect x={x(i) - (W / dados.length) / 2} y="0" width={W / dados.length} height={H} fill="transparent"
               onMouseEnter={() => setHover(i)} />
-            <text x={x(i)} y={H - 3} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
+            <text x={x(i)} y={H - 3} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
           </g>
         ))}
       </svg>
@@ -109,6 +220,8 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
   const y = (v: number) => H - padY - (v / max) * (H - padY * 2);
   const grupoW = (W - padX * 2) / dados.length;
   const barW = Math.min(22, grupoW / 3);
+  // ~7 rótulos cabem sem encostar na largura de referência do viewBox.
+  const passo = Math.max(1, Math.ceil(dados.length / 7));
 
   return (
     <div style={{ position: "relative" }}>
@@ -120,10 +233,13 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
             <g key={i} onMouseEnter={() => setHover(i)}>
               <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--positive)" opacity={hover === null || hover === i ? 1 : 0.5} />
               <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--negative)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              {/* Série longa: rótulo mês sim, mês não — ancorado no último, que
-                  é o mês selecionado e não pode ficar sem nome. */}
-              {(dados.length <= 12 || (dados.length - 1 - i) % 2 === 0) && (
-                <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" fontFamily="var(--font-sans)">{d.rotulo}</text>
+              {/* Série longa: mostra um a cada `passo`, ancorado no último, que
+                  é o mês selecionado e não pode ficar sem nome.
+                  O limite era 12 e foi medido na tela: com a JetBrains Mono, que
+                  é mais larga que a sans que estava aqui antes, "set. 25" ocupa
+                  quase toda a fatia de 12 meses e os rótulos encostam. */}
+              {(dados.length - 1 - i) % passo === 0 && (
+                <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
               )}
             </g>
           );
@@ -150,8 +266,8 @@ export function BarrasRank({ fatias, total }: { fatias: FatiaDonut[]; total?: nu
   if (fatias.length === 0) return <p className="sub">Sem dados.</p>;
   return (
     <div className="legenda" style={{ gap: "0.7rem" }}>
-      {fatias.map((f) => (
-        <div key={f.rotulo}>
+      {fatias.map((f, i) => (
+        <div key={i}>
           {/* min-width:0 no nome: categoria é texto do usuário, e sem isto um
               nome longo empurra o valor para fora do card em vez de encolher. */}
           <div className="item" style={{ marginBottom: "0.25rem", minWidth: 0 }}>
@@ -200,7 +316,7 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
         <title>Distribuição de despesas por categoria</title>
         <g transform="rotate(-90 60 60)">
           {segs.map((s) => (
-            <circle key={s.f.rotulo} cx={CX} cy={CX} r={rMid} fill="none"
+            <circle key={s.i} cx={CX} cy={CX} r={rMid} fill="none"
               stroke={s.f.cor} strokeLinecap="round"
               strokeWidth={ativo === s.i ? Whover : W}
               strokeDasharray={s.dash} strokeDashoffset={s.offset.toFixed(2)}
@@ -211,21 +327,21 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
             </circle>
           ))}
         </g>
-        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" fontFamily="var(--font-sans)">
+        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" style={TEXTO_EIXO}>
           {foco ? foco.rotulo : "Total"}
         </text>
-        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--content)" fontFamily="var(--font-sans)" fontWeight="700">
+        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--content)" style={TEXTO_EIXO} fontWeight="700">
           {brl(foco ? foco.valor : total)}
         </text>
         {foco && (
-          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" fontFamily="var(--font-sans)">
+          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" style={TEXTO_EIXO}>
             {pct(foco.valor)}% do total
           </text>
         )}
       </svg>
       <ul className="legenda" style={{ flex: 1, minWidth: 170, listStyle: "none", margin: 0, padding: 0 }}>
         {fatias.map((f, i) => (
-          <li key={f.rotulo}>
+          <li key={i}>
             <button type="button" className="item legenda-item" aria-pressed={ativo === i}
               onMouseEnter={() => setAtivo(i)} onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)}
               style={{ opacity: ativo == null || ativo === i ? 1 : 0.5 }}>
@@ -250,7 +366,7 @@ export function ProgressRing({ pct, cor = "var(--positive)", tamanho = 72 }: { p
       <circle cx="36" cy="36" r={r} fill="none" stroke={cor} strokeWidth="7" strokeLinecap="round"
         strokeDasharray={C} strokeDashoffset={(C * (1 - p)).toFixed(1)} transform="rotate(-90 36 36)"
         style={{ transition: "stroke-dashoffset 400ms var(--ease)" }} />
-      <text x="36" y="40" textAnchor="middle" fontSize="15" fill="var(--content)" fontFamily="var(--font-sans)" fontWeight="600">{Math.round(pct)}%</text>
+      <text x="36" y="40" textAnchor="middle" fontSize="15" fill="var(--content)" style={TEXTO_EIXO} fontWeight="600">{Math.round(pct)}%</text>
     </svg>
   );
 }
