@@ -359,7 +359,12 @@ a.card:hover, button.card:hover, .card.clicavel:hover {
    ============================================================ */
 .campo { display: flex; flex-direction: column; gap: 0.35rem; }
 .campo > label { font-size: 0.8rem; font-weight: 500; color: var(--content-2); }
-input, select, textarea {
+/* O `:not` cobre caixa de marcar e rádio pelo mesmo motivo que o `.auth-form` já
+   fazia isolado: `width: 100%` mais padding e borda esticam um checkbox pela
+   linha inteira e empurram o rótulo ao lado dele para o outro extremo da tela.
+   Era o que acontecia com "Mostrar arquivados" em Compromissos e com outras
+   cinco caixas do app — o login escapava só porque tinha a exceção própria. */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   padding: 0.55rem 0.75rem; border-radius: 10px;
   border: 1px solid var(--edge-strong); background: var(--field);
   color: var(--content); width: 100%;
