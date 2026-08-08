@@ -170,13 +170,44 @@ rede local (abaixo), `FINCONTROL_BUILD_LOCAL=1` libera a checagem.
 duas — cada plataforma tem a sua, e são os defaults do Capacitor 8 (nenhum
 `iosScheme`/`androidScheme` no `capacitor.config.ts`).
 
-Depois do build, o APK de release sai com:
+### APK de release (o app de verdade)
 
 ```bash
-cd frontend/android && ./gradlew assembleRelease
+cd frontend && npm run apk:release
 ```
 
-**Teste na rede local, contra o backend em HTTP**, precisa de duas permissões que
+Faz o build acima já apontado para a VPS, compila a variante release, **confere
+a assinatura e o `usesCleartextTraffic` no APK pronto** e copia o resultado para
+`~/Downloads/Android/fincontrol.apk`. Instale com `adb install -r <apk>` — o
+`-r` instala por cima e preserva a sessão; `adb uninstall` antes obriga a logar
+de novo.
+
+> `./gradlew assembleRelease` sozinho **não** serve, apesar de ser o comando
+> óbvio: sem `signingConfig` ele entrega `app-release-unsigned.apk`, e o Android
+> recusa instalar APK sem assinatura. O build agora aborta com essa explicação
+> em vez de produzir o arquivo inútil.
+
+**A keystore mora fora do repositório**, em `~/.fincontrol-keys/`
+(`fincontrol-release.jks` + `keystore.properties` + `keystore-password.txt`),
+criada na primeira execução do script e reutilizada para sempre. Aponte
+`FINCONTROL_KEYSTORE_PROPERTIES` para outro lugar se precisar buildar em outra
+máquina.
+
+**Faça backup dela.** O Android identifica o app pela assinatura: com uma chave
+diferente, atualizar por cima passa a ser recusado
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) e só instala depois de desinstalar. Aqui
+isso custa refazer o login e nada mais — o FinControl não guarda dado financeiro
+no aparelho, o servidor é a fonte de verdade —, mas não há como recuperar a
+chave depois de perdida.
+
+O `versionCode` vive em `android/gradle.properties` e o script o incrementa a
+cada execução; o `versionName` vem do `version` do `package.json`. **Commite o
+`gradle.properties` depois de distribuir um APK**, senão o build seguinte repete
+o número e a instalação por cima é recusada.
+
+### Teste na rede local (APK debug)
+
+**Contra o backend em HTTP**, precisa de duas permissões que
 o build de produção não tem — e nenhuma delas é ligada por padrão:
 
 ```bash
@@ -211,11 +242,13 @@ encerre quando terminar, e não deixe rodando assim.
 O `usesCleartextTraffic` vive em `app/src/debug/AndroidManifest.xml`, sobrepondo o
 `false` do manifesto principal só na variante debug; e o `allowMixedContent` depende
 da variável acima. Assim o release sai seguro por construção, em vez de depender de
-alguém lembrar de desfazer a permissão antes de distribuir. Confira no APK gerado:
+alguém lembrar de desfazer a permissão antes de distribuir. O `apk:release` já
+confere isso sozinho no APK pronto, e aborta se vier `true`; à mão seria:
 
 ```bash
 # deve responder "false" para o release
-aapt dump xmltree app/build/outputs/apk/release/app-release.apk AndroidManifest.xml \
+"$ANDROID_HOME"/build-tools/*/aapt2 dump xmltree \
+  --file AndroidManifest.xml app/build/outputs/apk/release/app-release.apk \
   | grep -i cleartext
 ```
 
