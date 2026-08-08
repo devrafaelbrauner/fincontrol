@@ -724,20 +724,25 @@ tfoot td {
   margin: 22px 0 12px; background: var(--rule-soft);
 }
 @keyframes fio-crescer { from { transform: scaleX(0); } }
-.fio-barra .seg { display: block; height: 100%; transform-origin: left; animation: fio-crescer 600ms var(--ease) both; }
-.fio-barra .seg + .seg { animation-delay: 150ms; }
-.fio-barra .seg + .seg + .seg { animation-delay: 300ms; }
-.fio-barra .fixas { background: var(--accent); }
-.fio-barra .variaveis { background: var(--warning); }
-.fio-barra .sobra { background: var(--positive); }
-.fio-legenda { display: flex; gap: 26px; flex-wrap: wrap; font-size: 12px; color: var(--content-2); }
+/* `.fio-seg`, e não `.seg`: o nome curto já pertencia ao controle segmentado
+   (o "6 / 12 / 24 meses" de Análises), e a regra mais específica daqui só
+   sobrescrevia `display` e `height`. O `padding: 0.25rem`, o `border: 1px solid
+   var(--edge)` e o `border-radius` do controle continuavam valendo em cada
+   segmento do fio — ou seja, os pedaços vinham separados por uma BORDA, que é
+   exatamente o que não se deve fazer, e por acidente de cascata. */
+.fio-seg {
+  display: block; height: 100%; transform-origin: left;
+  animation: fio-crescer 600ms var(--ease) both;
+}
+/* A folga entre pedaços é a cor do fundo, não uma borda — e como é `border-box`
+   ela sai de dentro do próprio pedaço, então as larguras seguem somando 100%. */
+.fio-seg + .fio-seg { border-left: 2px solid var(--page); }
+.fio-seg + .fio-seg { animation-delay: 150ms; }
+.fio-seg + .fio-seg + .fio-seg { animation-delay: 300ms; }
+.fio-legenda { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--content-2); }
 .fio-legenda span { display: flex; align-items: center; gap: 7px; }
 .fio-legenda b { color: var(--content); font-weight: 600; }
-.fio-legenda i { display: block; width: 8px; height: 8px; border-radius: 2px; }
-.fio-legenda .fixas { background: var(--accent); }
-.fio-legenda .variaveis { background: var(--warning); }
-.fio-legenda .sobra { background: var(--positive); }
-.fio-legenda .excede { background: var(--negative); }
+.fio-legenda i { display: block; width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; }
 
 @media (max-width: 1100px) {
   .visao-topo { grid-template-columns: 1fr; }

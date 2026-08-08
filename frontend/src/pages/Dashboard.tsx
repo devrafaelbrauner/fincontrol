@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
+import { Fio } from "../components/Fio";
 import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -51,31 +52,32 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
 
 function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {
   const despesas = fixas + variaveis;
-  const base = Math.max(entradas, despesas, 1);
   const sobra = entradas - despesas;
-  const pct = (v: number) => `${((v / base) * 100).toFixed(2)}%`;
   return (
-    <div className="fio">
-      <div className="fio-barra" role="img"
-        aria-label={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "economia" : "excedente"} ${brl(Math.abs(sobra))}`}>
-        {fixas > 0 && <span className="seg fixas" style={{ width: pct(fixas) }} />}
-        {variaveis > 0 && <span className="seg variaveis" style={{ width: pct(variaveis) }} />}
-        {sobra > 0 && <span className="seg sobra" style={{ width: pct(sobra) }} />}
-      </div>
-      {/* Sem "Entradas" na legenda: o total já é a barra inteira, e ele aparece
-          por extenso no parágrafo de leitura logo acima. */}
-      <div className="fio-legenda">
-        <span><i className="fixas" />Fixas <b className="num">{brl(fixas)}</b></span>
-        <span><i className="variaveis" />Variáveis <b className="num">{brl(variaveis)}</b></span>
-        <span>
-          <i className={sobra >= 0 ? "sobra" : "excede"} />
-          {sobra >= 0 ? "Economia" : "Excedente"} <b className="num">{brl(Math.abs(sobra))}</b>
-        </span>
-      </div>
+    <>
+      {/* `base` é o maior entre o que entrou e o que saiu: é o que faz a barra
+          mostrar que as despesas NÃO consumiram tudo. Sem "Entradas" na
+          legenda — o total já é a barra inteira, e ele sai por extenso no
+          parágrafo de leitura logo acima. */}
+      <Fio
+        base={Math.max(entradas, despesas, 1)}
+        rotuloAria={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "economia" : "excedente"} ${brl(Math.abs(sobra))}`}
+        fatias={[
+          { rotulo: "Fixas", valor: fixas, cor: "var(--accent)" },
+          { rotulo: "Variáveis", valor: variaveis, cor: "var(--warning)" },
+          {
+            rotulo: sobra >= 0 ? "Economia" : "Excedente",
+            // Negativo entra na legenda e fica fora da barra: mês no vermelho
+            // não tem pedaço a desenhar.
+            valor: sobra >= 0 ? sobra : -Math.abs(sobra),
+            cor: sobra >= 0 ? "var(--positive)" : "var(--negative)",
+          },
+        ]}
+      />
       {entradas === 0 && despesas > 0 && (
         <p className="sub" style={{ fontSize: "0.78rem" }}>Sem entradas neste mês — registre suas receitas para o fio fazer sentido.</p>
       )}
-    </div>
+    </>
   );
 }
 

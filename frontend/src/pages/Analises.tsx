@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, paraCents } from "../api";
-import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
+import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
+import { Fio } from "../components/Fio";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import {
@@ -86,6 +87,7 @@ export default function Analises() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   // Resolvido uma vez por carga e lido por todas as seções desta tela.
   const [coresCat, setCoresCat] = useState<Map<number, string>>(new Map());
+  const totalCategorias = porCategoria.reduce((s, f) => s + f.valor, 0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -290,7 +292,7 @@ export default function Analises() {
 
           <section className="surgir secao">
             <h3 className="secao-titulo">Tendência por categoria</h3>
-            <p className="sub">Gastos fixos + variáveis por mês, maiores do período primeiro. O donut abaixo mostra só as variáveis do mês.</p>
+            <p className="sub">Gastos fixos + variáveis por mês, maiores do período primeiro. A distribuição abaixo mostra só as variáveis do mês.</p>
             {tendencias.length === 0 ? (
               <p className="sub">Sem gastos categorizáveis no período.</p>
             ) : (
@@ -321,8 +323,14 @@ export default function Analises() {
           <div className="grid-2 secao">
             <section className="ficha surgir">
               <h3 className="secao-titulo">Gastos por categoria</h3>
-              <Donut fatias={porCategoria} />
-              <div style={{ marginTop: "1rem" }}><BarrasRank fatias={porCategoria} /></div>
+              {/* Duas perguntas, duas formas, sem repetir os mesmos números
+                  duas vezes: o fio responde "que fatia do mês é isso" e o
+                  ranking responde "quanto foi, e qual veio antes". Antes eram
+                  um donut e um ranking dos MESMOS valores, lado a lado. */}
+              {porCategoria.length > 0 && (
+                <Fio pct fatias={porCategoria} rotuloAria={`Distribuição dos gastos por categoria, total ${brl(totalCategorias)}`} />
+              )}
+              <div style={{ marginTop: "1.1rem" }}><BarrasRank fatias={porCategoria} /></div>
             </section>
             <section className="ficha surgir">
               <h3 className="secao-titulo">Por forma de pagamento</h3>
