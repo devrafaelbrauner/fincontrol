@@ -53,9 +53,14 @@ captures/
 .idea/navEditor.xml
 
 # Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+# Descomentados de propósito (o template do Capacitor os traz comentados). A
+# chave de assinatura vive em ~/.fincontrol-keys/, fora daqui, então estas linhas
+# são redundantes — e é exatamente por isso que valem: elas cobrem o `cp`
+# distraído que traz a chave para dentro do projeto. Uma keystore commitada é
+# pública para sempre, mesmo depois de removida, porque o histórico fica.
+*.jks
+*.keystore
+keystore.properties
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild

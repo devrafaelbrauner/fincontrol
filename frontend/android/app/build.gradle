@@ -1,5 +1,51 @@
 apply plugin: 'com.android.application'
 
+// --- Assinatura de release -------------------------------------------------
+//
+// As credenciais NUNCA entram no repositório: ficam em
+// ~/.fincontrol-keys/keystore.properties, junto da própria keystore. O caminho
+// é sobreponível por FINCONTROL_KEYSTORE_PROPERTIES para o dia em que outra
+// máquina precisar buildar.
+//
+// Perder a keystore não apaga dados aqui — o FinControl não guarda nada
+// financeiro no aparelho, o servidor é a fonte de verdade —, mas apaga a
+// possibilidade de ATUALIZAR o app por cima: o Android recusa um APK cuja
+// assinatura mudou (INSTALL_FAILED_UPDATE_INCOMPATIBLE), e a única saída é
+// desinstalar. Faça backup dos dois arquivos.
+def caminhoProps = System.getenv("FINCONTROL_KEYSTORE_PROPERTIES") ?:
+        "${System.getProperty('user.home')}/.fincontrol-keys/keystore.properties"
+def arquivoProps = file(caminhoProps)
+def temAssinatura = arquivoProps.exists()
+def propsAssinatura = new Properties()
+if (temAssinatura) {
+    arquivoProps.withInputStream { propsAssinatura.load(it) }
+}
+
+// Falhar alto quando faltar a chave, em vez de deixar sair um APK sem
+// assinatura. Sem isto o gradle entrega `app-release-unsigned.apk` sem reclamar,
+// e o problema só aparece no aparelho — na hora de instalar, ou pior, meses
+// depois na hora de atualizar. Assinatura descartável é pior que build vermelho.
+//
+// A checagem vive no taskGraph, e não aqui fora, porque este bloco é avaliado em
+// TODO build: fazê-la direto abortaria também o `assembleDebug`, que não precisa
+// de chave nenhuma.
+gradle.taskGraph.whenReady { grafo ->
+    def pedeRelease = grafo.allTasks.any {
+        it.name ==~ /(?i)(assemble|bundle|package|install)Release.*/
+    }
+    if (pedeRelease && !temAssinatura) {
+        throw new GradleException(
+            "Build de release sem keystore.\n" +
+            "  Esperava as credenciais em: ${caminhoProps}\n" +
+            "  Gere a chave e o arquivo com: cd frontend && npm run apk:release\n" +
+            "  (ou aponte FINCONTROL_KEYSTORE_PROPERTIES para outro lugar)")
+    }
+}
+
+// `versionName` é o texto que a pessoa vê; sai do package.json para não existir
+// uma segunda versão do app divergindo em silêncio da do frontend.
+def versaoWeb = new groovy.json.JsonSlurper().parse(file("../../package.json")).version
+
 android {
     namespace = "com.rafaelbrauner.fincontrol"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +53,8 @@ android {
         applicationId "com.rafaelbrauner.fincontrol"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode project.property("fincontrolVersionCode").toInteger()
+        versionName versaoWeb
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +62,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (temAssinatura) {
+                storeFile file(propsAssinatura['storeFile'])
+                storePassword propsAssinatura['storePassword']
+                keyAlias propsAssinatura['keyAlias']
+                keyPassword propsAssinatura['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // `null` quando não há chave só para o bloco configurar; quem barra o
+            // build nesse caso é o taskGraph lá em cima, com uma mensagem que diz
+            // o que fazer — aqui o gradle diria apenas "unsigned".
+            signingConfig temAssinatura ? signingConfigs.release : null
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
