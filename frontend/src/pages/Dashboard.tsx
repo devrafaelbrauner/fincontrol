@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
-import { AreaChart, BarrasRank, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, corDaCategoria, dobrarEmOutros } from "../components/graficos";
+import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -134,18 +134,25 @@ export default function Dashboard() {
       setMetas(listaMetas);
       setOrcamentos(orcs);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
-      const soma = new Map<string, { valor: number; cor: string }>();
+      const soma = new Map<number | null, { nome: string; valor: number }>();
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? nomes.get(v.categoria_id) : undefined;
-        const nome = c?.nome ?? ROTULO_SEM_CATEGORIA;
-        const at = soma.get(nome) ?? { valor: 0, cor: corDaCategoria(c) };
+        const chave = c?.id ?? null;
+        const at = soma.get(chave) ?? { nome: c?.nome ?? ROTULO_SEM_CATEGORIA, valor: 0 };
         at.valor += v.valor_cents;
-        soma.set(nome, at);
+        soma.set(chave, at);
       }
+      // Cores resolvidas de uma vez, na ordem de leitura (maior gasto
+      // primeiro), para as linhas do topo ficarem com cores distintas.
+      const porGasto = [...soma.entries()].sort((a, b) => b[1].valor - a[1].valor);
+      const cores = resolverCores(porGasto.map(([id]) => nomes.get(id as number)).filter((c): c is NonNullable<typeof c> => c != null));
       // Cinco linhas como antes, mas a quinta agora SOMA a cauda em vez de
       // recortá-la fora: com o `slice(0, 5)` os percentuais exibidos não
       // fechavam com o total impresso ao lado da seção.
-      const fatias: FatiaDonut[] = [...soma.entries()].map(([rotulo, x]) => ({ rotulo, valor: x.valor, cor: x.cor }));
+      const fatias: FatiaDonut[] = porGasto.map(([id, x]) => ({
+        rotulo: x.nome, valor: x.valor,
+        cor: id == null ? COR_SEM_CATEGORIA : cores.get(id) ?? COR_SEM_CATEGORIA,
+      }));
       setDonut(dobrarEmOutros(fatias, 5));
 
       // Insights: carrega do cache (instantâneo, sem re-cobrar).

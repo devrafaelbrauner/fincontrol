@@ -42,27 +42,59 @@ export function corDaCategoria(cat: { id: number; cor?: string | null } | null |
  *  homônimas, com cores e valores diferentes, na mesma legenda. */
 export const ROTULO_DEMAIS = "Demais categorias";
 
-/** Uma cor por linha.
+export type CategoriaCor = { id: number | null; cor?: string | null };
+
+/** Resolve as cores de uma tela inteira de uma vez.
  *
- *  `corDaCategoria` é determinística pelo id, então duas categorias cujos ids
- *  diferem por um múltiplo de seis caem na mesma vaga. É raro, mas quando
- *  acontece as duas viram a mesma coisa na legenda. Aqui a segunda anda para a
- *  próxima vaga livre: troca-se um pouco de estabilidade entre meses por duas
- *  categorias nunca serem a mesma cor na tela — e a estabilidade continua
- *  garantida para quem escolheu a cor na cartela, que é a saída oferecida.
+ *  Chame UMA vez por página, com as categorias na ordem de importância (as que
+ *  o leitor vai ver primeiro), e distribua o resultado para todas as seções.
  *
- *  Vale também para duas cores escolhidas iguais de propósito: a leitura da
- *  legenda vem antes, e a escolha segue intacta na seção Categorias. */
-function semCoresRepetidas(fatias: FatiaDonut[]): FatiaDonut[] {
+ *  É essa chamada única que faz as duas coisas ao mesmo tempo:
+ *    · a mesma categoria tem a mesma cor em todas as seções, porque todas leem
+ *      do mesmo mapa;
+ *    · as primeiras seis ficam com cores distintas, porque a atribuição
+ *      enxerga o conjunto todo antes de decidir.
+ *
+ *  Desempatar dentro de cada componente já foi tentado e produziu o pior dos
+ *  dois mundos: como só a seção que dobrava passava pelo desempate, "Casa"
+ *  saía âmbar em "Tendência por categoria" e azul em "Gastos por categoria",
+ *  logo abaixo, na mesma tela.
+ *
+ *  `id % 6` sozinho também não bastava: com ids sequenciais, duas das seis
+ *  linhas visíveis colidiam quase sempre (Casa=9 e Transporte=3 caem na mesma
+ *  vaga). Aqui a paleta é distribuída entre quem de fato aparece. */
+export function resolverCores(cats: CategoriaCor[]): Map<number, string> {
+  const mapa = new Map<number, string>();
   const usadas = new Set<string>();
-  return fatias.map((f) => {
-    if (!usadas.has(f.cor)) { usadas.add(f.cor); return f; }
-    const livre = PALETA_SERIES.find((c) => !usadas.has(c));
-    if (livre == null) return f;   // mais linhas que vagas: só com limite > 6
+  // Quem tem cor escolhida na cartela vem primeiro: escolha do usuário não se
+  // mexe, e as vagas que ela ocupa saem da disputa.
+  for (const c of cats) {
+    if (c.id != null && c.cor && !mapa.has(c.id)) { mapa.set(c.id, c.cor); usadas.add(c.cor); }
+  }
+  for (const c of cats) {
+    if (c.id == null || mapa.has(c.id)) continue;
+    // Sem vaga livre (mais de seis categorias em tela), cai no slot
+    // determinístico: repete uma cor, mas de forma estável e previsível.
+    const livre = PALETA_SERIES.find((p) => !usadas.has(p)) ?? corDaCategoria(c as { id: number });
     usadas.add(livre);
-    return { ...f, cor: livre };
-  });
+    mapa.set(c.id, livre);
+  }
+  return mapa;
 }
+
+/** SOBRE COLISÃO DE COR — por que não há desempate dentro dos componentes.
+ *
+ *  Houve uma versão que desempatava dentro de `dobrarEmOutros`. Ela foi
+ *  removida depois de ser vista rodando: o desempate só acontecia onde a lista
+ *  passa por lá, e Análises pinta as MESMAS categorias em dois lugares —
+ *  "Gastos por categoria" (que dobra) e "Tendência por categoria" (que não).
+ *  Na tela, "Casa" saía âmbar em cima e azul logo abaixo, e "Lazer" verde em
+ *  cima e laranja abaixo.
+ *
+ *  Quem desempata agora é `resolverCores`, uma vez por página. Os componentes
+ *  daqui recebem a cor pronta e nunca a alteram — é o que garante que a
+ *  mesma categoria saia igual em todas as seções. Quem quiser fixar uma cor
+ *  específica usa a cartela, e aí ela vale em toda parte porque vem do banco. */
 
 /** Dobra a cauda para nunca reciclar matiz: repetir uma cor na sétima
  *  categoria é dizer que ela é a mesma coisa que a primeira.
@@ -72,7 +104,7 @@ function semCoresRepetidas(fatias: FatiaDonut[]): FatiaDonut[] {
  *  porcentagens exibidas não fechavam com o total ao lado. */
 export function dobrarEmOutros(fatias: FatiaDonut[], limite = PALETA_SERIES.length): FatiaDonut[] {
   const ordenadas = [...fatias].sort((a, b) => b.valor - a.valor);
-  if (ordenadas.length <= limite) return semCoresRepetidas(ordenadas);
+  if (ordenadas.length <= limite) return ordenadas;
   // "Sem categoria" desce junto com a cauda: ele e a linha de resumo já
   // significam ambos "aqui não há identidade", e manter os dois poria dois
   // cinzas na legenda.
@@ -83,7 +115,7 @@ export function dobrarEmOutros(fatias: FatiaDonut[], limite = PALETA_SERIES.leng
   // A linha sai mesmo somando zero. `valor_cents` aceita 0 (CHECK >= 0 na
   // migration 001), então uma cauda inteira de lançamentos zerados faria
   // categorias reais sumirem da lista sem nada explicando a ausência.
-  return semCoresRepetidas([...topo, { rotulo: ROTULO_DEMAIS, valor: resto, cor: COR_SEM_CATEGORIA }]);
+  return [...topo, { rotulo: ROTULO_DEMAIS, valor: resto, cor: COR_SEM_CATEGORIA }];
 }
 
 /** Sparkline minimalista (linha) sobre uma série de valores. */
@@ -188,6 +220,8 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
   const y = (v: number) => H - padY - (v / max) * (H - padY * 2);
   const grupoW = (W - padX * 2) / dados.length;
   const barW = Math.min(22, grupoW / 3);
+  // ~7 rótulos cabem sem encostar na largura de referência do viewBox.
+  const passo = Math.max(1, Math.ceil(dados.length / 7));
 
   return (
     <div style={{ position: "relative" }}>
@@ -199,9 +233,12 @@ export function BarChart({ dados }: { dados: BarraMes[] }) {
             <g key={i} onMouseEnter={() => setHover(i)}>
               <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--positive)" opacity={hover === null || hover === i ? 1 : 0.5} />
               <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--negative)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              {/* Série longa: rótulo mês sim, mês não — ancorado no último, que
-                  é o mês selecionado e não pode ficar sem nome. */}
-              {(dados.length <= 12 || (dados.length - 1 - i) % 2 === 0) && (
+              {/* Série longa: mostra um a cada `passo`, ancorado no último, que
+                  é o mês selecionado e não pode ficar sem nome.
+                  O limite era 12 e foi medido na tela: com a JetBrains Mono, que
+                  é mais larga que a sans que estava aqui antes, "set. 25" ocupa
+                  quase toda a fatia de 12 meses e os rótulos encostam. */}
+              {(dados.length - 1 - i) % passo === 0 && (
                 <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
               )}
             </g>

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, paraCents } from "../api";
-import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros } from "../components/graficos";
+import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import {
@@ -84,6 +84,8 @@ export default function Analises() {
   const [porCategoria, setPorCategoria] = useState<FatiaDonut[]>([]);
   const [porForma, setPorForma] = useState<FatiaDonut[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  // Resolvido uma vez por carga e lido por todas as seções desta tela.
+  const [coresCat, setCoresCat] = useState<Map<number, string>>(new Map());
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -126,17 +128,36 @@ export default function Analises() {
       setCategorias(cats);
       const mapaCat = new Map(cats.map((c) => [c.id, c] as const));
 
-      const somaCat = new Map<string, { valor: number; cor: string }>();
+      const somaCat = new Map<number | null, { nome: string; valor: number }>();
       const somaForma = new Map<string, number>();
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? mapaCat.get(v.categoria_id) : undefined;
-        const nomeCat = c?.nome ?? ROTULO_SEM_CATEGORIA;
-        const at = somaCat.get(nomeCat) ?? { valor: 0, cor: corDaCategoria(c) };
-        at.valor += v.valor_cents; somaCat.set(nomeCat, at);
+        const chave = c?.id ?? null;
+        const at = somaCat.get(chave) ?? { nome: c?.nome ?? ROTULO_SEM_CATEGORIA, valor: 0 };
+        at.valor += v.valor_cents; somaCat.set(chave, at);
         const f = v.forma_pagamento ?? "outro";
         somaForma.set(f, (somaForma.get(f) ?? 0) + v.valor_cents);
       }
-      setPorCategoria(dobrarEmOutros([...somaCat.entries()].map(([rotulo, x]) => ({ rotulo, valor: x.valor, cor: x.cor }))));
+
+      // UM mapa de cor para a tela inteira: "Gastos por categoria" e
+      // "Tendência por categoria" mostram as mesmas categorias, e resolver a
+      // cor em cada seção separadamente já as fez divergir na mesma página.
+      // A ordem é a de leitura — maior gasto do mês primeiro, depois as que só
+      // aparecem na tendência —, então as vagas distintas vão para quem o
+      // leitor vê no topo.
+      const ordenadasPorGasto = [...somaCat.entries()]
+        .filter(([id]) => id != null)
+        .sort((a, b) => b[1].valor - a[1].valor)
+        .map(([id]) => mapaCat.get(id as number)!)
+        .filter(Boolean);
+      const daTendencia = hist.por_categoria
+        .map((t) => (t.categoria_id != null ? mapaCat.get(t.categoria_id) : undefined))
+        .filter((c): c is Categoria => c != null);
+      const cores = resolverCores([...ordenadasPorGasto, ...daTendencia]);
+      setCoresCat(cores);
+
+      const corDe = (id: number | null) => (id == null ? COR_SEM_CATEGORIA : cores.get(id) ?? COR_SEM_CATEGORIA);
+      setPorCategoria(dobrarEmOutros([...somaCat.entries()].map(([id, x]) => ({ rotulo: x.nome, valor: x.valor, cor: corDe(id) }))));
       setPorForma([...somaForma.entries()].map(([f, valor]) => ({ rotulo: FORMA_ROTULO[f] ?? f, valor, cor: FORMA_COR[f] ?? COR_SEM_CATEGORIA })).sort((a, b) => b.valor - a.valor));
     } catch (e) {
       if (id === requisicao.current) setErro((e as Error).message);
@@ -277,9 +298,9 @@ export default function Analises() {
             ) : (
               <div className="legenda" style={{ gap: "0.85rem", marginTop: "0.5rem" }}>
                 {tendencias.map((t) => {
-                  // Mesma função da seção de cima: é o que garante que a
+                  // Mesmo mapa da seção de gastos: é o que garante que a
                   // categoria saia da MESMA cor nas duas, o que antes não valia.
-                  const cor = t.categoria_id == null ? COR_SEM_CATEGORIA : corDaCategoria({ id: t.categoria_id, cor: t.cor });
+                  const cor = t.categoria_id == null ? COR_SEM_CATEGORIA : coresCat.get(t.categoria_id) ?? COR_SEM_CATEGORIA;
                   const vAtual = t.valores[t.valores.length - 1];
                   const vAnterior = t.valores[t.valores.length - 2] ?? 0;
                   return (
@@ -360,7 +381,9 @@ export default function Analises() {
           {categorias.filter((c) => c.ativa).length === 0 && <span className="sub">Nenhuma categoria ainda.</span>}
           {categorias.filter((c) => c.ativa).map((c) => (
             <span key={c.id} className="chip" style={{ gap: "0.5rem" }}>
-              <button type="button" className="cartela-cor" style={{ background: corDaCategoria(c) }}
+              {/* A cor do chip é a mesma que os gráficos usam. Fora deles (uma
+                  categoria sem gasto no mês), cai no slot determinístico. */}
+              <button type="button" className="cartela-cor" style={{ background: coresCat.get(c.id) ?? corDaCategoria(c) }}
                 aria-label={`Mudar a cor de ${c.nome}`} aria-expanded={editandoCor === c.id}
                 onClick={() => setEditandoCor(editandoCor === c.id ? null : c.id)} />
               {c.nome}

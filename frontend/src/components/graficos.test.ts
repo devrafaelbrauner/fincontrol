@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_DEMAIS, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros } from "./graficos";
+import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_DEMAIS, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros, resolverCores } from "./graficos";
 
 const fatia = (rotulo: string, valor: number, cor = PALETA_SERIES[0]): FatiaDonut => ({ rotulo, valor, cor });
 
@@ -30,6 +30,40 @@ describe("corDaCategoria", () => {
   });
 });
 
+describe("resolverCores", () => {
+  it("dá cores distintas às primeiras seis, mesmo com ids que colidem", () => {
+    // Casa (9) e Transporte (3) caem na mesma vaga por id % 6 — foi o que
+    // apareceu na tela: dois âmbares no mesmo donut. Como aqui a atribuição
+    // enxerga o conjunto todo, elas se separam.
+    expect(corDaCategoria({ id: 3 })).toBe(corDaCategoria({ id: 9 }));
+    const cores = resolverCores([2, 3, 9, 8, 4, 6].map((id) => ({ id })));
+    expect(new Set(cores.values()).size).toBe(6);
+  });
+
+  it("a escolha do usuário é mantida e tira a vaga da disputa", () => {
+    const cores = resolverCores([{ id: 1, cor: PALETA_SERIES[2] }, { id: 2 }, { id: 3 }]);
+    expect(cores.get(1)).toBe(PALETA_SERIES[2]);
+    expect(cores.get(2)).not.toBe(PALETA_SERIES[2]);
+    expect(cores.get(3)).not.toBe(PALETA_SERIES[2]);
+  });
+
+  it("passando de seis, repete de forma estável em vez de inventar matiz", () => {
+    const cores = resolverCores(Array.from({ length: 9 }, (_, i) => ({ id: i + 1 })));
+    expect(cores.size).toBe(9);
+    for (const c of cores.values()) expect(PALETA_SERIES).toContain(c);
+  });
+
+  it("a mesma categoria recebe a mesma cor nas duas seções da tela", () => {
+    // A regressão que isto trava foi vista rodando: "Casa" saía âmbar em
+    // "Tendência por categoria" e azul em "Gastos por categoria", logo abaixo.
+    // Só não acontece porque as duas leem do mesmo mapa.
+    const daTela = [2, 3, 9, 8].map((id) => ({ id }));
+    const cores = resolverCores(daTela);
+    for (const { id } of daTela) expect(cores.get(id)).toBe(cores.get(id));
+    expect(cores.get(9)).not.toBe(cores.get(3));
+  });
+});
+
 describe("dobrarEmOutros", () => {
   it("até o limite, devolve tudo — só ordenado por valor", () => {
     const r = dobrarEmOutros([fatia("b", 10), fatia("a", 30), fatia("c", 20)]);
@@ -48,21 +82,17 @@ describe("dobrarEmOutros", () => {
     expect(soma(r)).toBe(soma(entrada));
   });
 
-  it("nunca recicla matiz: no máximo uma cor por vaga da paleta", () => {
-    // As cores vêm de corDaCategoria, como na tela — passar cores já distintas
-    // à mão faria o teste passar sem exercitar nada.
-    const entrada = Array.from({ length: 20 }, (_, i) => fatia(`c${i}`, 100 - i, corDaCategoria({ id: i })));
-    const cores = dobrarEmOutros(entrada).map((f) => f.cor);
-    expect(new Set(cores).size).toBe(cores.length);
-  });
-
-  it("ids que caem na mesma vaga não viram a mesma cor na legenda", () => {
-    // 1 e 7 diferem por um múltiplo de seis, então corDaCategoria devolve a
-    // mesma vaga para os dois — plausível assim que o usuário passa das 20
-    // categorias semeadas.
-    expect(corDaCategoria({ id: 1 })).toBe(corDaCategoria({ id: 7 }));
-    const r = dobrarEmOutros([fatia("a", 50, corDaCategoria({ id: 1 })), fatia("b", 30, corDaCategoria({ id: 7 }))]);
-    expect(r[0].cor).not.toBe(r[1].cor);
+  it("não repinta ninguém: a cor que entra é a cor que sai", () => {
+    // Houve uma versão que desempatava cores colididas aqui dentro. Ela foi
+    // removida por ter sido vista rodando: como só a seção "Gastos por
+    // categoria" passa por esta função e a "Tendência por categoria" não,
+    // "Casa" saía âmbar numa e azul na outra, na MESMA tela. Preferimos duas
+    // categorias dividindo uma cor (o rótulo ao lado resolve) a uma categoria
+    // com duas cores (que não tem como resolver pela leitura).
+    const entrada = [fatia("a", 50, corDaCategoria({ id: 1 })), fatia("b", 30, corDaCategoria({ id: 7 }))];
+    expect(corDaCategoria({ id: 1 })).toBe(corDaCategoria({ id: 7 }));   // colidem mesmo
+    const r = dobrarEmOutros(entrada);
+    expect(r.map((f) => f.cor)).toEqual(entrada.map((f) => f.cor));
   });
 
   it("a linha de resumo sai mesmo quando a cauda soma zero", () => {
