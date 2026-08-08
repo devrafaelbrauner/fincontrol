@@ -189,7 +189,11 @@ function LeituraGrafico({ rotulo, itens }: { rotulo: ReactNode; itens: [string, 
 export function Sparkline({ valores, cor = "var(--accent)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
   const larg = 100;
   if (valores.length < 2) return <svg width="100%" height={altura} aria-hidden="true" />;
-  const min = Math.min(...valores);
+  // O zero entra no domínio. Com min–max puro, a escala se ajustava ao ruído:
+  // uma categoria oscilando 2% em torno da média desenhava a mesma montanha
+  // que uma que dobrou no período. Ao lado de um valor absoluto, isso é
+  // enganoso — a amplitude do traço passa a significar alguma coisa.
+  const min = Math.min(0, ...valores);
   const max = Math.max(...valores);
   const span = max - min || 1;
   const pts = valores.map((v, i) => {
@@ -391,6 +395,11 @@ export type FatiaDonut = { rotulo: string; valor: number; cor: string };
  *  é o que o redesign pede em "onde foi o variável". */
 export function BarrasRank({ fatias, total }: { fatias: FatiaDonut[]; total?: number }) {
   const max = Math.max(...fatias.map((f) => f.valor), 1);
+  // UM denominador. Com `total`, a barra mede a fatia e bate com o "· NN%" ao
+  // lado; sem ele, mede contra a maior e a leitura é de ranking.
+  // Antes a largura vinha sempre de `max` enquanto o rótulo dizia "% do total":
+  // a primeira barra era 100% da linha e o texto ao lado dizia 41%.
+  const base = total != null ? Math.max(total, max) : max;
   if (fatias.length === 0) return <p className="sub">Sem dados.</p>;
   return (
     <div className="legenda" style={{ gap: "0.7rem" }}>
@@ -406,83 +415,18 @@ export function BarrasRank({ fatias, total }: { fatias: FatiaDonut[]; total?: nu
               {total ? <span className="rank-pct"> · {Math.round((f.valor / Math.max(total, 1)) * 100)}%</span> : null}
             </span>
           </div>
-          <div className="progresso"><i style={{ width: `${(f.valor / max) * 100}%`, background: f.cor }} /></div>
+          <div className="progresso"><i style={{ width: `${(f.valor / base) * 100}%`, background: f.cor }} /></div>
         </div>
       ))}
     </div>
   );
 }
 
-/** Donut de distribuição por categoria: fatias com folga + cantos arredondados,
- *  hover interativo (fatia ↔ legenda) e centro dinâmico. */
-export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
-  const [ativo, setAtivo] = useState<number | null>(null);
-  const total = fatias.reduce((s, f) => s + f.valor, 0);
-  if (total === 0) return <p className="sub">Sem gastos no período.</p>;
-
-  const CX = 60, rMid = 46, W = 15, Whover = 19;
-  const C = 2 * Math.PI * rMid;
-  const gap = 2.5;                    // folga (px de arco) entre fatias
-  let acc = 0;
-  const segs = fatias.map((f, i) => {
-    const frac = f.valor / total;
-    const arco = frac * C;
-    const visivel = Math.max(arco - gap, arco > gap ? arco - gap : arco * 0.6);
-    const seg = { f, i, frac, offset: -acc * C, dash: `${visivel.toFixed(2)} ${(C - visivel).toFixed(2)}` };
-    acc += frac;
-    return seg;
-  });
-
-  const foco = ativo != null ? fatias[ativo] : null;
-  const pct = (v: number) => Math.round((v / total) * 100);
-
-  return (
-    <div style={{ display: "flex", gap: "1.25rem", alignItems: "center", flexWrap: "wrap" }}>
-      <svg width="150" height="150" viewBox="0 0 120 120" role="img"
-        aria-label={`Distribuição de despesas por categoria, total ${brl(total)}`}
-        onMouseLeave={() => setAtivo(null)}>
-        <title>Distribuição de despesas por categoria</title>
-        <g transform="rotate(-90 60 60)">
-          {segs.map((s) => (
-            <circle key={s.i} cx={CX} cy={CX} r={rMid} fill="none"
-              stroke={s.f.cor} strokeLinecap="round"
-              strokeWidth={ativo === s.i ? Whover : W}
-              strokeDasharray={s.dash} strokeDashoffset={s.offset.toFixed(2)}
-              opacity={ativo == null || ativo === s.i ? 1 : 0.38}
-              style={{ transition: "stroke-width var(--dur) var(--ease), opacity var(--dur) var(--ease)", cursor: "pointer" }}
-              onMouseEnter={() => setAtivo(s.i)}>
-              <title>{s.f.rotulo}: {brl(s.f.valor)} ({pct(s.f.valor)}%)</title>
-            </circle>
-          ))}
-        </g>
-        <text x="60" y="55" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" style={TEXTO_EIXO}>
-          {foco ? foco.rotulo : "Total"}
-        </text>
-        <text x="60" y="68" textAnchor="middle" fontSize="12" fill="var(--content)" style={TEXTO_EIXO} fontWeight="700">
-          {brl(foco ? foco.valor : total)}
-        </text>
-        {foco && (
-          <text x="60" y="79" textAnchor="middle" fontSize="8.5" fill="var(--content-3)" style={TEXTO_EIXO}>
-            {pct(foco.valor)}% do total
-          </text>
-        )}
-      </svg>
-      <ul className="legenda" style={{ flex: 1, minWidth: 170, listStyle: "none", margin: 0, padding: 0 }}>
-        {fatias.map((f, i) => (
-          <li key={i}>
-            <button type="button" className="item legenda-item" aria-pressed={ativo === i}
-              onMouseEnter={() => setAtivo(i)} onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)}
-              style={{ opacity: ativo == null || ativo === i ? 1 : 0.5 }}>
-              <span className="ponto" style={{ background: f.cor }} />
-              <span>{f.rotulo}</span>
-              <span className="pct">{pct(f.valor)}% · {brl(f.valor)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+/* O Donut foi removido aqui. Ele desenhava, em Análises, exatamente os mesmos
+   números que o ranking logo ao lado — e a própria Visão geral já argumentava
+   em comentário que "comparar arcos é mais difícil que comparar comprimentos".
+   Quem responde parte-todo agora é o `Fio` (components/Fio.tsx), que era uma
+   invenção deste app presa dentro do Dashboard. */
 
 /** Anel de progresso para metas. */
 export function ProgressRing({ pct, cor = "var(--positive)", tamanho = 72 }: { pct: number; cor?: string; tamanho?: number }) {
