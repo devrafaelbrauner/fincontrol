@@ -42,8 +42,8 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
       <div className="trilho-topo">
         <span className="trilho-rotulo">{rotulo}</span>
         {v != null && (
-          <span className="trilho-var num" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
-            {v >= 0 ? <IcSubiu /> : <IcDesceu />} {Math.abs(v).toFixed(1)}%
+          <span className="trilho-var num com-marca" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
+            {v >= 0 ? <IcSubiu /> : <IcDesceu />}{Math.abs(v).toFixed(1)}%
           </span>
         )}
       </div>
@@ -228,8 +228,8 @@ export default function Dashboard() {
               <ValorHero cents={atual.saldo_cents} />
             </span>
             {varSaldo != null && (
-              <span className={`chip-var ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
-                {varSaldo > 0 ? <IcSubiu /> : varSaldo < 0 ? <IcDesceu /> : <IcEstavel />} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+              <span className={`chip-var com-marca ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
+                {varSaldo > 0 ? <IcSubiu /> : varSaldo < 0 ? <IcDesceu /> : <IcEstavel />}{Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
               </span>
             )}
           </div>

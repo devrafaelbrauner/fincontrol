@@ -74,9 +74,13 @@ export const IcAlerta = base(<><path d="M12 3.5L2 20.5h20z" /><path d="M12 10v4.
  *
  *  Estas aparecem coladas a um número de 11–12px, e nesse tamanho o traço de
  *  1.5 do `base()` vira um borrão — o que se lê aqui é a direção, que se
- *  reconhece melhor pela silhueta sólida. O `vertical-align` embutido é o que
- *  faz a marca centrar na linha do número sem exigir CSS em cada lugar que a
- *  usa: SVG inline assenta na linha de base como se fosse letra. */
+ *  reconhece melhor pela silhueta sólida.
+ *
+ *  Quem usa uma marca deve pôr `.com-marca` no elemento que a contém junto do
+ *  número (ver `app.css`): SVG e número são caixas separadas, e no fluxo inline
+ *  o navegador quebra a linha entre os dois quando o espaço aperta. O
+ *  `vertical-align` aqui é só a rede de segurança para um uso solto, fora de um
+ *  `.com-marca` — dentro dele, quem centra é o `align-items` do flex. */
 function marca(d: React.ReactNode) {
   return function Marca({ titulo, ...props }: P) {
     return (

@@ -65,9 +65,9 @@ function LinhaComparativo({ rotulo, d, menosMelhor = false }: { rotulo: string; 
         {d.delta === 0 ? (
           <span className="pct">sem variação</span>
         ) : (
-          <span style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
-            {subiu ? <IcSubiu /> : <IcDesceu />} {brl(Math.abs(d.delta))}
-            {d.pct != null && <span className="pct" style={{ marginLeft: "0.35rem" }}>{d.pct > 0 ? "+" : ""}{d.pct}%</span>}
+          <span className="com-marca" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
+            {subiu ? <IcSubiu /> : <IcDesceu />}{brl(Math.abs(d.delta))}
+            {d.pct != null && <span className="pct">{d.pct > 0 ? "+" : ""}{d.pct}%</span>}
           </span>
         )}
       </td>
@@ -311,8 +311,8 @@ export default function Analises() {
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nome ?? "Sem categoria"}</span>
                       </span>
                       <Sparkline valores={t.valores} cor={cor} />
-                      <span className="pct num" title={`${brl(vAnterior)} no mês anterior`}>
-                        {brl(vAtual)}{vAtual !== vAnterior && <>{" "}{vAtual > vAnterior ? <IcSubiu /> : <IcDesceu />}</>}
+                      <span className="pct num com-marca" title={`${brl(vAnterior)} no mês anterior`}>
+                        {brl(vAtual)}{vAtual !== vAnterior && (vAtual > vAnterior ? <IcSubiu /> : <IcDesceu />)}
                       </span>
                     </div>
                   );

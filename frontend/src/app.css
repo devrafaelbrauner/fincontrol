@@ -712,6 +712,17 @@ tfoot td {
   white-space: nowrap;   /* obrigatório: sem isto o "R$" quebra sozinho */
 }
 .hero-cents { font-size: 32px; color: var(--content-3); }
+/* Marca de variação + o número que ela qualifica, numa linha só.
+   Flex, e não texto corrido, porque o SVG e o número são caixas separadas: no
+   fluxo inline o navegador pode quebrar entre os dois, e num contêiner apertado
+   — o chip do hero cabia em 99px e o conteúdo pedia 112 — quebrava mesmo,
+   jogando a marca para uma linha só dela, acima do número. Container flex não
+   quebra entre itens (`flex-wrap: nowrap` é o default), e o `white-space`
+   impede a quebra dentro do próprio texto. O `align-items` é o que centra o SVG
+   na altura do número: inline, ele assentaria na linha de base como se fosse
+   letra e ficaria alto. */
+.com-marca { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
+
 .chip-var {
   font: 500 12px var(--font-mono); padding: 3px 9px;
   border-radius: var(--radius-pill); border: 1px solid currentColor;
