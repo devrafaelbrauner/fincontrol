@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cadastrar, competenciaAtual, contaConfigurada, hojeISO, mensagemDeErro, paraCents } from "./api";
+import { abreviarBRL, cadastrar, competenciaAtual, contaConfigurada, hojeISO, mensagemDeErro, paraCents } from "./api";
 
 describe("paraCents", () => {
   it("converte formatos brasileiros para centavos", () => {
@@ -120,5 +120,38 @@ describe("mensagemDeErro", () => {
     expect(mensagemDeErro("Lançamento não encontrado", "Erro")).toBe("Lançamento não encontrado");
     expect(mensagemDeErro(undefined, "Bad Request")).toBe("Bad Request");
     expect(mensagemDeErro([], "Bad Request")).toBe("Bad Request");
+  });
+});
+
+describe("abreviarBRL", () => {
+  it("abrevia milhar e milhão em pt-BR", () => {
+    expect(abreviarBRL(120_000)).toBe("R$ 1,2 mil");
+    expect(abreviarBRL(1_250_000)).toBe("R$ 12,5 mil");
+    expect(abreviarBRL(150_000_000)).toBe("R$ 1,5 mi");
+  });
+
+  it("acima de 100 unidades, corta a casa decimal", () => {
+    // "R$ 125,4 mil" não cabe melhor que "R$ 125 mil" e não informa mais nada:
+    // num eixo, a ordem de grandeza é o que se lê.
+    expect(abreviarBRL(12_540_000)).toBe("R$ 125 mil");
+  });
+
+  it("abaixo de mil, sai por extenso e sem centavos", () => {
+    expect(abreviarBRL(95_000)).toBe("R$ 950");
+    expect(abreviarBRL(0)).toBe("R$ 0");
+  });
+
+  it("sem moeda, para o eixo, onde ela já foi dita na linha de leitura", () => {
+    // Medido na tela: com "R$", o rótulo "R$ 7,5 mil" não cabia na calha e
+    // saía cortado pela borda do viewBox.
+    expect(abreviarBRL(750_000, false)).toBe("7,5 mil");
+    expect(abreviarBRL(0, false)).toBe("0");
+    expect(abreviarBRL(-120_000, false)).toBe("-1,2 mil");
+  });
+
+  it("preserva o sinal", () => {
+    // O eixo do fluxo desce abaixo do zero quando o saldo é negativo.
+    expect(abreviarBRL(-120_000)).toBe("-R$ 1,2 mil");
+    expect(abreviarBRL(-95_000)).toBe("-R$ 950");
   });
 });

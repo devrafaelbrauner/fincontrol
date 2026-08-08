@@ -1,5 +1,5 @@
-import { useId, useState } from "react";
-import { brl } from "../api";
+import { ReactNode, useEffect, useId, useRef, useState } from "react";
+import { abreviarBRL, brl } from "../api";
 
 /** Paleta categórica — os valores moram nos tokens --chart-* do app.css, que é
  *  onde estão os comentários sobre o que ela precisa cumprir. Ao mexer nas
@@ -118,6 +118,73 @@ export function dobrarEmOutros(fatias: FatiaDonut[], limite = PALETA_SERIES.leng
   return [...topo, { rotulo: ROTULO_DEMAIS, valor: resto, cor: COR_SEM_CATEGORIA }];
 }
 
+/** Largura real do contêiner, para o viewBox ter 1 unidade = 1 pixel.
+ *
+ *  O viewBox era fixo em 640 e o SVG escalava para caber. Num celular de 390px
+ *  isso encolhia tudo junto: o rótulo do eixo, declarado com 10px, era
+ *  desenhado a ~5,5px reais. Foi assim que apareceu na captura do Android —
+ *  ilegível. Medindo, o texto tem o tamanho que diz ter em qualquer tela. */
+function useLargura() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [largura, setLargura] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setLargura(e.contentRect.width));
+    ro.observe(el);
+    setLargura(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, largura };
+}
+
+/** Marcas de eixo em passos redondos (1, 2, 2,5 ou 5 × 10ⁿ).
+ *
+ *  Dividir o intervalo em partes iguais poria "R$ 3.847" no eixo, que não
+ *  ajuda a estimar nada; número redondo é o que se lê de relance. */
+export function ticksBonitos(min: number, max: number, alvo = 3): number[] {
+  if (!(max > min)) return [min];
+  const bruto = (max - min) / alvo;
+  const mag = 10 ** Math.floor(Math.log10(bruto));
+  const passo = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((p) => p >= bruto) ?? 10 * mag;
+  const marcas: number[] = [];
+  for (let v = Math.ceil(min / passo) * passo; v <= max + passo * 1e-9; v += passo) marcas.push(Math.round(v));
+  return marcas;
+}
+
+/** Barra com as pontas de cima arredondadas e a base reta.
+ *  O `rx` do <rect> arredondava os quatro cantos, e canto redondo embaixo
+ *  descola a barra da linha do zero, que é justamente de onde ela se mede. */
+function caminhoBarra(x: number, y: number, w: number, h: number, r = 3) {
+  if (h <= 0.5) return "";
+  const raio = Math.min(r, w / 2, h);
+  return `M${x},${y + h} L${x},${y + raio} Q${x},${y} ${x + raio},${y} `
+    + `L${x + w - raio},${y} Q${x + w},${y} ${x + w},${y + raio} L${x + w},${y + h} Z`;
+}
+
+/** A linha de leitura: rótulo do ponto em foco e os valores dele.
+ *
+ *  Substitui o balão que ficava preso em `top: 6, left: 8` — com o ponteiro no
+ *  penúltimo mês, o valor aparecia do outro lado do gráfico. E, por depender de
+ *  `onMouseEnter`, ele simplesmente não existia no Android.
+ *
+ *  Aqui a leitura mora fora do desenho, não cobre nada, e mostra o último mês
+ *  quando não há ponteiro nenhum — então há sempre um valor para ler, mesmo
+ *  sem mouse. Também dispensa a legenda separada: o ponto colorido ao lado do
+ *  nome já faz esse trabalho. */
+function LeituraGrafico({ rotulo, itens }: { rotulo: ReactNode; itens: [string, string, number][] }) {
+  return (
+    <div className="leitura-grafico" aria-live="polite">
+      <span className="eyebrow">{rotulo}</span>
+      {itens.map(([nome, cor, valor]) => (
+        <span key={nome} className="leitura-item">
+          <i style={{ background: cor }} />{nome} <b className="num">{brl(valor)}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Sparkline minimalista (linha) sobre uma série de valores. */
 export function Sparkline({ valores, cor = "var(--accent)", altura = 34 }: { valores: number[]; cor?: string; altura?: number }) {
   const larg = 100;
@@ -147,64 +214,106 @@ export function Sparkline({ valores, cor = "var(--accent)", altura = 34 }: { val
 
 export type SerieMes = { rotulo: string; entradas: number; despesas: number; saldo: number };
 
+// Medidas comuns aos dois gráficos. A esquerda é larga porque é onde mora o
+// rótulo do eixo Y; a base, porque é onde ficam os meses.
+const H = 240, PAD_TOPO = 14, PAD_BASE = 26, PAD_DIR = 10;
+
+/** Largura da calha do eixo Y, a partir do rótulo mais largo que vai nela.
+ *
+ *  Foi fixa em 58 e depois em 46, e cortou nas duas: "R$ 7,5 mil" estourava a
+ *  primeira, e "7,5 mil" ainda estourava a segunda num celular. Adivinhar o
+ *  número não funciona porque o texto muda com a escala — "-12,5 mil" é quase
+ *  o dobro de "0". A JetBrains Mono tem avanço fixo de 0.6em, então a largura
+ *  é contável: 6px por caractere a 10px, mais folga dos dois lados. */
+function calhaY(marcas: number[]): number {
+  const maior = Math.max(...marcas.map((v) => abreviarBRL(v, false).length));
+  return Math.ceil(maior * 6.2) + 14;
+}
+
 /** Gráfico de fluxo (área/linha) com receitas, despesas e saldo acumulado. */
 export function AreaChart({ dados, modo = "area" }: { dados: SerieMes[]; modo?: "area" | "linha" }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 240, padY = 18, padX = 8;
-  if (dados.length < 2) return <p className="sub">Poucos dados para o gráfico.</p>;
+  const { ref, largura } = useLargura();
+  // Todos os hooks antes de qualquer return: o `useId` ficava DEPOIS da saída
+  // por "poucos dados", então uma série que cruzasse esse limiar mudava a
+  // ordem dos hooks entre renders — erro do React esperando para acontecer.
+  const idFill = useId();
 
-  const todos = dados.flatMap((d) => [d.entradas, d.despesas, d.saldo]);
-  const min = Math.min(0, ...todos);
-  const max = Math.max(...todos, 1);
-  const span = max - min || 1;
-  const x = (i: number) => padX + (i / (dados.length - 1)) * (W - padX * 2);
-  const y = (v: number) => H - padY - ((v - min) / span) * (H - padY * 2);
-
-  const serie = (sel: (d: SerieMes) => number) => dados.map((d, i) => `${x(i).toFixed(1)},${y(sel(d)).toFixed(1)}`).join(" ");
   const linhas: [string, string, (d: SerieMes) => number][] = [
     ["Receitas", "var(--positive)", (d) => d.entradas],
     ["Despesas", "var(--negative)", (d) => d.despesas],
     ["Saldo", "var(--accent)", (d) => d.saldo],
   ];
-  const idFill = useId();
+  const foco = dados.length ? dados[hover ?? dados.length - 1] : null;
 
-  return (
-    <div style={{ position: "relative" }}>
+  const conteudo = () => {
+    if (dados.length < 2) return <p className="sub">Poucos dados para o gráfico.</p>;
+    if (largura === 0) return <div style={{ height: H }} />;   // antes da medição
+
+    const W = largura;
+    const todos = dados.flatMap((d) => [d.entradas, d.despesas, d.saldo]);
+    const min = Math.min(0, ...todos);
+    const max = Math.max(...todos, 1);
+    const span = max - min || 1;
+    const marcas = ticksBonitos(min, max, 4);
+    const PAD_ESQ = calhaY(marcas);
+    const x = (i: number) => PAD_ESQ + (i / (dados.length - 1)) * (W - PAD_ESQ - PAD_DIR);
+    const y = (v: number) => H - PAD_BASE - ((v - min) / span) * (H - PAD_BASE - PAD_TOPO);
+    const serie = (sel: (d: SerieMes) => number) => dados.map((d, i) => `${x(i).toFixed(1)},${y(sel(d)).toFixed(1)}`).join(" ");
+    const passo = Math.max(1, Math.ceil(dados.length / Math.floor((W - PAD_ESQ - PAD_DIR) / 52)));
+
+    return (
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img"
         aria-label="Gráfico de receitas, despesas e saldo por mês"
         onMouseLeave={() => setHover(null)}>
         <defs>
           <linearGradient id={idFill} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.14" />
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.10" />
             <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {/* Sólida: tracejado lê como "projeção" ou "limiar", e isto é só o zero. */}
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" />
+        {/* Grade recessiva: um tom acima da superfície, sólida. A do zero é a
+            régua forte, porque é a única que significa alguma coisa. */}
+        {marcas.map((v) => (
+          <g key={v}>
+            <line x1={PAD_ESQ} y1={y(v)} x2={W - PAD_DIR} y2={y(v)} stroke={v === 0 ? "var(--edge)" : "var(--rule-soft)"} />
+            <text x={PAD_ESQ - 8} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>
+              {abreviarBRL(v, false)}
+            </text>
+          </g>
+        ))}
         {modo === "area" && (
           <polygon points={`${x(0)},${y(0)} ${serie((d) => d.saldo)} ${x(dados.length - 1)},${y(0)}`} fill={`url(#${idFill})`} />
         )}
         {linhas.map(([, cor, sel]) => (
-          <polyline key={cor} points={serie(sel)} fill="none" stroke={cor} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline key={cor} points={serie(sel)} fill="none" stroke={cor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         ))}
         {dados.map((d, i) => (
           <g key={i}>
-            {hover === i && <line x1={x(i)} y1={padY} x2={x(i)} y2={H - padY} stroke="var(--edge-strong)" />}
-            {linhas.map(([, cor, sel]) => hover === i && <circle key={cor} cx={x(i)} cy={y(sel(d))} r="3.2" fill={cor} />)}
-            <rect x={x(i) - (W / dados.length) / 2} y="0" width={W / dados.length} height={H} fill="transparent"
-              onMouseEnter={() => setHover(i)} />
-            <text x={x(i)} y={H - 3} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
+            {hover === i && <line x1={x(i)} y1={PAD_TOPO} x2={x(i)} y2={H - PAD_BASE} stroke="var(--edge-strong)" />}
+            {linhas.map(([, cor, sel]) => hover === i && (
+              // Anel da cor da superfície: separa os pontos quando duas séries
+              // se cruzam, sem desenhar borda em volta da marca.
+              <circle key={cor} cx={x(i)} cy={y(sel(d))} r="3.5" fill={cor} stroke="var(--page)" strokeWidth="2" />
+            ))}
+            <rect x={x(i) - (W - PAD_ESQ - PAD_DIR) / dados.length / 2} y="0"
+              width={(W - PAD_ESQ - PAD_DIR) / dados.length} height={H} fill="transparent"
+              onMouseEnter={() => setHover(i)} onPointerDown={() => setHover(i)} />
+            {(dados.length - 1 - i) % passo === 0 && (
+              <text x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
+            )}
           </g>
         ))}
       </svg>
-      {hover !== null && (
-        <div className="pop" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontSize: "0.78rem", pointerEvents: "none" }}>
-          <strong>{dados[hover].rotulo}</strong>
-          <div style={{ color: "var(--positive)" }}>Receitas {brl(dados[hover].entradas)}</div>
-          <div style={{ color: "var(--negative)" }}>Despesas {brl(dados[hover].despesas)}</div>
-          <div style={{ color: "var(--accent)" }}>Saldo {brl(dados[hover].saldo)}</div>
-        </div>
+    );
+  };
+
+  return (
+    <div ref={ref}>
+      {foco && dados.length >= 2 && (
+        <LeituraGrafico rotulo={foco.rotulo} itens={linhas.map(([nome, cor, sel]) => [nome, cor, sel(foco)])} />
       )}
+      {conteudo()}
     </div>
   );
 }
@@ -214,44 +323,63 @@ export type BarraMes = { rotulo: string; entradas: number; gastos: number };
 /** Barras agrupadas: entradas (verde) × gastos (vermelho) por mês. */
 export function BarChart({ dados }: { dados: BarraMes[] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 240, padY = 22, padX = 12;
-  if (dados.length === 0) return <p className="sub">Sem dados no período.</p>;
-  const max = Math.max(...dados.flatMap((d) => [d.entradas, d.gastos]), 1);
-  const y = (v: number) => H - padY - (v / max) * (H - padY * 2);
-  const grupoW = (W - padX * 2) / dados.length;
-  const barW = Math.min(22, grupoW / 3);
-  // ~7 rótulos cabem sem encostar na largura de referência do viewBox.
-  const passo = Math.max(1, Math.ceil(dados.length / 7));
+  const { ref, largura } = useLargura();
+  const foco = dados.length ? dados[hover ?? dados.length - 1] : null;
 
-  return (
-    <div style={{ position: "relative" }}>
+  const conteudo = () => {
+    if (dados.length === 0) return <p className="sub">Sem dados no período.</p>;
+    if (largura === 0) return <div style={{ height: H }} />;
+
+    const W = largura;
+    const max = Math.max(...dados.flatMap((d) => [d.entradas, d.gastos]), 1);
+    const marcas = ticksBonitos(0, max, 4);
+    const PAD_ESQ = calhaY(marcas);
+    const y = (v: number) => H - PAD_BASE - (v / max) * (H - PAD_BASE - PAD_TOPO);
+    const grupoW = (W - PAD_ESQ - PAD_DIR) / dados.length;
+    // 2px de folga da cor da superfície entre as barras do par, em vez de
+    // borda: as duas se separam sem ganhar contorno.
+    const barW = Math.max(2, Math.min(22, grupoW / 2 - 3));
+    // Quantos rótulos cabem de fato, pela largura medida — a régua de 12 era
+    // fixa e não sabia se estava num monitor ou num celular.
+    const passo = Math.max(1, Math.ceil(dados.length / Math.max(2, Math.floor((W - PAD_ESQ - PAD_DIR) / 52))));
+
+    return (
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Entradas e gastos por mês" onMouseLeave={() => setHover(null)}>
-        <line x1={padX} y1={y(0)} x2={W - padX} y2={y(0)} stroke="var(--edge)" />
+        {marcas.map((v) => (
+          <g key={v}>
+            <line x1={PAD_ESQ} y1={y(v)} x2={W - PAD_DIR} y2={y(v)} stroke={v === 0 ? "var(--edge)" : "var(--rule-soft)"} />
+            <text x={PAD_ESQ - 8} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>
+              {abreviarBRL(v, false)}
+            </text>
+          </g>
+        ))}
         {dados.map((d, i) => {
-          const cx = padX + grupoW * i + grupoW / 2;
+          const cx = PAD_ESQ + grupoW * i + grupoW / 2;
+          const opacidade = hover === null || hover === i ? 1 : 0.45;
           return (
-            <g key={i} onMouseEnter={() => setHover(i)}>
-              <rect x={cx - barW - 2} y={y(d.entradas)} width={barW} height={y(0) - y(d.entradas)} rx="4" fill="var(--positive)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              <rect x={cx + 2} y={y(d.gastos)} width={barW} height={y(0) - y(d.gastos)} rx="4" fill="var(--negative)" opacity={hover === null || hover === i ? 1 : 0.5} />
-              {/* Série longa: mostra um a cada `passo`, ancorado no último, que
-                  é o mês selecionado e não pode ficar sem nome.
-                  O limite era 12 e foi medido na tela: com a JetBrains Mono, que
-                  é mais larga que a sans que estava aqui antes, "set. 25" ocupa
-                  quase toda a fatia de 12 meses e os rótulos encostam. */}
+            <g key={i} onMouseEnter={() => setHover(i)} onPointerDown={() => setHover(i)}>
+              <rect x={PAD_ESQ + grupoW * i} y={PAD_TOPO} width={grupoW} height={H - PAD_TOPO - PAD_BASE} fill="transparent" />
+              <path d={caminhoBarra(cx - barW - 1, y(d.entradas), barW, y(0) - y(d.entradas))} fill="var(--positive)" opacity={opacidade} />
+              <path d={caminhoBarra(cx + 1, y(d.gastos), barW, y(0) - y(d.gastos))} fill="var(--negative)" opacity={opacidade} />
               {(dados.length - 1 - i) % passo === 0 && (
-                <text x={cx} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
+                <text x={cx} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--content-3)" style={TEXTO_EIXO}>{d.rotulo}</text>
               )}
             </g>
           );
         })}
       </svg>
-      {hover !== null && (
-        <div className="pop" style={{ position: "absolute", top: 6, left: 8, padding: "0.5rem 0.7rem", fontSize: "0.78rem", pointerEvents: "none" }}>
-          <strong>{dados[hover].rotulo}</strong>
-          <div style={{ color: "var(--positive)" }}>Entradas {brl(dados[hover].entradas)}</div>
-          <div style={{ color: "var(--negative)" }}>Gastos {brl(dados[hover].gastos)}</div>
-        </div>
+    );
+  };
+
+  return (
+    <div ref={ref}>
+      {foco && (
+        <LeituraGrafico rotulo={foco.rotulo} itens={[
+          ["Entradas", "var(--positive)", foco.entradas],
+          ["Gastos", "var(--negative)", foco.gastos],
+        ]} />
       )}
+      {conteudo()}
     </div>
   );
 }
