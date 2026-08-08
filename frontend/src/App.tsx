@@ -9,6 +9,20 @@ import {
   IcMetas, IcRecolher, IcRecursos, IcSair, IcSol, IcVariaveis, IcVisao,
 } from "./components/icones";
 import { useCompetencia } from "./estado";
+
+/** Rótulo do atalho da busca, decidido pela plataforma.
+ *
+ *  O chip mostrava `⌘K` em todo lugar enquanto o `title` dizia "Ctrl+K" — os
+ *  dois não podiam estar certos ao mesmo tempo, e fora do Mac o errado era o que
+ *  aparecia na tela. O handler sempre aceitou as duas teclas (`metaKey ||
+ *  ctrlKey`); o que faltava era o rótulo acompanhar.
+ *
+ *  Isso também resolve a fonte: U+2318 não está em subset nenhum que o app
+ *  carrega, então dependia do fallback do aparelho. Onde ele agora aparece — as
+ *  plataformas Apple — o símbolo vem da fonte do sistema e é exatamente o que a
+ *  pessoa espera ver; nas demais ele some junto com o engano. */
+const TECLA_BUSCA =
+  typeof navigator !== "undefined" && /mac|iphone|ipad|ipod/i.test(navigator.userAgent) ? "⌘K" : "Ctrl+K";
 import { definirOrdem, useOrdem } from "./ordem";
 import { useTema } from "./tema";
 import Analises from "./pages/Analises";
@@ -204,8 +218,8 @@ export default function App() {
             {/* Chip em vez de lupa: o atalho é o caminho principal, e mostrá-lo
                 escrito é o que ensina que ele existe. */}
             <button className="chip-atalho" onClick={() => setBuscaAberta(true)}
-              aria-label="Buscar em tudo" title="Buscar em tudo (Ctrl+K)">
-              <IcBusca /><span className="chip-atalho-tecla num">⌘K</span>
+              aria-label="Buscar em tudo" title={`Buscar em tudo (${TECLA_BUSCA})`}>
+              <IcBusca /><span className="chip-atalho-tecla num">{TECLA_BUSCA}</span>
             </button>
             <button className="btn btn-primario" onClick={() => setAddAberto(true)}>
               <IcMais /><span className="btn-adicionar-texto">Transação</span>

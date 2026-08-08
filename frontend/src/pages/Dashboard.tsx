@@ -5,7 +5,7 @@ import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
 import { Fio } from "../components/Fio";
 import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
-import { IcExtrair, IcMetas } from "../components/icones";
+import { IcDesceu, IcEstavel, IcExtrair, IcMetas, IcSubiu } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
 type Dash = {
@@ -43,7 +43,7 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
         <span className="trilho-rotulo">{rotulo}</span>
         {v != null && (
           <span className="trilho-var num" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
-            {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(1)}%
+            {v >= 0 ? <IcSubiu /> : <IcDesceu />} {Math.abs(v).toFixed(1)}%
           </span>
         )}
       </div>
@@ -229,7 +229,7 @@ export default function Dashboard() {
             </span>
             {varSaldo != null && (
               <span className={`chip-var ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
-                {varSaldo > 0 ? "▲" : varSaldo < 0 ? "▼" : "•"} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+                {varSaldo > 0 ? <IcSubiu /> : varSaldo < 0 ? <IcDesceu /> : <IcEstavel />} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
               </span>
             )}
           </div>

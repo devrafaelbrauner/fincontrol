@@ -66,3 +66,39 @@ export const IcEditar = base(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0
 // iguais não dizem "todas as parcelas". Aqui as três linhas empilhadas são as
 // parcelas e o × ao lado é o que acontece com elas.
 export const IcExcluirSerie = base(<><rect x="3" y="4" width="9" height="3" rx="1" /><rect x="3" y="10.5" width="9" height="3" rx="1" /><rect x="3" y="17" width="9" height="3" rx="1" /><path d="M16 9.5l5.5 5.5M21.5 9.5L16 15" /></>);
+
+export const IcOk = base(<path d="M4.5 12.5l5 5L19.5 7" />);
+export const IcAlerta = base(<><path d="M12 3.5L2 20.5h20z" /><path d="M12 10v4.5" /><path d="M12 17.6h.01" /></>);
+
+/** Marcas de variação: massa cheia, não contorno, e num viewBox próprio.
+ *
+ *  Estas aparecem coladas a um número de 11–12px, e nesse tamanho o traço de
+ *  1.5 do `base()` vira um borrão — o que se lê aqui é a direção, que se
+ *  reconhece melhor pela silhueta sólida. O `vertical-align` embutido é o que
+ *  faz a marca centrar na linha do número sem exigir CSS em cada lugar que a
+ *  usa: SVG inline assenta na linha de base como se fosse letra. */
+function marca(d: React.ReactNode) {
+  return function Marca({ titulo, ...props }: P) {
+    return (
+      <svg
+        width="9" height="9" viewBox="0 0 12 12" fill="currentColor"
+        style={{ verticalAlign: "0.02em", flexShrink: 0 }}
+        aria-hidden={titulo ? undefined : true} role={titulo ? "img" : undefined}
+        {...props}
+      >
+        {titulo && <title>{titulo}</title>}
+        {d}
+      </svg>
+    );
+  };
+}
+
+// Eram `▲` (U+25B2) e `▼` (U+25BC), com `•` (U+2022) no caso sem variação. Os
+// dois triângulos caem fora de todo subset carregado — e como vivem dentro de
+// `.num`/`.chip-var`, que pedem JetBrains Mono, o fallback os desenhava com
+// outro peso ao lado do próprio número que eles qualificam. O `•` renderizava
+// (U+2022 está em U+2000–206F), mas virou traço junto: os três são o mesmo
+// controle, e um deles fora do conjunto destoaria.
+export const IcSubiu = marca(<path d="M6 2L11 9.5H1z" />);
+export const IcDesceu = marca(<path d="M6 10L1 2.5h10z" />);
+export const IcEstavel = marca(<rect x="1" y="5" width="10" height="2" rx="1" />);

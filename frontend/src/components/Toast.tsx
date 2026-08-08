@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useState } from "react";
+import { IcAlerta, IcOk } from "./icones";
 
 type Tipo = "ok" | "erro";
 type Item = { id: number; tipo: Tipo; texto: string };
@@ -22,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div className="toasts" aria-live="polite" aria-atomic="false">
         {itens.map((t) => (
           <div key={t.id} className={`toast ${t.tipo}`} role="status">
-            <span>{t.tipo === "ok" ? "✓" : "⚠"}</span>
+            {t.tipo === "ok" ? <IcOk width={18} height={18} /> : <IcAlerta width={18} height={18} />}
             <span>{t.texto}</span>
           </div>
         ))}

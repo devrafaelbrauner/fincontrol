@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, paraCents } from "../api";
 import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { Fio } from "../components/Fio";
-import { IcFechar } from "../components/icones";
+import { IcDesceu, IcFechar, IcSubiu } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import {
@@ -66,7 +66,7 @@ function LinhaComparativo({ rotulo, d, menosMelhor = false }: { rotulo: string; 
           <span className="pct">sem variação</span>
         ) : (
           <span style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
-            {subiu ? "▲" : "▼"} {brl(Math.abs(d.delta))}
+            {subiu ? <IcSubiu /> : <IcDesceu />} {brl(Math.abs(d.delta))}
             {d.pct != null && <span className="pct" style={{ marginLeft: "0.35rem" }}>{d.pct > 0 ? "+" : ""}{d.pct}%</span>}
           </span>
         )}
@@ -312,7 +312,7 @@ export default function Analises() {
                       </span>
                       <Sparkline valores={t.valores} cor={cor} />
                       <span className="pct num" title={`${brl(vAnterior)} no mês anterior`}>
-                        {brl(vAtual)}{vAtual !== vAnterior && (vAtual > vAnterior ? " ▲" : " ▼")}
+                        {brl(vAtual)}{vAtual !== vAnterior && <>{" "}{vAtual > vAnterior ? <IcSubiu /> : <IcDesceu />}</>}
                       </span>
                     </div>
                   );

@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { api, cadastrar, contaConfigurada, login } from "../api";
 import Logo from "../components/Logo";
+import { IcOk } from "../components/icones";
 
 type Modo = "carregando" | "login" | "login-mfa" | "cadastro" | "mfa-qr";
 
@@ -260,7 +261,7 @@ export default function Login() {
             <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.2rem" }}>
               {REGRAS.map((r) => (
                 <span key={r.rotulo} className={`chip${r.ok(novaSenha) ? " ok" : ""}`}>
-                  {r.ok(novaSenha) ? "✓ " : ""}{r.rotulo}
+                  {r.ok(novaSenha) && <IcOk width={13} height={13} />}{r.rotulo}
                 </span>
               ))}
             </div>
