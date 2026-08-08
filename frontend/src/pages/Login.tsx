@@ -243,7 +243,7 @@ export default function Login() {
             <input id="c-nome" value={nome} onChange={(e) => setNome(e.target.value)} required autoFocus autoComplete="name" />
           </div>
           <div className="campo">
-            <label htmlFor="c-tel">Telefone <span style={{ color: "#9aa3b2", fontWeight: 500 }}>(opcional)</span></label>
+            <label htmlFor="c-tel">Telefone <span style={{ color: "var(--content-3)", fontWeight: 500 }}>(opcional)</span></label>
             <input id="c-tel" type="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} autoComplete="tel" />
           </div>
           <div className="campo">
