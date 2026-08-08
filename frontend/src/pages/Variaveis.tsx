@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, brl } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
-import { IcBusca, IcExportar, IcExtrair, IcVariaveis } from "../components/icones";
+import { IcBusca, IcExcluirSerie, IcExportar, IcExtrair, IcFechar, IcVariaveis } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import ValorHero from "../components/ValorHero";
@@ -192,10 +192,10 @@ export default function Variaveis() {
                   <td style={{ whiteSpace: "nowrap" }}>
                     <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)}
                       aria-label={i.parcelamento_id != null ? "Excluir esta parcela" : "Excluir"}
-                      title={i.parcelamento_id != null ? "Excluir só esta parcela" : "Excluir"}>×</button>
+                      title={i.parcelamento_id != null ? "Excluir só esta parcela" : "Excluir"}><IcFechar /></button>
                     {i.parcelamento_id != null && (
                       <button className="btn btn-icone btn-perigo" onClick={() => excluirParcelamento(i)}
-                        aria-label="Excluir a compra parcelada inteira" title="Excluir a compra parcelada inteira (todas as parcelas)">⨯⨯</button>
+                        aria-label="Excluir a compra parcelada inteira" title="Excluir a compra parcelada inteira (todas as parcelas)"><IcExcluirSerie /></button>
                     )}
                   </td>
                 </tr>

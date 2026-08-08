@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, paraCents } from "../api";
 import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { Fio } from "../components/Fio";
+import { IcFechar } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import {
@@ -353,7 +354,7 @@ export default function Analises() {
                   <span className="ponto" style={{ background: corOrcamento(pct) }} />
                   <span>{o.nome}</span>
                   <span className="pct num">{brl(o.gasto_cents)} de {brl(o.limite_cents)} · {Math.round(pct)}%</span>
-                  <button className="anexo-remover" onClick={() => removerOrcamento(o)} aria-label={`Remover orçamento de ${o.nome}`}>×</button>
+                  <button className="anexo-remover" onClick={() => removerOrcamento(o)} aria-label={`Remover orçamento de ${o.nome}`}><IcFechar width={15} height={15} /></button>
                 </div>
                 <div className="progresso"><i style={{ width: `${Math.min(pct, 100)}%`, background: corOrcamento(pct) }} /></div>
               </div>
@@ -394,7 +395,7 @@ export default function Analises() {
                 onClick={() => setEditandoCor(editandoCor === c.id ? null : c.id)} />
               {c.nome}
               <span className="pct" style={{ marginLeft: 0 }}>({c.tipo})</span>
-              <button className="anexo-remover" onClick={() => desativar(c.id)} aria-label={`Desativar ${c.nome}`}>×</button>
+              <button className="anexo-remover" onClick={() => desativar(c.id)} aria-label={`Desativar ${c.nome}`}><IcFechar width={15} height={15} /></button>
             </span>
           ))}
         </div>

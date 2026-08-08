@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, paraCents } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
+import { IcEditar, IcFechar } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -124,8 +125,8 @@ export default function ContasFixas() {
                     <button className={`btn ${l.status === "pago" ? "" : "btn-primario"}`} onClick={() => alternarPago(l)}>
                       {l.status === "pago" ? "Desfazer" : "Pagar"}
                     </button>
-                    <button className="btn btn-icone" onClick={() => setEdicao({ conta_id: l.conta_fixa_id, nome: l.nome, dia: String(l.dia_vencimento), valor: (l.valor_cents / 100).toFixed(2).replace(".", ",") })} aria-label="Editar conta" title="Editar">✎</button>
-                    <button className="btn btn-icone btn-perigo" onClick={() => excluirConta(l)} aria-label="Excluir conta" title="Excluir">×</button>
+                    <button className="btn btn-icone" onClick={() => setEdicao({ conta_id: l.conta_fixa_id, nome: l.nome, dia: String(l.dia_vencimento), valor: (l.valor_cents / 100).toFixed(2).replace(".", ",") })} aria-label="Editar conta" title="Editar"><IcEditar /></button>
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluirConta(l)} aria-label="Excluir conta" title="Excluir"><IcFechar /></button>
                   </td>
                 </tr>
               ))}

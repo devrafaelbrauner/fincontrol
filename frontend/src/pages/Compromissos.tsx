@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, hojeISO, paraCents } from "../api";
-import { IcCompromissos, IcMais } from "../components/icones";
+import { IcArquivar, IcCompromissos, IcEditar, IcFechar, IcMais, IcReativar } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
@@ -260,7 +260,7 @@ export default function Compromissos() {
         <div className="card insights-sugestao" style={{ marginTop: "0.75rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
             <strong>Ordem sugerida pela IA</strong>
-            <button className="btn btn-icone" onClick={() => setPrioridade(null)} aria-label="Fechar sugestão">×</button>
+            <button className="btn btn-icone" onClick={() => setPrioridade(null)} aria-label="Fechar sugestão"><IcFechar /></button>
           </div>
           {prioridade.resumo && <p style={{ whiteSpace: "pre-line" }}>{prioridade.resumo}</p>}
           <ol style={{ margin: "0.5rem 0 0 1.1rem", padding: 0 }}>
@@ -303,9 +303,9 @@ export default function Compromissos() {
                     {c.credor && <div className="sub" style={{ fontSize: "0.8rem" }}>para {c.credor}</div>}
                   </div>
                   <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
-                    <button className="btn btn-icone" onClick={() => abrirForm(c)} aria-label={`Editar ${c.nome}`} title="Editar">✎</button>
-                    <button className="btn btn-icone" onClick={() => arquivar(c)} aria-label={c.ativo ? `Arquivar ${c.nome}` : `Reativar ${c.nome}`} title={c.ativo ? "Arquivar" : "Reativar"}>{c.ativo ? "⌷" : "↺"}</button>
-                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(c)} aria-label={`Excluir ${c.nome}`} title="Excluir">×</button>
+                    <button className="btn btn-icone" onClick={() => abrirForm(c)} aria-label={`Editar ${c.nome}`} title="Editar"><IcEditar /></button>
+                    <button className="btn btn-icone" onClick={() => arquivar(c)} aria-label={c.ativo ? `Arquivar ${c.nome}` : `Reativar ${c.nome}`} title={c.ativo ? "Arquivar" : "Reativar"}>{c.ativo ? <IcArquivar /> : <IcReativar />}</button>
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(c)} aria-label={`Excluir ${c.nome}`} title="Excluir"><IcFechar /></button>
                   </div>
                 </div>
 

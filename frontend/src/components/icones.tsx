@@ -48,3 +48,21 @@ export const IcMenu = base(<><path d="M4 6h16M4 12h16M4 18h16" /></>);
 export const IcExportar = base(<><path d="M12 3v12M8 11l4 4 4-4" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></>);
 export const IcImportar = base(<><path d="M12 15V3M8 7l4-4 4 4" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></>);
 export const IcTag = base(<><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V5a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.5" /></>);
+// Estes três vinham como caractere solto no meio do JSX: `✎` (U+270E), `⌷`
+// (U+2337, um símbolo de APL) e `↺` (U+21BA). Nenhum deles está em subset algum
+// que o app carrega — dá para conferir nos `unicode-range` do
+// `@fontsource-variable/ibm-plex-sans/index.css`, que param na pontuação geral
+// (U+2000–206F) e listam só U+2191/U+2193 de setas. Quem os desenha é a fonte de
+// fallback do aparelho: outro tipo, outro peso, outra métrica ao lado de ícones
+// SVG — e quadrado vazio onde o fallback de símbolos é magro. Como SVG, o traço
+// é o mesmo em todo lugar e não depende de qual fonte o app usa hoje (já mudou
+// três vezes). O `×` de excluir era a exceção legítima: U+00D7 é Latin-1 e vem
+// na fonte — trocado junto só pela consistência de traço com os vizinhos.
+export const IcArquivar = base(<><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></>);
+export const IcReativar = base(<><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></>);
+export const IcEditar = base(<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>);
+// "Excluir a compra parcelada inteira", que era `⨯⨯` (U+2A2F duplicado, produto
+// vetorial) — mesmo problema dos de cima, e ainda por cima ilegível: dois sinais
+// iguais não dizem "todas as parcelas". Aqui as três linhas empilhadas são as
+// parcelas e o × ao lado é o que acontece com elas.
+export const IcExcluirSerie = base(<><rect x="3" y="4" width="9" height="3" rx="1" /><rect x="3" y="10.5" width="9" height="3" rx="1" /><rect x="3" y="17" width="9" height="3" rx="1" /><path d="M16 9.5l5.5 5.5M21.5 9.5L16 15" /></>);

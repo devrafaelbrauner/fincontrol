@@ -1077,7 +1077,10 @@ tfoot td {
 }
 .anexo-upload:hover, .anexo-link:hover { border-color: var(--accent); }
 .anexo-link { border-style: solid; }
-.anexo-remover { cursor: pointer; background: none; border: none; color: var(--negative); font-size: 1rem; padding: 0 0.2rem; }
+/* Alinhamento por flex, não pela linha de base do texto: o conteúdo virou SVG
+   (era o caractere ×), e SVG inline assenta na baseline como se fosse letra —
+   fica alguns pixels acima do centro do rótulo ao lado. */
+.anexo-remover { cursor: pointer; background: none; border: none; color: var(--negative); padding: 0 0.2rem; display: inline-flex; align-items: center; }
 
 /* Legenda de donut */
 .legenda { display: flex; flex-direction: column; gap: 0.5rem; }
