@@ -310,20 +310,38 @@ def interpretar_transacao(db: sqlite3.Connection, texto: str, hoje: str, categor
     return chamar_json(db, mensagens, max_tokens=300)
 
 
-def perguntar(db: sqlite3.Connection, pergunta: str, contexto: str) -> str:
-    """Assistente: responde sobre as finanças do usuário usando agregados reais como contexto."""
+def perguntar(db: sqlite3.Connection, pergunta: str, contexto: str,
+              historico: list[dict] | None = None) -> str:
+    """Assistente: responde usando agregados reais como contexto, e o que já foi
+    dito na conversa como memória.
+
+    `historico` são as falas anteriores, mais antigas primeiro, no formato do
+    modelo (`{"role": "user"|"assistant", "content": ...}`). Sem ele, cada
+    pergunta chegava isolada e "e no mês passado?" não tinha a que se referir.
+
+    O CONTEXTO FINANCEIRO VAI DEPOIS do histórico, de propósito. Ele é
+    recalculado a cada pergunta, e as falas antigas carregam números de quando
+    foram ditas — se um lançamento entrou no meio da conversa, os dois valores
+    conflitam. Vindo por último, o contexto é o que o modelo lê como estado
+    atual; a instrução abaixo o manda preferir esse em caso de divergência.
+    """
     instrucao = (
         "Você é o assistente financeiro do FinControl. Responda à pergunta da pessoa de forma "
         "curta, clara e em português, usando SOMENTE os dados fornecidos no contexto (valores "
         "em reais). Pode fazer contas simples a partir desses números (somas, médias, "
         "projeções lineares), explicitando a conta quando o resultado não for óbvio. Se o dado "
         "não estiver no contexto e não puder ser derivado dele, diga que não tem essa "
-        "informação. Não invente números. Sem markdown."
+        "informação. Não invente números. Sem markdown. "
+        "As mensagens anteriores da conversa servem para entender referências como "
+        "\"e no mês passado?\" ou \"e isso dá quanto por semana?\". Se um número citado antes "
+        "divergir do contexto atual, o contexto atual é o que vale — ele foi recalculado agora."
     )
-    mensagens = [
-        {"role": "system", "content": instrucao},
-        {"role": "user", "content": f"Contexto (dados reais):\n{contexto}\n\nPergunta: {pergunta}"},
-    ]
+    mensagens = [{"role": "system", "content": instrucao}]
+    mensagens += historico or []
+    mensagens.append({
+        "role": "user",
+        "content": f"Contexto (dados reais, recalculados agora):\n{contexto}\n\nPergunta: {pergunta}",
+    })
     return chamar(db, mensagens, espera_json=False, max_tokens=700).strip()
 
 

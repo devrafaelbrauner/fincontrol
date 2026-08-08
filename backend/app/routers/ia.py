@@ -381,15 +381,84 @@ class PerguntarIn(BaseModel):
     pergunta: str
 
 
+# Quanta conversa passada acompanha cada pergunta.
+#
+# Os dois limites existem porque cada token enviado é pago pelo dono do app, e
+# a conversa cresce sem teto natural: sem corte, a centésima pergunta carregaria
+# as 99 anteriores. 12 falas são 6 rodadas — o bastante para "e no mês passado?"
+# e para um encadeamento curto de raciocínio, que é como este assistente é
+# usado. O teto de caracteres é a defesa contra o caso patológico das 12 falas
+# serem todas longas (uma orientação de compromisso colada no chat, por
+# exemplo); ele corta pelas mais ANTIGAS, preservando o fio recente.
+MEMORIA_FALAS = 12
+MEMORIA_CARACTERES = 6000
+
+# Teto do que fica guardado. A thread é do dono e ninguém audita chat de app
+# pessoal, mas um log de IA que só cresce vira um arquivo grande em silêncio
+# dentro do backup diário. 200 falas são bem mais do que a memória usa.
+HISTORICO_GUARDADO = 200
+
+
+def _historico(db: sqlite3.Connection) -> list[dict]:
+    """Falas anteriores no formato do modelo, mais antigas primeiro."""
+    linhas = db.execute(
+        "SELECT papel, texto FROM conversa_mensagens ORDER BY id DESC LIMIT ?",
+        (MEMORIA_FALAS,),
+    ).fetchall()
+    recentes: list[dict] = []
+    total = 0
+    # Percorre do mais novo para o mais velho e para quando estoura o teto: é o
+    # que garante que o corte sacrifique o começo da conversa, não o fim.
+    for r in linhas:
+        total += len(r["texto"])
+        if total > MEMORIA_CARACTERES and recentes:
+            break
+        recentes.append({"role": r["papel"], "content": r["texto"]})
+    recentes.reverse()
+    return recentes
+
+
+@router.get("/conversa")
+def conversa(db: sqlite3.Connection = Depends(get_db)):
+    """A thread inteira, para a tela ser a mesma em qualquer aparelho."""
+    linhas = db.execute(
+        "SELECT id, papel, texto, criado_em FROM conversa_mensagens ORDER BY id"
+    ).fetchall()
+    return {"mensagens": [dict(r) for r in linhas]}
+
+
+@router.delete("/conversa")
+def limpar_conversa(db: sqlite3.Connection = Depends(get_db)):
+    db.execute("DELETE FROM conversa_mensagens")
+    return {"ok": True}
+
+
 @router.post("/perguntar")
 def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
+    pergunta = body.pergunta.strip()
+    if not pergunta:
+        raise HTTPException(422, "Pergunta vazia")
     h = hoje()
     comp = f"{h.year:04d}-{h.month:02d}"
     contexto = f"Hoje: {h.isoformat()}.\n" + _contexto_financeiro(db, comp)
     try:
-        return {"resposta": openrouter.perguntar(db, body.pergunta, contexto)}
+        resposta = openrouter.perguntar(db, pergunta, contexto, _historico(db))
     except OpenRouterError as e:
+        # A pergunta NÃO é gravada antes da resposta, de propósito: uma chamada
+        # que falha deixaria uma fala do usuário pendurada sem par, que na
+        # próxima pergunta iria para o modelo como se tivesse sido respondida.
         raise HTTPException(502, str(e))
+
+    db.executemany(
+        "INSERT INTO conversa_mensagens (papel, texto) VALUES (?, ?)",
+        [("user", pergunta), ("assistant", resposta)],
+    )
+    db.execute(
+        "DELETE FROM conversa_mensagens WHERE id <= "
+        "(SELECT id FROM conversa_mensagens ORDER BY id DESC LIMIT 1 OFFSET ?)",
+        (HISTORICO_GUARDADO,),
+    )
+    return {"resposta": resposta}
 
 
 # ---------- compromissos financeiros ----------
