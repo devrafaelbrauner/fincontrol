@@ -1,6 +1,10 @@
 -- Categorias padrão: sem elas a categorização automática por IA não tem de onde
 -- escolher (a lista vazia chega ao modelo e a coluna fica sempre "—").
 -- INSERT OR IGNORE respeita o UNIQUE(nome, tipo): quem já criou/renomeou não é tocado.
+--
+-- As cores abaixo estão MORTAS desde a 014, que as anula: elas venciam a paleta
+-- categórica validada e duas delas colidiam com as cores semânticas. Ficam aqui
+-- só porque migration aplicada não se reescreve — não copie esse padrão.
 
 -- Gastos variáveis
 INSERT OR IGNORE INTO categorias (nome, tipo, cor) VALUES

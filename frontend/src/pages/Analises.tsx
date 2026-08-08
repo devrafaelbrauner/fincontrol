@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, paraCents } from "../api";
-import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, Donut, FatiaDonut, PALETA_SERIES, Sparkline } from "../components/graficos";
+import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
+import { Fio } from "../components/Fio";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import {
@@ -15,6 +16,36 @@ type Orcamento = { categoria_id: number; nome: string; cor: string | null; limit
 const corOrcamento = (pct: number) => (pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)");
 
 const FORMA_ROTULO: Record<string, string> = { pix: "Pix", credito: "Crédito", debito: "Débito", dinheiro: "Dinheiro", boleto: "Boleto" };
+
+/** Forma de pagamento é um conjunto fechado, então a cor de cada uma é fixa.
+ *  Com o índice da ordem de chegada, bastava um mês sem boleto para repintar
+ *  todas as outras. */
+const FORMA_COR: Record<string, string> = {
+  pix: PALETA_SERIES[0], credito: PALETA_SERIES[1], debito: PALETA_SERIES[2],
+  dinheiro: PALETA_SERIES[3], boleto: PALETA_SERIES[4],
+};
+
+/** Cartela da paleta, no lugar do <input type="color">.
+ *
+ *  O seletor livre deixava uma categoria de gasto se pintar do verde que
+ *  significa "entrada" no resto do app, ou de um tom que ninguém com
+ *  daltonismo distingue da categoria vizinha — as duas coisas que a paleta
+ *  validada existe para impedir.
+ *
+ *  Guarda o TOKEN (`var(--chart-3)`), não o hex: o tema claro tem valores
+ *  próprios, então a categoria acompanha o tema em vez de carregar para o
+ *  papel um tom escolhido no preto. Cores antigas, gravadas em hex pelo
+ *  seletor livre, seguem sendo respeitadas — só não são mais oferecidas. */
+function Cartela({ valor, aoEscolher, rotulo }: { valor: string | null; aoEscolher: (cor: string) => void; rotulo: string }) {
+  return (
+    <span className="cartela" role="group" aria-label={rotulo}>
+      {PALETA_SERIES.map((c, i) => (
+        <button key={c} type="button" className="cartela-cor" style={{ background: c }}
+          aria-label={`Cor ${i + 1}`} aria-pressed={valor === c} onClick={() => aoEscolher(c)} />
+      ))}
+    </span>
+  );
+}
 const PERIODOS = [6, 12, 24] as const;
 
 const mesCurto = (c: string) => new Date(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1, 1).toLocaleDateString("pt-BR", { month: "short" });
@@ -54,12 +85,20 @@ export default function Analises() {
   const [porCategoria, setPorCategoria] = useState<FatiaDonut[]>([]);
   const [porForma, setPorForma] = useState<FatiaDonut[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  // Resolvido uma vez por carga e lido por todas as seções desta tela.
+  const [coresCat, setCoresCat] = useState<Map<number, string>>(new Map());
+  const totalCategorias = porCategoria.reduce((s, f) => s + f.valor, 0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("variavel");
-  const [cor, setCor] = useState("#60a5fa");
+  // null = "não escolhi", e não "a primeira da paleta".
+  const [cor, setCor] = useState<string | null>(null);
+  // Qual categoria está com a cartela aberta. A cartela não cabe dentro do
+  // chip (seis amostras alargariam cada um em ~110px), então ela abre numa
+  // linha só, abaixo da lista.
+  const [editandoCor, setEditandoCor] = useState<number | null>(null);
 
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [orcCategoria, setOrcCategoria] = useState("");
@@ -91,20 +130,37 @@ export default function Analises() {
       setCategorias(cats);
       const mapaCat = new Map(cats.map((c) => [c.id, c] as const));
 
-      const somaCat = new Map<string, { valor: number; cor: string }>();
+      const somaCat = new Map<number | null, { nome: string; valor: number }>();
       const somaForma = new Map<string, number>();
-      let i = 0;
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? mapaCat.get(v.categoria_id) : undefined;
-        const nomeCat = c?.nome ?? "Sem categoria";
-        const corCat = nomeCat === "Sem categoria" ? COR_SEM_CATEGORIA : (c?.cor ?? PALETA_SERIES[i++ % PALETA_SERIES.length]);
-        const at = somaCat.get(nomeCat) ?? { valor: 0, cor: corCat };
-        at.valor += v.valor_cents; somaCat.set(nomeCat, at);
+        const chave = c?.id ?? null;
+        const at = somaCat.get(chave) ?? { nome: c?.nome ?? ROTULO_SEM_CATEGORIA, valor: 0 };
+        at.valor += v.valor_cents; somaCat.set(chave, at);
         const f = v.forma_pagamento ?? "outro";
         somaForma.set(f, (somaForma.get(f) ?? 0) + v.valor_cents);
       }
-      setPorCategoria([...somaCat.entries()].map(([rotulo, x]) => ({ rotulo, valor: x.valor, cor: x.cor })).sort((a, b) => b.valor - a.valor));
-      setPorForma([...somaForma.entries()].map(([f, valor], j) => ({ rotulo: FORMA_ROTULO[f] ?? f, valor, cor: PALETA_SERIES[j % PALETA_SERIES.length] })).sort((a, b) => b.valor - a.valor));
+
+      // UM mapa de cor para a tela inteira: "Gastos por categoria" e
+      // "Tendência por categoria" mostram as mesmas categorias, e resolver a
+      // cor em cada seção separadamente já as fez divergir na mesma página.
+      // A ordem é a de leitura — maior gasto do mês primeiro, depois as que só
+      // aparecem na tendência —, então as vagas distintas vão para quem o
+      // leitor vê no topo.
+      const ordenadasPorGasto = [...somaCat.entries()]
+        .filter(([id]) => id != null)
+        .sort((a, b) => b[1].valor - a[1].valor)
+        .map(([id]) => mapaCat.get(id as number)!)
+        .filter(Boolean);
+      const daTendencia = hist.por_categoria
+        .map((t) => (t.categoria_id != null ? mapaCat.get(t.categoria_id) : undefined))
+        .filter((c): c is Categoria => c != null);
+      const cores = resolverCores([...ordenadasPorGasto, ...daTendencia]);
+      setCoresCat(cores);
+
+      const corDe = (id: number | null) => (id == null ? COR_SEM_CATEGORIA : cores.get(id) ?? COR_SEM_CATEGORIA);
+      setPorCategoria(dobrarEmOutros([...somaCat.entries()].map(([id, x]) => ({ rotulo: x.nome, valor: x.valor, cor: corDe(id) }))));
+      setPorForma([...somaForma.entries()].map(([f, valor]) => ({ rotulo: FORMA_ROTULO[f] ?? f, valor, cor: FORMA_COR[f] ?? COR_SEM_CATEGORIA })).sort((a, b) => b.valor - a.valor));
     } catch (e) {
       if (id === requisicao.current) setErro((e as Error).message);
     } finally {
@@ -118,16 +174,25 @@ export default function Analises() {
     e.preventDefault();
     if (!nome.trim()) return;
     try {
-      await api("/categorias", { method: "POST", body: JSON.stringify({ nome: nome.trim(), tipo, cor }) });
+      // Sem escolha explícita, `cor` NÃO vai no corpo: a categoria nasce sem
+      // cor e cai no slot da paleta. Mandar um padrão daqui faria toda
+      // categoria criada pela tela nascer da mesma cor — que é justamente a
+      // colisão de matiz que a paleta existe para evitar.
+      await api("/categorias", { method: "POST", body: JSON.stringify({ nome: nome.trim(), tipo, ...(cor ? { cor } : {}) }) });
       toast("Categoria criada.");
       setNome("");
+      setCor(null);
       atualizar();
     } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   async function mudarCor(id: number, novaCor: string) {
-    await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }) });
-    atualizar();
+    // Com try/catch como os irmãos daqui: a cartela fecha ao escolher, então
+    // um PATCH que falha em silêncio deixaria a tela dizendo que a cor mudou.
+    try {
+      await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }) });
+      atualizar();
+    } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   async function desativar(id: number) {
@@ -194,11 +259,9 @@ export default function Analises() {
                 ))}
               </div>
             </div>
+            {/* Sem legenda separada: a linha de leitura do gráfico já mostra
+                ponto colorido, nome e valor do mês em foco. */}
             <BarChart dados={barras} />
-            <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-              <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Entradas</span>
-              <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Gastos</span>
-            </div>
           </section>
 
           <section className="surgir secao">
@@ -229,13 +292,15 @@ export default function Analises() {
 
           <section className="surgir secao">
             <h3 className="secao-titulo">Tendência por categoria</h3>
-            <p className="sub">Gastos fixos + variáveis por mês, maiores do período primeiro. O donut abaixo mostra só as variáveis do mês.</p>
+            <p className="sub">Gastos fixos + variáveis por mês, maiores do período primeiro. A distribuição abaixo mostra só as variáveis do mês.</p>
             {tendencias.length === 0 ? (
               <p className="sub">Sem gastos categorizáveis no período.</p>
             ) : (
               <div className="legenda" style={{ gap: "0.85rem", marginTop: "0.5rem" }}>
-                {tendencias.map((t, i) => {
-                  const cor = t.nome == null ? COR_SEM_CATEGORIA : t.cor ?? PALETA_SERIES[i % PALETA_SERIES.length];
+                {tendencias.map((t) => {
+                  // Mesmo mapa da seção de gastos: é o que garante que a
+                  // categoria saia da MESMA cor nas duas, o que antes não valia.
+                  const cor = t.categoria_id == null ? COR_SEM_CATEGORIA : coresCat.get(t.categoria_id) ?? COR_SEM_CATEGORIA;
                   const vAtual = t.valores[t.valores.length - 1];
                   const vAnterior = t.valores[t.valores.length - 2] ?? 0;
                   return (
@@ -258,8 +323,14 @@ export default function Analises() {
           <div className="grid-2 secao">
             <section className="ficha surgir">
               <h3 className="secao-titulo">Gastos por categoria</h3>
-              <Donut fatias={porCategoria} />
-              <div style={{ marginTop: "1rem" }}><BarrasRank fatias={porCategoria} /></div>
+              {/* Duas perguntas, duas formas, sem repetir os mesmos números
+                  duas vezes: o fio responde "que fatia do mês é isso" e o
+                  ranking responde "quanto foi, e qual veio antes". Antes eram
+                  um donut e um ranking dos MESMOS valores, lado a lado. */}
+              {porCategoria.length > 0 && (
+                <Fio pct fatias={porCategoria} rotuloAria={`Distribuição dos gastos por categoria, total ${brl(totalCategorias)}`} />
+              )}
+              <div style={{ marginTop: "1.1rem" }}><BarrasRank fatias={porCategoria} /></div>
             </section>
             <section className="ficha surgir">
               <h3 className="secao-titulo">Por forma de pagamento</h3>
@@ -316,14 +387,26 @@ export default function Analises() {
           {categorias.filter((c) => c.ativa).length === 0 && <span className="sub">Nenhuma categoria ainda.</span>}
           {categorias.filter((c) => c.ativa).map((c) => (
             <span key={c.id} className="chip" style={{ gap: "0.5rem" }}>
-              <input type="color" value={c.cor ?? "#60a5fa"} onChange={(e) => mudarCor(c.id, e.target.value)}
-                aria-label={`Cor de ${c.nome}`} style={{ width: 20, height: 20, padding: 0, border: "none", background: "none", borderRadius: 6 }} />
+              {/* A cor do chip é a mesma que os gráficos usam. Fora deles (uma
+                  categoria sem gasto no mês), cai no slot determinístico. */}
+              <button type="button" className="cartela-cor" style={{ background: coresCat.get(c.id) ?? corDaCategoria(c) }}
+                aria-label={`Mudar a cor de ${c.nome}`} aria-expanded={editandoCor === c.id}
+                onClick={() => setEditandoCor(editandoCor === c.id ? null : c.id)} />
               {c.nome}
               <span className="pct" style={{ marginLeft: 0 }}>({c.tipo})</span>
               <button className="anexo-remover" onClick={() => desativar(c.id)} aria-label={`Desativar ${c.nome}`}>×</button>
             </span>
           ))}
         </div>
+        {editandoCor != null && (
+          <div className="cartela-linha">
+            <span className="eyebrow">Cor de {categorias.find((c) => c.id === editandoCor)?.nome}</span>
+            <Cartela rotulo="Escolha a cor da categoria"
+              valor={categorias.find((c) => c.id === editandoCor)?.cor ?? null}
+              aoEscolher={(novaCor) => { mudarCor(editandoCor, novaCor); setEditandoCor(null); }} />
+            <button className="btn" type="button" onClick={() => setEditandoCor(null)}>Fechar</button>
+          </div>
+        )}
         <form onSubmit={criarCategoria} className="linha-form">
           <input placeholder="Nova categoria" value={nome} onChange={(e) => setNome(e.target.value)} style={{ flex: "1 1 160px" }} />
           <select value={tipo} onChange={(e) => setTipo(e.target.value)} aria-label="Tipo">
@@ -331,7 +414,7 @@ export default function Analises() {
             <option value="fixa">Fixa</option>
             <option value="entrada">Entrada</option>
           </select>
-          <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} aria-label="Cor" style={{ width: 44, padding: 4 }} />
+          <Cartela valor={cor} aoEscolher={setCor} rotulo="Cor da nova categoria" />
           <button className="btn btn-primario" type="submit">Adicionar</button>
         </form>
       </section>

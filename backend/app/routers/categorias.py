@@ -1,23 +1,37 @@
 import sqlite3
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 from ..db import get_db
 
 router = APIRouter(prefix="/categorias", tags=["categorias"])
 
+# A cor entra em `background`/`fill` no frontend, então o campo era um vetor de
+# injeção de CSS além de um jeito de escolher uma cor ilegível: aceitava
+# qualquer string.
+#
+# Duas formas passam:
+#   · `var(--chart-N)` — o que a cartela grava. É um TOKEN, não um valor, então
+#     a categoria acompanha o tema (o claro tem degraus próprios, pensados para
+#     o papel, e não o escuro clareado).
+#   · `#rrggbb` — o que o antigo seletor livre gravava. Continua aceito para as
+#     categorias que já existem não quebrarem ao serem renomeadas; a cartela
+#     não oferece mais essa forma.
+COR_RE = r"^(#[0-9a-fA-F]{6}|var\(--chart-[1-6]\))$"
+Cor = Annotated[str, StringConstraints(pattern=COR_RE)]
+
 
 class CategoriaIn(BaseModel):
     nome: str
     tipo: Literal["fixa", "variavel", "entrada"]
-    cor: str | None = None
+    cor: Cor | None = None
 
 
 class CategoriaPatch(BaseModel):
     nome: str | None = None
-    cor: str | None = None
+    cor: Cor | None = None
     ativa: bool | None = None
 
 

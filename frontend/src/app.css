@@ -70,9 +70,21 @@
        tipográfica. Segue como variável para o body::before não quebrar. */
     --fundo: var(--page);
 
-    /* Paleta categórica na família da marca. */
-    --chart-1: #0068ff; --chart-2: #ffa119; --chart-3: #2ecf0c;
-    --chart-4: #ff4d4d; --chart-5: #8f8f8f; --chart-6: #66a3ff;
+    /* Paleta categórica. Os valores saem do validador do dataviz, não do olho:
+       no escuro passam faixa de luminosidade, piso de croma, separação sob
+       protanopia/deuteranopia (pior par ΔE 8,8), piso de visão normal (18,6) e
+       contraste ≥ 3:1. A paleta anterior reprovava em três dessas.
+       Duas regras que a substituição existe para manter:
+         · Os degraus são DISTINTOS dos das cores semânticas. --chart-3/6 não são
+           o --positive nem --chart-4 o --negative, como eram antes: uma categoria
+           de gasto chamada "Mercado" não pode ser desenhada no verde que
+           significa "entrada" no resto do app.
+         · Não há vermelho aqui. Ele fica reservado para saída.
+       Ao mexer, revalidar (ver o comentário em components/graficos.tsx). */
+    --chart-1: #0068ff; --chart-2: #d95f2a; --chart-3: #1ba875;
+    --chart-4: #c08400; --chart-5: #d4699a; --chart-6: #0a8a06;
+    /* Abaixo do piso de croma DE PROPÓSITO: cinza não é uma identidade, é a
+       marca de "sem categoria". Não é uma das seis vagas — não "conserte". */
     --chart-neutral: #767676;
   }
 
@@ -107,8 +119,12 @@
 
     --fundo: var(--page);
 
-    --chart-1: #0068ff; --chart-2: #b26400; --chart-3: #1f9c05;
-    --chart-4: #c0392b; --chart-5: #8f8f8f; --chart-6: #4d8fe6;
+    /* Degraus próprios do papel claro — não é o escuro clareado. Validados
+       contra --page (#f7f5f0): CVD 9,0, visão normal 16,8, contraste ≥ 3:1.
+       No conjunto anterior, #1f9c05 e #b26400 ficavam a ΔE 1,8 sob deuteranopia,
+       ou seja, verde e âmbar eram a mesma cor para ~5% dos homens. */
+    --chart-1: #0068ff; --chart-2: #e66633; --chart-3: #199f6f;
+    --chart-4: #bb7f00; --chart-5: #ce6d92; --chart-6: #008300;
     --chart-neutral: #b0b0b0;
   }
 }
@@ -265,6 +281,23 @@ a.card:hover, button.card:hover, .card.clicavel:hover {
   box-shadow: var(--shadow-pop);
 }
 
+/* Linha de leitura do gráfico: o valor do ponto em foco, acima do desenho.
+   Substitui o balão flutuante, que ficava preso no canto superior esquerdo e,
+   por depender do ponteiro, não existia no celular. Fora do desenho ela não
+   cobre nada e está sempre preenchida — sem ponteiro, mostra o último mês. */
+.leitura-grafico {
+  display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 12px; color: var(--content-2);
+}
+.leitura-item { display: inline-flex; align-items: baseline; gap: 6px; }
+.leitura-item i {
+  width: 8px; height: 8px; border-radius: 2px;
+  flex: 0 0 8px; align-self: center;
+}
+.leitura-item b { color: var(--content); font-weight: 600; }
+
 /* Chip / pill */
 .chip {
   display: inline-flex; align-items: center; gap: 0.35rem;
@@ -275,6 +308,27 @@ a.card:hover, button.card:hover, .card.clicavel:hover {
   transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .chip:hover { border-color: var(--edge-strong); color: var(--content); }
+
+/* Cartela de cores da categoria — substitui o <input type="color">, que
+   deixava escolher qualquer cor, inclusive as semânticas. Quadrados de 18px
+   com a régua de 1px de sempre; a escolhida é marcada por um anel da cor do
+   papel mais a régua forte, e não por uma borda colorida (que se confundiria
+   com a própria amostra). */
+.cartela { display: inline-flex; gap: 5px; align-items: center; }
+.cartela-cor {
+  width: 18px; height: 18px; flex: 0 0 18px;
+  padding: 0; border: 1px solid var(--edge); border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.cartela-cor:hover { transform: scale(1.12); }
+.cartela-cor[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--page), 0 0 0 3px var(--edge-strong);
+}
+.cartela-linha {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.6rem 0; border-top: 1px solid var(--rule-soft);
+}
 
 /* ============================================================
    Botões
@@ -688,20 +742,25 @@ tfoot td {
   margin: 22px 0 12px; background: var(--rule-soft);
 }
 @keyframes fio-crescer { from { transform: scaleX(0); } }
-.fio-barra .seg { display: block; height: 100%; transform-origin: left; animation: fio-crescer 600ms var(--ease) both; }
-.fio-barra .seg + .seg { animation-delay: 150ms; }
-.fio-barra .seg + .seg + .seg { animation-delay: 300ms; }
-.fio-barra .fixas { background: var(--accent); }
-.fio-barra .variaveis { background: var(--warning); }
-.fio-barra .sobra { background: var(--positive); }
-.fio-legenda { display: flex; gap: 26px; flex-wrap: wrap; font-size: 12px; color: var(--content-2); }
+/* `.fio-seg`, e não `.seg`: o nome curto já pertencia ao controle segmentado
+   (o "6 / 12 / 24 meses" de Análises), e a regra mais específica daqui só
+   sobrescrevia `display` e `height`. O `padding: 0.25rem`, o `border: 1px solid
+   var(--edge)` e o `border-radius` do controle continuavam valendo em cada
+   segmento do fio — ou seja, os pedaços vinham separados por uma BORDA, que é
+   exatamente o que não se deve fazer, e por acidente de cascata. */
+.fio-seg {
+  display: block; height: 100%; transform-origin: left;
+  animation: fio-crescer 600ms var(--ease) both;
+}
+/* A folga entre pedaços é a cor do fundo, não uma borda — e como é `border-box`
+   ela sai de dentro do próprio pedaço, então as larguras seguem somando 100%. */
+.fio-seg + .fio-seg { border-left: 2px solid var(--page); }
+.fio-seg + .fio-seg { animation-delay: 150ms; }
+.fio-seg + .fio-seg + .fio-seg { animation-delay: 300ms; }
+.fio-legenda { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--content-2); }
 .fio-legenda span { display: flex; align-items: center; gap: 7px; }
 .fio-legenda b { color: var(--content); font-weight: 600; }
-.fio-legenda i { display: block; width: 8px; height: 8px; border-radius: 2px; }
-.fio-legenda .fixas { background: var(--accent); }
-.fio-legenda .variaveis { background: var(--warning); }
-.fio-legenda .sobra { background: var(--positive); }
-.fio-legenda .excede { background: var(--negative); }
+.fio-legenda i { display: block; width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; }
 
 @media (max-width: 1100px) {
   .visao-topo { grid-template-columns: 1fr; }

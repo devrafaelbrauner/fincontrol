@@ -3,7 +3,8 @@ import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
-import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
+import { Fio } from "../components/Fio";
+import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -51,31 +52,32 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
 
 function FioDoMes({ entradas, fixas, variaveis }: { entradas: number; fixas: number; variaveis: number }) {
   const despesas = fixas + variaveis;
-  const base = Math.max(entradas, despesas, 1);
   const sobra = entradas - despesas;
-  const pct = (v: number) => `${((v / base) * 100).toFixed(2)}%`;
   return (
-    <div className="fio">
-      <div className="fio-barra" role="img"
-        aria-label={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "economia" : "excedente"} ${brl(Math.abs(sobra))}`}>
-        {fixas > 0 && <span className="seg fixas" style={{ width: pct(fixas) }} />}
-        {variaveis > 0 && <span className="seg variaveis" style={{ width: pct(variaveis) }} />}
-        {sobra > 0 && <span className="seg sobra" style={{ width: pct(sobra) }} />}
-      </div>
-      {/* Sem "Entradas" na legenda: o total já é a barra inteira, e ele aparece
-          por extenso no parágrafo de leitura logo acima. */}
-      <div className="fio-legenda">
-        <span><i className="fixas" />Fixas <b className="num">{brl(fixas)}</b></span>
-        <span><i className="variaveis" />Variáveis <b className="num">{brl(variaveis)}</b></span>
-        <span>
-          <i className={sobra >= 0 ? "sobra" : "excede"} />
-          {sobra >= 0 ? "Economia" : "Excedente"} <b className="num">{brl(Math.abs(sobra))}</b>
-        </span>
-      </div>
+    <>
+      {/* `base` é o maior entre o que entrou e o que saiu: é o que faz a barra
+          mostrar que as despesas NÃO consumiram tudo. Sem "Entradas" na
+          legenda — o total já é a barra inteira, e ele sai por extenso no
+          parágrafo de leitura logo acima. */}
+      <Fio
+        base={Math.max(entradas, despesas, 1)}
+        rotuloAria={`Entradas ${brl(entradas)}; fixas ${brl(fixas)}; variáveis ${brl(variaveis)}; ${sobra >= 0 ? "economia" : "excedente"} ${brl(Math.abs(sobra))}`}
+        fatias={[
+          { rotulo: "Fixas", valor: fixas, cor: "var(--accent)" },
+          { rotulo: "Variáveis", valor: variaveis, cor: "var(--warning)" },
+          {
+            rotulo: sobra >= 0 ? "Economia" : "Excedente",
+            // Negativo entra na legenda e fica fora da barra: mês no vermelho
+            // não tem pedaço a desenhar.
+            valor: sobra >= 0 ? sobra : -Math.abs(sobra),
+            cor: sobra >= 0 ? "var(--positive)" : "var(--negative)",
+          },
+        ]}
+      />
       {entradas === 0 && despesas > 0 && (
         <p className="sub" style={{ fontSize: "0.78rem" }}>Sem entradas neste mês — registre suas receitas para o fio fazer sentido.</p>
       )}
-    </div>
+    </>
   );
 }
 
@@ -134,22 +136,26 @@ export default function Dashboard() {
       setMetas(listaMetas);
       setOrcamentos(orcs);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
-      const soma = new Map<string, { valor: number; cor: string | null }>();
+      const soma = new Map<number | null, { nome: string; valor: number }>();
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? nomes.get(v.categoria_id) : undefined;
-        const nome = c?.nome ?? "Sem categoria";
-        const at = soma.get(nome) ?? { valor: 0, cor: c?.cor ?? null };
+        const chave = c?.id ?? null;
+        const at = soma.get(chave) ?? { nome: c?.nome ?? ROTULO_SEM_CATEGORIA, valor: 0 };
         at.valor += v.valor_cents;
-        soma.set(nome, at);
+        soma.set(chave, at);
       }
-      const fatias = [...soma.entries()]
-        .sort((a, b) => b[1].valor - a[1].valor)
-        .map(([rotulo, x], i): FatiaDonut => ({
-          rotulo,
-          valor: x.valor,
-          cor: rotulo === "Sem categoria" ? COR_SEM_CATEGORIA : x.cor ?? PALETA_SERIES[i % PALETA_SERIES.length],
-        }));
-      setDonut(fatias);
+      // Cores resolvidas de uma vez, na ordem de leitura (maior gasto
+      // primeiro), para as linhas do topo ficarem com cores distintas.
+      const porGasto = [...soma.entries()].sort((a, b) => b[1].valor - a[1].valor);
+      const cores = resolverCores(porGasto.map(([id]) => nomes.get(id as number)).filter((c): c is NonNullable<typeof c> => c != null));
+      // Cinco linhas como antes, mas a quinta agora SOMA a cauda em vez de
+      // recortá-la fora: com o `slice(0, 5)` os percentuais exibidos não
+      // fechavam com o total impresso ao lado da seção.
+      const fatias: FatiaDonut[] = porGasto.map(([id, x]) => ({
+        rotulo: x.nome, valor: x.valor,
+        cor: id == null ? COR_SEM_CATEGORIA : cores.get(id) ?? COR_SEM_CATEGORIA,
+      }));
+      setDonut(dobrarEmOutros(fatias, 5));
 
       // Insights: carrega do cache (instantâneo, sem re-cobrar).
       const cache = await api<{ insights: Insights | null; gerado_em?: string }>(`/ia/insights/${competencia}`);
@@ -250,12 +256,10 @@ export default function Dashboard() {
             <h3 className="secao-titulo">Fluxo dos últimos 6 meses</h3>
             <span className="eyebrow">{periodoFluxo}</span>
           </div>
+          {/* A legenda manual que ficava aqui saiu: a linha de leitura do
+              próprio gráfico já traz ponto colorido, nome e valor do mês em
+              foco — duas legendas diriam a mesma coisa duas vezes. */}
           <AreaChart dados={fluxo} />
-          <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-            <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Receitas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Despesas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--accent)" }} />Saldo</span>
-          </div>
         </section>
 
         {/* Barras no lugar do donut: o design ranqueia para responder "onde foi
@@ -266,7 +270,7 @@ export default function Dashboard() {
             <h3 className="secao-titulo">Onde foi o variável</h3>
             <span className="eyebrow">{brl(atual.variaveis_cents)}</span>
           </div>
-          <BarrasRank fatias={donut.slice(0, 5)} total={atual.variaveis_cents} />
+          <BarrasRank fatias={donut} total={atual.variaveis_cents} />
         </section>
       </div>
 
