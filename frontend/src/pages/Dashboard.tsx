@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
-import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, SerieMes, Sparkline } from "../components/graficos";
+import { AreaChart, BarrasRank, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, corDaCategoria, dobrarEmOutros } from "../components/graficos";
 import { IcExtrair, IcMetas } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
@@ -134,22 +134,19 @@ export default function Dashboard() {
       setMetas(listaMetas);
       setOrcamentos(orcs);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
-      const soma = new Map<string, { valor: number; cor: string | null }>();
+      const soma = new Map<string, { valor: number; cor: string }>();
       for (const v of vars.itens) {
         const c = v.categoria_id != null ? nomes.get(v.categoria_id) : undefined;
-        const nome = c?.nome ?? "Sem categoria";
-        const at = soma.get(nome) ?? { valor: 0, cor: c?.cor ?? null };
+        const nome = c?.nome ?? ROTULO_SEM_CATEGORIA;
+        const at = soma.get(nome) ?? { valor: 0, cor: corDaCategoria(c) };
         at.valor += v.valor_cents;
         soma.set(nome, at);
       }
-      const fatias = [...soma.entries()]
-        .sort((a, b) => b[1].valor - a[1].valor)
-        .map(([rotulo, x], i): FatiaDonut => ({
-          rotulo,
-          valor: x.valor,
-          cor: rotulo === "Sem categoria" ? COR_SEM_CATEGORIA : x.cor ?? PALETA_SERIES[i % PALETA_SERIES.length],
-        }));
-      setDonut(fatias);
+      // Cinco linhas como antes, mas a quinta agora SOMA a cauda em vez de
+      // recortá-la fora: com o `slice(0, 5)` os percentuais exibidos não
+      // fechavam com o total impresso ao lado da seção.
+      const fatias: FatiaDonut[] = [...soma.entries()].map(([rotulo, x]) => ({ rotulo, valor: x.valor, cor: x.cor }));
+      setDonut(dobrarEmOutros(fatias, 5));
 
       // Insights: carrega do cache (instantâneo, sem re-cobrar).
       const cache = await api<{ insights: Insights | null; gerado_em?: string }>(`/ia/insights/${competencia}`);
@@ -266,7 +263,7 @@ export default function Dashboard() {
             <h3 className="secao-titulo">Onde foi o variável</h3>
             <span className="eyebrow">{brl(atual.variaveis_cents)}</span>
           </div>
-          <BarrasRank fatias={donut.slice(0, 5)} total={atual.variaveis_cents} />
+          <BarrasRank fatias={donut} total={atual.variaveis_cents} />
         </section>
       </div>
 
