@@ -257,11 +257,9 @@ export default function Analises() {
                 ))}
               </div>
             </div>
+            {/* Sem legenda separada: a linha de leitura do gráfico já mostra
+                ponto colorido, nome e valor do mês em foco. */}
             <BarChart dados={barras} />
-            <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-              <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Entradas</span>
-              <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Gastos</span>
-            </div>
           </section>
 
           <section className="surgir secao">

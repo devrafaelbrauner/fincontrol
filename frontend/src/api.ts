@@ -245,6 +245,26 @@ export async function logout(): Promise<void> {
 export const brl = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+/** Valor curto, para rótulo de eixo: "R$ 1,2 mil", "R$ 125 mil", "R$ 1,2 mi".
+ *
+ *  Existe porque `brl()` por extenso não cabe num eixo — "R$ 8.090,48" ocupa
+ *  quase um terço da largura do gráfico num celular, e são três ou quatro
+ *  desses empilhados na lateral. Aqui a precisão não importa: o eixo dá a
+ *  ordem de grandeza, e o valor exato está na linha de leitura.
+ *
+ *  Uma casa decimal só abaixo de 100 unidades ("R$ 1,2 mil" mas "R$ 125 mil"):
+ *  acima disso o dígito depois da vírgula é ruído que só alarga o rótulo. */
+export function abreviarBRL(cents: number, comMoeda = true): string {
+  const reais = cents / 100;
+  const sinal = reais < 0 ? "-" : "";
+  const abs = Math.abs(reais);
+  const pre = `${sinal}${comMoeda ? "R$ " : ""}`;
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: Math.abs(n) < 100 ? 1 : 0 });
+  if (abs >= 1_000_000) return `${pre}${fmt(abs / 1_000_000)} mi`;
+  if (abs >= 1_000) return `${pre}${fmt(abs / 1_000)} mil`;
+  return `${pre}${abs.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+}
+
 /** "R$ 12,34" | "12,34" | "12.34" → 1234 centavos */
 export const paraCents = (texto: string) => {
   let t = texto.replace(/[^\d,.-]/g, "");

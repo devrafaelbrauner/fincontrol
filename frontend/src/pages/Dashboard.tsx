@@ -254,12 +254,10 @@ export default function Dashboard() {
             <h3 className="secao-titulo">Fluxo dos últimos 6 meses</h3>
             <span className="eyebrow">{periodoFluxo}</span>
           </div>
+          {/* A legenda manual que ficava aqui saiu: a linha de leitura do
+              próprio gráfico já traz ponto colorido, nome e valor do mês em
+              foco — duas legendas diriam a mesma coisa duas vezes. */}
           <AreaChart dados={fluxo} />
-          <div className="legenda" style={{ flexDirection: "row", gap: "1rem", marginTop: "0.5rem" }}>
-            <span className="item"><span className="ponto" style={{ background: "var(--positive)" }} />Receitas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--negative)" }} />Despesas</span>
-            <span className="item"><span className="ponto" style={{ background: "var(--accent)" }} />Saldo</span>
-          </div>
         </section>
 
         {/* Barras no lugar do donut: o design ranqueia para responder "onde foi

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_DEMAIS, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros, resolverCores } from "./graficos";
+import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_DEMAIS, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros, resolverCores, ticksBonitos } from "./graficos";
 
 const fatia = (rotulo: string, valor: number, cor = PALETA_SERIES[0]): FatiaDonut => ({ rotulo, valor, cor });
 
@@ -27,6 +27,35 @@ describe("corDaCategoria", () => {
     for (let id = 0; id < 50; id++) {
       expect(PALETA_SERIES).toContain(corDaCategoria({ id }));
     }
+  });
+});
+
+describe("ticksBonitos", () => {
+  it("usa passos redondos, não o intervalo dividido em partes iguais", () => {
+    // Com (max-min)/3 puro sairia "R$ 3.847" no eixo, que não ajuda a estimar.
+    const t = ticksBonitos(0, 11_540_00);
+    expect(t.every((v) => v % 250_000 === 0 || v % 100_000 === 0)).toBe(true);
+    expect(t[0]).toBe(0);
+  });
+
+  it("cobre o domínio sem passar do topo", () => {
+    const t = ticksBonitos(0, 1000);
+    expect(Math.min(...t)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...t)).toBeLessThanOrEqual(1000);
+  });
+
+  it("o zero entra sempre que o domínio o atravessa", () => {
+    // O saldo fica negativo em mês ruim, e é o zero — não o menor valor — que
+    // dá sentido à leitura. As marcas são múltiplos do passo, então ele cai
+    // naturalmente na régua; não é preciso haver marca ABAIXO de zero.
+    expect(ticksBonitos(-500, 1500)).toContain(0);
+    expect(ticksBonitos(-1500, 500)).toContain(0);
+    expect(ticksBonitos(-8000, 12000)).toContain(0);
+  });
+
+  it("intervalo degenerado não trava nem devolve lista infinita", () => {
+    expect(ticksBonitos(5, 5)).toEqual([5]);
+    expect(ticksBonitos(10, 0)).toEqual([10]);
   });
 });
 
