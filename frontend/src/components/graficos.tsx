@@ -34,22 +34,56 @@ export function corDaCategoria(cat: { id: number; cor?: string | null } | null |
   return PALETA_SERIES[Math.abs(cat.id) % PALETA_SERIES.length];
 }
 
-/** Dobra a cauda em "Outros" para nunca reciclar matiz: repetir uma cor na
- *  sétima categoria é dizer que ela é a mesma coisa que a primeira.
+/** Rótulo da linha que resume a cauda.
+ *
+ *  NÃO é "Outros": a migration 004 semeia uma categoria de verdade com esse
+ *  nome exato (variável e entrada). Como as somas são chaveadas por nome, um
+ *  mês com sete categorias incluindo a "Outros" real produziria duas linhas
+ *  homônimas, com cores e valores diferentes, na mesma legenda. */
+export const ROTULO_DEMAIS = "Demais categorias";
+
+/** Uma cor por linha.
+ *
+ *  `corDaCategoria` é determinística pelo id, então duas categorias cujos ids
+ *  diferem por um múltiplo de seis caem na mesma vaga. É raro, mas quando
+ *  acontece as duas viram a mesma coisa na legenda. Aqui a segunda anda para a
+ *  próxima vaga livre: troca-se um pouco de estabilidade entre meses por duas
+ *  categorias nunca serem a mesma cor na tela — e a estabilidade continua
+ *  garantida para quem escolheu a cor na cartela, que é a saída oferecida.
+ *
+ *  Vale também para duas cores escolhidas iguais de propósito: a leitura da
+ *  legenda vem antes, e a escolha segue intacta na seção Categorias. */
+function semCoresRepetidas(fatias: FatiaDonut[]): FatiaDonut[] {
+  const usadas = new Set<string>();
+  return fatias.map((f) => {
+    if (!usadas.has(f.cor)) { usadas.add(f.cor); return f; }
+    const livre = PALETA_SERIES.find((c) => !usadas.has(c));
+    if (livre == null) return f;   // mais linhas que vagas: só com limite > 6
+    usadas.add(livre);
+    return { ...f, cor: livre };
+  });
+}
+
+/** Dobra a cauda para nunca reciclar matiz: repetir uma cor na sétima
+ *  categoria é dizer que ela é a mesma coisa que a primeira.
  *
  *  Também substitui o `slice(0, 5)` que o Dashboard fazia, e que era pior que
  *  isto: ele escondia a cauda sem somá-la em lugar nenhum, então as
  *  porcentagens exibidas não fechavam com o total ao lado. */
 export function dobrarEmOutros(fatias: FatiaDonut[], limite = PALETA_SERIES.length): FatiaDonut[] {
   const ordenadas = [...fatias].sort((a, b) => b.valor - a.valor);
-  if (ordenadas.length <= limite) return ordenadas;
-  // "Sem categoria" desce junto com a cauda: ele e "Outros" já significam ambos
-  // "aqui não há identidade", e manter os dois poria dois cinzas na legenda.
+  if (ordenadas.length <= limite) return semCoresRepetidas(ordenadas);
+  // "Sem categoria" desce junto com a cauda: ele e a linha de resumo já
+  // significam ambos "aqui não há identidade", e manter os dois poria dois
+  // cinzas na legenda.
   const nomeadas = ordenadas.filter((f) => f.rotulo !== ROTULO_SEM_CATEGORIA);
   const anonimas = ordenadas.filter((f) => f.rotulo === ROTULO_SEM_CATEGORIA);
   const topo = nomeadas.slice(0, limite - 1);
   const resto = [...nomeadas.slice(limite - 1), ...anonimas].reduce((s, f) => s + f.valor, 0);
-  return resto > 0 ? [...topo, { rotulo: "Outros", valor: resto, cor: COR_SEM_CATEGORIA }] : topo;
+  // A linha sai mesmo somando zero. `valor_cents` aceita 0 (CHECK >= 0 na
+  // migration 001), então uma cauda inteira de lançamentos zerados faria
+  // categorias reais sumirem da lista sem nada explicando a ausência.
+  return semCoresRepetidas([...topo, { rotulo: ROTULO_DEMAIS, valor: resto, cor: COR_SEM_CATEGORIA }]);
 }
 
 /** Sparkline minimalista (linha) sobre uma série de valores. */
@@ -195,8 +229,8 @@ export function BarrasRank({ fatias, total }: { fatias: FatiaDonut[]; total?: nu
   if (fatias.length === 0) return <p className="sub">Sem dados.</p>;
   return (
     <div className="legenda" style={{ gap: "0.7rem" }}>
-      {fatias.map((f) => (
-        <div key={f.rotulo}>
+      {fatias.map((f, i) => (
+        <div key={i}>
           {/* min-width:0 no nome: categoria é texto do usuário, e sem isto um
               nome longo empurra o valor para fora do card em vez de encolher. */}
           <div className="item" style={{ marginBottom: "0.25rem", minWidth: 0 }}>
@@ -245,7 +279,7 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
         <title>Distribuição de despesas por categoria</title>
         <g transform="rotate(-90 60 60)">
           {segs.map((s) => (
-            <circle key={s.f.rotulo} cx={CX} cy={CX} r={rMid} fill="none"
+            <circle key={s.i} cx={CX} cy={CX} r={rMid} fill="none"
               stroke={s.f.cor} strokeLinecap="round"
               strokeWidth={ativo === s.i ? Whover : W}
               strokeDasharray={s.dash} strokeDashoffset={s.offset.toFixed(2)}
@@ -270,7 +304,7 @@ export function Donut({ fatias }: { fatias: FatiaDonut[] }) {
       </svg>
       <ul className="legenda" style={{ flex: 1, minWidth: 170, listStyle: "none", margin: 0, padding: 0 }}>
         {fatias.map((f, i) => (
-          <li key={f.rotulo}>
+          <li key={i}>
             <button type="button" className="item legenda-item" aria-pressed={ativo === i}
               onMouseEnter={() => setAtivo(i)} onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)}
               style={{ opacity: ativo == null || ativo === i ? 1 : 0.5 }}>

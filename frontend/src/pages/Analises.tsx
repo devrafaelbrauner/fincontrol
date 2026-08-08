@@ -89,7 +89,8 @@ export default function Analises() {
 
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("variavel");
-  const [cor, setCor] = useState(PALETA_SERIES[0]);
+  // null = "não escolhi", e não "a primeira da paleta".
+  const [cor, setCor] = useState<string | null>(null);
   // Qual categoria está com a cartela aberta. A cartela não cabe dentro do
   // chip (seis amostras alargariam cada um em ~110px), então ela abre numa
   // linha só, abaixo da lista.
@@ -150,16 +151,25 @@ export default function Analises() {
     e.preventDefault();
     if (!nome.trim()) return;
     try {
-      await api("/categorias", { method: "POST", body: JSON.stringify({ nome: nome.trim(), tipo, cor }) });
+      // Sem escolha explícita, `cor` NÃO vai no corpo: a categoria nasce sem
+      // cor e cai no slot da paleta. Mandar um padrão daqui faria toda
+      // categoria criada pela tela nascer da mesma cor — que é justamente a
+      // colisão de matiz que a paleta existe para evitar.
+      await api("/categorias", { method: "POST", body: JSON.stringify({ nome: nome.trim(), tipo, ...(cor ? { cor } : {}) }) });
       toast("Categoria criada.");
       setNome("");
+      setCor(null);
       atualizar();
     } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   async function mudarCor(id: number, novaCor: string) {
-    await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }) });
-    atualizar();
+    // Com try/catch como os irmãos daqui: a cartela fecha ao escolher, então
+    // um PATCH que falha em silêncio deixaria a tela dizendo que a cor mudou.
+    try {
+      await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }) });
+      atualizar();
+    } catch (err) { toast((err as Error).message, "erro"); }
   }
 
   async function desativar(id: number) {

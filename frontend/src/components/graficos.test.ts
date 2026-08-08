@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros } from "./graficos";
+import { COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_DEMAIS, ROTULO_SEM_CATEGORIA, corDaCategoria, dobrarEmOutros } from "./graficos";
 
 const fatia = (rotulo: string, valor: number, cor = PALETA_SERIES[0]): FatiaDonut => ({ rotulo, valor, cor });
 
@@ -36,11 +36,11 @@ describe("dobrarEmOutros", () => {
     expect(r.map((f) => f.rotulo)).toEqual(["a", "c", "b"]);
   });
 
-  it("passou do limite, a cauda vira Outros e o total se conserva", () => {
+  it("passou do limite, a cauda vira uma linha só e o total se conserva", () => {
     const entrada = Array.from({ length: 9 }, (_, i) => fatia(`c${i}`, 100 - i * 10));
     const r = dobrarEmOutros(entrada);
     expect(r).toHaveLength(PALETA_SERIES.length);
-    expect(r[r.length - 1].rotulo).toBe("Outros");
+    expect(r[r.length - 1].rotulo).toBe(ROTULO_DEMAIS);
     // Nada some no caminho: era o defeito do `slice(0, 5)` que isto substitui,
     // onde a cauda recortada não era somada em lugar nenhum e os percentuais
     // exibidos não fechavam com o total impresso ao lado.
@@ -49,9 +49,47 @@ describe("dobrarEmOutros", () => {
   });
 
   it("nunca recicla matiz: no máximo uma cor por vaga da paleta", () => {
-    const entrada = Array.from({ length: 20 }, (_, i) => fatia(`c${i}`, 100 - i, PALETA_SERIES[i % PALETA_SERIES.length]));
+    // As cores vêm de corDaCategoria, como na tela — passar cores já distintas
+    // à mão faria o teste passar sem exercitar nada.
+    const entrada = Array.from({ length: 20 }, (_, i) => fatia(`c${i}`, 100 - i, corDaCategoria({ id: i })));
     const cores = dobrarEmOutros(entrada).map((f) => f.cor);
     expect(new Set(cores).size).toBe(cores.length);
+  });
+
+  it("ids que caem na mesma vaga não viram a mesma cor na legenda", () => {
+    // 1 e 7 diferem por um múltiplo de seis, então corDaCategoria devolve a
+    // mesma vaga para os dois — plausível assim que o usuário passa das 20
+    // categorias semeadas.
+    expect(corDaCategoria({ id: 1 })).toBe(corDaCategoria({ id: 7 }));
+    const r = dobrarEmOutros([fatia("a", 50, corDaCategoria({ id: 1 })), fatia("b", 30, corDaCategoria({ id: 7 }))]);
+    expect(r[0].cor).not.toBe(r[1].cor);
+  });
+
+  it("a linha de resumo sai mesmo quando a cauda soma zero", () => {
+    // valor_cents aceita 0 (CHECK >= 0), então sem isto as categorias zeradas
+    // sumiriam da lista sem nada explicando a ausência.
+    // Sete linhas com limite seis: cinco vão para o topo e a cauda é só o par
+    // zerado, então a linha de resumo soma exatamente 0.
+    const entrada = [
+      ...Array.from({ length: 5 }, (_, i) => fatia(`c${i}`, 100 - i)),
+      fatia("zerada 1", 0), fatia("zerada 2", 0),
+    ];
+    const r = dobrarEmOutros(entrada);
+    expect(r).toHaveLength(PALETA_SERIES.length);
+    expect(r[r.length - 1]).toMatchObject({ rotulo: ROTULO_DEMAIS, valor: 0 });
+  });
+
+  it("a linha de resumo não se chama Outros — isso é uma categoria de verdade", () => {
+    // A migration 004 semeia 'Outros' (variável e entrada). Como as somas são
+    // chaveadas por nome, uma linha de resumo homônima poria duas "Outros" com
+    // cores e valores diferentes na mesma legenda.
+    const entrada = [
+      ...Array.from({ length: 8 }, (_, i) => fatia(`c${i}`, 100 - i)),
+      fatia("Outros", 5),
+    ];
+    const r = dobrarEmOutros(entrada);
+    expect(r.filter((f) => f.rotulo === "Outros").length).toBeLessThanOrEqual(1);
+    expect(new Set(r.map((f) => f.rotulo)).size).toBe(r.length);
   });
 
   it("com dobra, Sem categoria desce junto — dois cinzas na legenda seriam um só", () => {
@@ -65,7 +103,7 @@ describe("dobrarEmOutros", () => {
     // Sem categoria era o maior valor da lista e ainda assim desceu: ele não é
     // uma identidade, então não ocupa vaga de cor.
     // 5 nomeadas ficam no topo; sobram c5, c6 e c7 (95, 94, 93) mais os 500.
-    expect(r[r.length - 1]).toMatchObject({ rotulo: "Outros", valor: 500 + 95 + 94 + 93 });
+    expect(r[r.length - 1]).toMatchObject({ rotulo: ROTULO_DEMAIS, valor: 500 + 95 + 94 + 93 });
   });
 
   it("limite menor, como o do Dashboard, mantém a contagem de linhas", () => {
