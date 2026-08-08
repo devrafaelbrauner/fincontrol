@@ -15,100 +15,118 @@
 @import "@fontsource-variable/ibm-plex-sans/index.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* O variant `dark:` reconhece os DOIS sinais de "aqui é escuro": a escolha
+   global do usuário e a ilha estática. Sem `.tema-escuro` na lista, um
+   `dark:algo` escrito dentro do hero avaliaria contra o tema do <html> e
+   falharia em silêncio justamente na subárvore que é sempre escura. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .tema-escuro, .tema-escuro *));
 
-/* ---------- Tokens de tema (trocam com [data-theme]) ---------- */
-:root,
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #000000;            /* fundo da página (preto puro) */
-  --surface: #080808;         /* sidebar, trilho lateral, painéis */
-  --surface-2: #0c0c0c;       /* modais, popovers, bottom sheet */
-  --surface-hover: #1a1a1a;   /* hover de linhas/nav, tracks */
-  --field: #0e0e0e;           /* inputs, chips, botões secundários */
-  --edge: #232323;            /* régua 1px principal */
-  --edge-strong: #2e2e2e;     /* divisores fortes, dashed */
-  --rule-soft: #1a1a1a;       /* divisor entre linhas de lista/tabela */
-  --content: #f2f2f2;         /* texto primário */
-  --content-2: #8a8a8a;       /* secundário */
-  --content-3: #767676;       /* terciário — subiu de #5a5a5a: ~5,4:1 no preto */
+/* Os tokens moram em `@layer base` — que o Tailwind declara ANTES de
+   `components` — para que um componente possa sobrepor um token ao lado da
+   própria regra. Sem camada eles venceriam qualquer coisa dentro de
+   `@layer components`, que é 80% deste arquivo, INDEPENDENTE de
+   especificidade; toda exceção teria de se exilar aqui em cima, longe do
+   que a justifica. */
+@layer base {
+  /* ---------- Tokens de tema (trocam com [data-theme]) ---------- */
+  /* `.tema-escuro` marca uma ILHA que é escura sempre, independente do tema — hoje
+     só o hero do login, que tem gradiente marinho fixo. Entrar aqui, e não copiar
+     os valores lá embaixo, é o que impede a ilha de desandar quando esta paleta
+     mudar. Quem usa a classe pode ajustar um token específico depois, e deve, se
+     o fundo dela não for preto (ver `.auth-hero`). */
+  :root,
+  :root[data-theme="dark"],
+  .tema-escuro {
+    color-scheme: dark;
+    --page: #000000;            /* fundo da página (preto puro) */
+    --surface: #080808;         /* sidebar, trilho lateral, painéis */
+    --surface-2: #0c0c0c;       /* modais, popovers, bottom sheet */
+    --surface-hover: #1a1a1a;   /* hover de linhas/nav, tracks */
+    --field: #0e0e0e;           /* inputs, chips, botões secundários */
+    --edge: #232323;            /* régua 1px principal */
+    --edge-strong: #2e2e2e;     /* divisores fortes, dashed */
+    --rule-soft: #1a1a1a;       /* divisor entre linhas de lista/tabela */
+    --content: #f2f2f2;         /* texto primário */
+    --content-2: #8a8a8a;       /* secundário */
+    --content-3: #767676;       /* terciário — subiu de #5a5a5a: ~5,4:1 no preto */
 
-  --accent: #0068ff;          /* ações, links, foco, info */
-  --accent-vivid: #3d8bff;    /* accent legível como texto no escuro */
-  --positive: #2ecf0c;        /* entradas */
-  --negative: #ff4d4d;        /* saídas, erros — era #ff0000, ilegível como texto */
-  --warning: #ffa119;         /* alertas, metas em risco */
+    --accent: #0068ff;          /* ações, links, foco, info */
+    --accent-vivid: #3d8bff;    /* accent legível como texto no escuro */
+    --positive: #2ecf0c;        /* entradas */
+    --negative: #ff4d4d;        /* saídas, erros — era #ff0000, ilegível como texto */
+    --warning: #ffa119;         /* alertas, metas em risco */
 
-  /* Fundos tonais de badges e chips. */
-  --positive-bg: rgba(46, 207, 12, 0.10);
-  --negative-bg: rgba(255, 77, 77, 0.10);
-  --warning-bg: rgba(255, 161, 25, 0.10);
-  --accent-bg: rgba(0, 104, 255, 0.10);
+    /* Fundos tonais de badges e chips. */
+    --positive-bg: rgba(46, 207, 12, 0.10);
+    --negative-bg: rgba(255, 77, 77, 0.10);
+    --warning-bg: rgba(255, 161, 25, 0.10);
+    --accent-bg: rgba(0, 104, 255, 0.10);
 
-  --card: var(--surface);
-  --shadow-card: none;        /* no escuro a régua separa */
-  --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+    --card: var(--surface);
+    --shadow-card: none;        /* no escuro a régua separa */
+    --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 
-  /* Fundo chapado: o redesign troca os glows decorativos por hierarquia
-     tipográfica. Segue como variável para o body::before não quebrar. */
-  --fundo: var(--page);
+    /* Fundo chapado: o redesign troca os glows decorativos por hierarquia
+       tipográfica. Segue como variável para o body::before não quebrar. */
+    --fundo: var(--page);
 
-  /* Paleta categórica. Os valores saem do validador do dataviz, não do olho:
-     no escuro passam faixa de luminosidade, piso de croma, separação sob
-     protanopia/deuteranopia (pior par ΔE 8,8), piso de visão normal (18,6) e
-     contraste ≥ 3:1. A paleta anterior reprovava em três dessas.
-     Duas regras que a substituição existe para manter:
-       · Os degraus são DISTINTOS dos das cores semânticas. --chart-3/6 não são
-         o --positive nem --chart-4 o --negative, como eram antes: uma categoria
-         de gasto chamada "Mercado" não pode ser desenhada no verde que
-         significa "entrada" no resto do app.
-       · Não há vermelho aqui. Ele fica reservado para saída.
-     Ao mexer, revalidar (ver o comentário em components/graficos.tsx). */
-  --chart-1: #0068ff; --chart-2: #d95f2a; --chart-3: #1ba875;
-  --chart-4: #c08400; --chart-5: #d4699a; --chart-6: #0a8a06;
-  /* Abaixo do piso de croma DE PROPÓSITO: cinza não é uma identidade, é a
-     marca de "sem categoria". Não é uma das seis vagas — não "conserte". */
-  --chart-neutral: #767676;
-}
+    /* Paleta categórica. Os valores saem do validador do dataviz, não do olho:
+       no escuro passam faixa de luminosidade, piso de croma, separação sob
+       protanopia/deuteranopia (pior par ΔE 8,8), piso de visão normal (18,6) e
+       contraste ≥ 3:1. A paleta anterior reprovava em três dessas.
+       Duas regras que a substituição existe para manter:
+         · Os degraus são DISTINTOS dos das cores semânticas. --chart-3/6 não são
+           o --positive nem --chart-4 o --negative, como eram antes: uma categoria
+           de gasto chamada "Mercado" não pode ser desenhada no verde que
+           significa "entrada" no resto do app.
+         · Não há vermelho aqui. Ele fica reservado para saída.
+       Ao mexer, revalidar (ver o comentário em components/graficos.tsx). */
+    --chart-1: #0068ff; --chart-2: #d95f2a; --chart-3: #1ba875;
+    --chart-4: #c08400; --chart-5: #d4699a; --chart-6: #0a8a06;
+    /* Abaixo do piso de croma DE PROPÓSITO: cinza não é uma identidade, é a
+       marca de "sem categoria". Não é uma das seis vagas — não "conserte". */
+    --chart-neutral: #767676;
+  }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --page: #f7f5f0;            /* papel, não branco */
-  --surface: #fbfaf7;
-  --surface-2: #ffffff;
-  --surface-hover: #efece5;
-  --field: #ffffff;
-  --edge: #dedad1;
-  --edge-strong: #c7c1b4;
-  --rule-soft: #e6e2d9;
-  --content: #17171a;
-  --content-2: #57544c;
-  --content-3: #9b9588;
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page: #f7f5f0;            /* papel, não branco */
+    --surface: #fbfaf7;
+    --surface-2: #ffffff;
+    --surface-hover: #efece5;
+    --field: #ffffff;
+    --edge: #dedad1;
+    --edge-strong: #c7c1b4;
+    --rule-soft: #e6e2d9;
+    --content: #17171a;
+    --content-2: #57544c;
+    --content-3: #9b9588;
 
-  --accent: #0068ff;
-  --accent-vivid: #0056d6;    /* accent legível como texto no claro */
-  --positive: #1f9c05;
-  --negative: #c0392b;
-  --warning: #b26400;
+    --accent: #0068ff;
+    --accent-vivid: #0056d6;    /* accent legível como texto no claro */
+    --positive: #1f9c05;
+    --negative: #c0392b;
+    --warning: #b26400;
 
-  --positive-bg: #eef7ea;
-  --negative-bg: #fbf0ee;
-  --warning-bg: #fdf3e4;
-  --accent-bg: #e9f1ff;
+    --positive-bg: #eef7ea;
+    --negative-bg: #fbf0ee;
+    --warning-bg: #fdf3e4;
+    --accent-bg: #e9f1ff;
 
-  --card: var(--surface);
-  --shadow-card: 0 1px 2px rgba(20, 25, 50, 0.06);
-  --shadow-pop: 0 16px 40px -16px rgba(20, 25, 50, 0.22);
+    --card: var(--surface);
+    --shadow-card: 0 1px 2px rgba(20, 25, 50, 0.06);
+    --shadow-pop: 0 16px 40px -16px rgba(20, 25, 50, 0.22);
 
-  --fundo: var(--page);
+    --fundo: var(--page);
 
-  /* Degraus próprios do papel claro — não é o escuro clareado. Validados
-     contra --page (#f7f5f0): CVD 9,0, visão normal 16,8, contraste ≥ 3:1.
-     No conjunto anterior, #1f9c05 e #b26400 ficavam a ΔE 1,8 sob deuteranopia,
-     ou seja, verde e âmbar eram a mesma cor para ~5% dos homens. */
-  --chart-1: #0068ff; --chart-2: #e66633; --chart-3: #199f6f;
-  --chart-4: #bb7f00; --chart-5: #ce6d92; --chart-6: #008300;
-  --chart-neutral: #b0b0b0;
+    /* Degraus próprios do papel claro — não é o escuro clareado. Validados
+       contra --page (#f7f5f0): CVD 9,0, visão normal 16,8, contraste ≥ 3:1.
+       No conjunto anterior, #1f9c05 e #b26400 ficavam a ΔE 1,8 sob deuteranopia,
+       ou seja, verde e âmbar eram a mesma cor para ~5% dos homens. */
+    --chart-1: #0068ff; --chart-2: #e66633; --chart-3: #199f6f;
+    --chart-4: #bb7f00; --chart-5: #ce6d92; --chart-6: #008300;
+    --chart-neutral: #b0b0b0;
+  }
 }
 
 /* Ponte para as utilities do Tailwind (inline = referencia a var, não o valor). */
@@ -820,11 +838,26 @@ tfoot td {
 /* ============================================================
    Login
    ============================================================ */
-/* Split: hero marinho à esquerda + formulário claro à direita. Paleta própria
-   (não segue o tema do app — o hero é sempre escuro e o formulário sempre claro). */
+/* Split: hero marinho à esquerda, sempre escuro; formulário à direita, que
+   acompanha o tema do app. */
 .auth-split { min-height: 100dvh; display: flex; align-items: stretch; }
 
+/* ILHA SEMPRE ESCURA — o hero carrega `.tema-escuro` no JSX.
+   O gradiente marinho abaixo é fixo: ele não acompanha o tema, e o resto da
+   decoração daqui (vidro, barras, trilho) já é rgba(255,255,255,…), o que
+   confirma que este lado sempre foi desenhado para ser escuro. A tinta, porém,
+   vinha dos tokens globais. No tema claro isso punha --content: #17171a —
+   quase preto — sobre o marinho: marca, título, frase e todo o texto dos
+   mockups ficavam a ~1,2:1. Sobrevivia só o que tinha hex cravado no JSX, o
+   que mascarava o problema. */
 .auth-hero {
+  /* O fundo desta ilha é marinho, não preto: o terciário do tema escuro
+     (#767676) rende só 3,27:1 sobre o #0a2a3f do rodapé — pior até que o
+     valor do tema claro que ele substituiu (4,98:1). Este foi escolhido para
+     ESTE fundo: 6,04:1. Copiar o token do tema escuro não basta quando o
+     fundo da ilha não é o fundo do tema. */
+  --content-3: #9aa6bb;
+
   flex: 1.05; position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 3rem 3.75rem; color: var(--content);
@@ -882,7 +915,6 @@ tfoot td {
 .auth-legenda { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--content-2); }
 .auth-legenda i { width: 8px; height: 8px; border-radius: 2px; }
 
-/* Lado do formulário: sempre claro */
 /* O `min-width: 0` não é enfeite: sem ele, um item de flex não encolhe abaixo do
    próprio conteúdo (min-width: auto), então este lado se fixava em 440px — os
    400px do .auth-form mais os 40px de padding — e estourava a tela de qualquer
@@ -929,7 +961,13 @@ tfoot td {
 .auth-lembrar input { width: 16px; height: 16px; accent-color: var(--accent); }
 .auth-entrar {
   height: 50px; border: none; border-radius: 12px; cursor: pointer;
-  background: linear-gradient(180deg, var(--accent), var(--accent-vivid)); color: var(--content);
+  /* Tinta fixa: o fundo é o gradiente do accent, escuro nos dois temas. Com
+     `var(--content)` o rótulo saía #17171a no tema claro — 3,77:1 e 2,81:1
+     ao longo do gradiente. Em branco: 4,75:1 e 6,36:1 no tema claro.
+     PENDENTE: no tema escuro o --accent-vivid é #3d8bff e o branco rende
+     3,31:1 — melhor que os 2,96:1 de antes, mas ainda abaixo de AA. Resolver
+     exige mexer no gradiente, que é decisão de design, não de contraste. */
+  background: linear-gradient(180deg, var(--accent), var(--accent-vivid)); color: #fff;
   font-size: 0.97rem; font-weight: 700; font-family: inherit;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
