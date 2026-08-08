@@ -27,8 +27,10 @@ class CompromissoIn(BaseModel):
     nome: str
     credor: str | None = None
     categoria_id: int | None = None
-    valor_total_cents: int = Field(gt=0)
-    data_limite: DataISO
+    # Só o nome é obrigatório (migration 014): dá para registrar a dívida antes de
+    # saber quanto e até quando. `gt=0` segue valendo para o valor que VIER.
+    valor_total_cents: int | None = Field(default=None, gt=0)
+    data_limite: DataISO | None = None
     forma_pagamento: str | None = None
     lembrete_dias_antes: int = Field(default=3, ge=0, le=90)
 
@@ -56,7 +58,10 @@ class PagamentoIn(BaseModel):
 # Mesmo motivo do `NAO_NULAVEIS_META` em metas.py: `exclude_unset=True` preserva um
 # null mandado de propósito, e escrevê-lo numa coluna NOT NULL vira IntegrityError
 # — 500 onde cabia 422.
-NAO_NULAVEIS = frozenset({"nome", "valor_total_cents", "data_limite", "lembrete_dias_antes", "ativo"})
+# `valor_total_cents` e `data_limite` saíram daqui na migration 014: agora são
+# colunas nuláveis, e mandar null é o jeito legítimo de dizer "ainda não sei" —
+# ou de apagar um palpite que já não vale.
+NAO_NULAVEIS = frozenset({"nome", "lembrete_dias_antes", "ativo"})
 
 # O SET do PATCH é montado por interpolação, então o nome da coluna nunca pode vir
 # de fora. Hoje as chaves são as do CompromissoPatch, mas um campo novo no modelo
@@ -80,19 +85,30 @@ def _validar_forma(valor: str | None) -> None:
         raise HTTPException(422, f"forma_pagamento deve ser uma de: {', '.join(FORMAS)}")
 
 
-def _status(pago: int, total: int, data_limite: str) -> str:
-    """Derivado, nunca armazenado — mesma regra do `status_lancamento` das fixas."""
-    if pago >= total:
+def _status(pago: int, total: int | None, data_limite: str | None) -> str:
+    """Derivado, nunca armazenado — mesma regra do `status_lancamento` das fixas.
+
+    Com valor ou prazo ausentes o status vira uma pergunta em aberto, não um
+    palpite. Sem total não dá para saber se quitou (pagar R$ 50 de um valor
+    desconhecido não quita nada); sem prazo não existe atraso, porque não há data
+    a vencer. Nos dois casos a resposta honesta é `em_aberto` — o que o cartão
+    mostra é a falta do dado, e é isso que convida a preenchê-lo.
+    """
+    if total is not None and pago >= total:
         return "quitado"
+    if data_limite is None:
+        return "em_aberto"
     return "atrasado" if hoje().isoformat() > data_limite else "em_aberto"
 
 
 def _com_progresso(r: sqlite3.Row) -> dict:
     d = dict(r)
     pago = d.pop("pago_cents_bruto", 0) or 0
+    total = d["valor_total_cents"]
     d["pago_cents"] = pago
-    d["falta_cents"] = max(d["valor_total_cents"] - pago, 0)
-    d["status"] = _status(pago, d["valor_total_cents"], d["data_limite"])
+    # Sem total não há "quanto falta" — e devolver 0 mentiria dizendo que acabou.
+    d["falta_cents"] = None if total is None else max(total - pago, 0)
+    d["status"] = _status(pago, total, d["data_limite"])
     d["ativo"] = bool(d["ativo"])
     return d
 
@@ -110,7 +126,13 @@ SELECT_BASE = """
 def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(get_db)):
     where = "" if incluir_arquivados else "WHERE c.ativo = 1"
     # Vencendo antes primeiro: a aba existe para mostrar o que aperta agora.
-    rows = db.execute(f"{SELECT_BASE} {where} GROUP BY c.id ORDER BY c.data_limite, c.id").fetchall()
+    # `data_limite IS NULL` na frente do ORDER BY joga os sem prazo para o FIM.
+    # No SQLite, NULL ordena ANTES de qualquer valor — sem esta coluna extra, um
+    # compromisso sem data apareceria acima do que vence amanhã, invertendo
+    # justamente a urgência que a lista existe para mostrar.
+    rows = db.execute(
+        f"{SELECT_BASE} {where} GROUP BY c.id ORDER BY c.data_limite IS NULL, c.data_limite, c.id"
+    ).fetchall()
     return [_com_progresso(r) for r in rows]
 
 

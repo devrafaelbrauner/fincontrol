@@ -14,7 +14,10 @@ type Dash = {
   fixas_cents: number;
   variaveis_cents: number;
   saldo_cents: number;
-  proximos_vencimentos: { id: number; nome: string; valor_cents: number; vencimento: string; status: string }[];
+  // valor_cents nulo = compromisso registrado sem valor (o prazo e o valor são
+  // opcionais desde a migration 014). Nunca renderizar como 0: R$ 0,00 se lê como
+  // "não devo nada", que é o oposto de "ainda não sei quanto".
+  proximos_vencimentos: { id: number; nome: string; valor_cents: number | null; vencimento: string; status: string }[];
 };
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
@@ -308,7 +311,7 @@ export default function Dashboard() {
                   <tr key={v.id}>
                     <td>{v.nome}</td>
                     <td>{new Date(v.vencimento + "T00:00").toLocaleDateString("pt-BR")}</td>
-                    <td className="num">{brl(v.valor_cents)}</td>
+                    <td className="num">{v.valor_cents === null ? <span style={{ color: "var(--content-3)" }}>sem valor</span> : brl(v.valor_cents)}</td>
                     <td><span className={`badge ${v.status}`}>{v.status}</span></td>
                   </tr>
                 ))}

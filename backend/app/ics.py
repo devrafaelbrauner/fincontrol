@@ -129,12 +129,19 @@ def gerar_feed(db: sqlite3.Connection) -> str:
     # Compromissos em aberto: uma obrigação pontual com prazo é exatamente o que
     # um calendário serve para lembrar. Quitado não vira evento — o prazo deixou
     # de existir, e mantê-lo poluiria a agenda com o que já foi resolvido.
+    # `data_limite IS NOT NULL` no WHERE, não no laço: desde a migration 014 o
+    # prazo é opcional, e um evento de calendário sem data não existe. Filtrar no
+    # SQL também evita um TypeError — o `except ValueError` abaixo trata string
+    # inválida, mas `date.fromisoformat(None)` levanta TypeError e escaparia,
+    # derrubando o feed inteiro por causa de um único compromisso sem prazo.
+    # O valor ausente já se exclui sozinho: `NULL - x` é NULL, e `NULL > 0` nunca
+    # é verdadeiro, então o HAVING descarta a linha.
     compromissos = db.execute(
         """SELECT c.id, c.nome, c.credor, c.data_limite, c.lembrete_dias_antes,
                   c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
            FROM compromissos c
            LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
-           WHERE c.ativo = 1
+           WHERE c.ativo = 1 AND c.data_limite IS NOT NULL
            GROUP BY c.id
            HAVING falta_cents > 0"""
     ).fetchall()
