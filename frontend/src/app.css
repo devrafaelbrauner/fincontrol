@@ -784,20 +784,6 @@ tfoot td {
 .fab { display: none; }
 
 /* ============================================================
-   StatCard
-   ============================================================ */
-.stat { display: flex; flex-direction: column; gap: 0.5rem; }
-.stat .topo-stat { display: flex; align-items: center; justify-content: space-between; }
-.stat .icone {
-  width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
-  background: var(--surface-hover); color: var(--content-2); border: 1px solid var(--edge);
-}
-.stat .rotulo { font-size: 0.72rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--content-2); }
-.stat .valor { font-size: 1.65rem; font-weight: 650; letter-spacing: -0.02em; }
-.stat .variacao { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.25rem; }
-.stat .spark { margin-top: 0.2rem; }
-
-/* ============================================================
    Modal / Drawer
    ============================================================ */
 .overlay {
@@ -1151,8 +1137,6 @@ tfoot td {
   .modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
   .overlay { padding: 0; }
   .grid-stats { grid-template-columns: 1fr 1fr; }
-  .stat .valor { font-size: 1.35rem; }
-
   /* Bottom sheet: alça de 38×4 e raio só em cima, como no desenho. */
   .sheet { border-radius: 22px 22px 0 0; padding-top: 8px; }
   .sheet::before {
