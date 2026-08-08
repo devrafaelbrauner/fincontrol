@@ -17,7 +17,7 @@ const REGRAS: { rotulo: string; ok: (s: string) => boolean }[] = [
 /** Painel esquerdo: marca, manchete e cards ilustrativos de vidro. */
 function Hero() {
   return (
-    <div className="auth-hero">
+    <div className="auth-hero tema-escuro">
       <div className="marca">
         <span className="logo"><Logo tamanho={30} /></span>
         <span className="nome">FinControl</span>

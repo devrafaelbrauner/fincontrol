@@ -18,8 +18,14 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ---------- Tokens de tema (trocam com [data-theme]) ---------- */
+/* `.tema-escuro` marca uma ILHA que é escura sempre, independente do tema — hoje
+   só o hero do login, que tem gradiente marinho fixo. Entrar aqui, e não copiar
+   os valores lá embaixo, é o que impede a ilha de desandar quando esta paleta
+   mudar. Quem usa a classe pode ajustar um token específico depois, e deve, se
+   o fundo dela não for preto (ver `.auth-hero`). */
 :root,
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.tema-escuro {
   color-scheme: dark;
   --page: #000000;            /* fundo da página (preto puro) */
   --surface: #080808;         /* sidebar, trilho lateral, painéis */
@@ -94,6 +100,16 @@
   --chart-4: #c0392b; --chart-5: #8f8f8f; --chart-6: #4d8fe6;
   --chart-neutral: #b0b0b0;
 }
+
+/* Exceção da ilha marinha do login. Fica AQUI, e não junto do `.auth-hero` lá
+   embaixo, porque aquele bloco está dentro de `@layer components`: estilo sem
+   camada vence estilo em camada independente de especificidade, então a
+   sobreposição feita lá perdia para o `.tema-escuro` daqui, em silêncio.
+   Por que o valor difere do tema escuro: o fundo desta ilha é marinho, não
+   preto. O terciário do tema escuro (#767676) rende 3,27:1 sobre o #0a2a3f do
+   rodapé — pior até que o valor do tema claro que ele substituiu (4,98:1).
+   Este foi escolhido para ESTE fundo: 6,04:1. */
+.auth-hero { --content-3: #9aa6bb; }
 
 /* Ponte para as utilities do Tailwind (inline = referencia a var, não o valor). */
 @theme inline {
@@ -761,29 +777,25 @@ tfoot td {
 /* ============================================================
    Login
    ============================================================ */
-/* Split: hero marinho à esquerda + formulário claro à direita. Paleta própria
-   (não segue o tema do app — o hero é sempre escuro e o formulário sempre claro). */
+/* Split: hero marinho à esquerda, sempre escuro; formulário à direita, que
+   acompanha o tema do app. */
 .auth-split { min-height: 100dvh; display: flex; align-items: stretch; }
 
-/* ILHA SEMPRE ESCURA.
+/* ILHA SEMPRE ESCURA — o hero carrega `.tema-escuro` no JSX.
    O gradiente marinho abaixo é fixo: ele não acompanha o tema, e o resto da
    decoração daqui (vidro, barras, trilho) já é rgba(255,255,255,…), o que
-   confirma que este lado sempre foi desenhado para ser escuro.
-   A tinta, porém, vinha dos tokens globais. No tema claro isso punha
-   --content: #17171a — quase preto — sobre o marinho: a marca, o título, a
-   frase e todo o texto dos mockups ficavam ilegíveis (contraste ~1,2:1).
-   Sobrevivia só o que tinha hex cravado no JSX, o que mascarava o problema.
-   Redefinir os tokens AQUI resolve de uma vez: todo descendente herda a tinta
-   clara sem precisar saber que está numa ilha. Os valores são os do tema
-   escuro, então o hero renderiza igual nos dois. */
+   confirma que este lado sempre foi desenhado para ser escuro. A tinta, porém,
+   vinha dos tokens globais. No tema claro isso punha --content: #17171a —
+   quase preto — sobre o marinho: marca, título, frase e todo o texto dos
+   mockups ficavam a ~1,2:1. Sobrevivia só o que tinha hex cravado no JSX, o
+   que mascarava o problema.
+   A classe traz a paleta escura INTEIRA, então um elemento novo aqui dentro
+   não repete o defeito, e nada aqui precisa ser mantido em sincronia à mão. */
+/* O ajuste de --content-3 desta ilha NÃO mora aqui: mora junto dos tokens, no
+   topo do arquivo, porque este bloco está dentro de `@layer components` e o
+   bloco de tokens não. Estilo sem camada vence estilo em camada independente
+   de especificidade, então a sobreposição feita aqui perdia em silêncio. */
 .auth-hero {
-  --content: #f2f2f2;
-  --content-2: #8a8a8a;
-  --content-3: #767676;
-  --positive: #2ecf0c;
-  --negative: #ff4d4d;
-  --accent: #0068ff;
-
   flex: 1.05; position: relative; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 3rem 3.75rem; color: var(--content);
@@ -889,7 +901,12 @@ tfoot td {
 .auth-lembrar input { width: 16px; height: 16px; accent-color: var(--accent); }
 .auth-entrar {
   height: 50px; border: none; border-radius: 12px; cursor: pointer;
-  background: linear-gradient(180deg, var(--accent), var(--accent-vivid)); color: var(--content);
+  /* Tinta fixa, pelo mesmo motivo do hero: o fundo é o gradiente do accent,
+     que é escuro nos DOIS temas. Com `var(--content)`, o rótulo saía #17171a
+     no tema claro — 3,77:1 no topo do gradiente e 2,81:1 embaixo, num texto de
+     0,97rem. É o botão principal da tela ("Entrar", "Criar conta",
+     "Verificar"). Em branco: 4,75:1 e 6,36:1. */
+  background: linear-gradient(180deg, var(--accent), var(--accent-vivid)); color: #fff;
   font-size: 0.97rem; font-weight: 700; font-family: inherit;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: transform 0.12s var(--ease), box-shadow 0.12s var(--ease);
