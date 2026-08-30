@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, hojeISO, paraCents } from "../api";
 import { ProgressRing } from "../components/graficos";
-import { IcExtrair, IcMais, IcMetas } from "../components/icones";
+import { IcEditar, IcExtrair, IcFechar, IcMais, IcMetas } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
@@ -243,8 +243,8 @@ export default function Metas() {
                         {i.descricao && <div className="sub" style={{ fontSize: "0.78rem", whiteSpace: "pre-line" }}>{i.descricao}</div>}
                       </div>
                       <div style={{ display: "flex", gap: "0.25rem" }}>
-                        <button className="btn btn-icone" onClick={() => abrirItem(m, i)} aria-label={`Editar ${i.nome}`} title="Editar">✎</button>
-                        <button className="btn btn-icone btn-perigo" onClick={() => excluirItem(m, i)} aria-label={`Excluir ${i.nome}`} title="Excluir">×</button>
+                        <button className="btn btn-icone" onClick={() => abrirItem(m, i)} aria-label={`Editar ${i.nome}`} title="Editar"><IcEditar /></button>
+                        <button className="btn btn-icone btn-perigo" onClick={() => excluirItem(m, i)} aria-label={`Excluir ${i.nome}`} title="Excluir"><IcFechar /></button>
                       </div>
                     </div>
                   ))}
@@ -260,8 +260,8 @@ export default function Metas() {
                   <button className="btn" onClick={() => gerarEstrategia(m)} disabled={estrategiaId === m.id}>
                     <IcExtrair />{estrategiaId === m.id ? "Gerando…" : m.estrategia_texto ? "Refazer estratégia" : "Estratégia IA"}
                   </button>
-                  <button className="btn btn-icone" onClick={() => { setEditMeta(m); setEditValor((m.valor_total_cents / 100).toFixed(2).replace(".", ",")); }} aria-label="Editar meta" title="Editar">✎</button>
-                  <button className="btn btn-icone btn-perigo" onClick={() => excluir(m)} aria-label="Excluir meta" title="Excluir">×</button>
+                  <button className="btn btn-icone" onClick={() => { setEditMeta(m); setEditValor((m.valor_total_cents / 100).toFixed(2).replace(".", ",")); }} aria-label="Editar meta" title="Editar"><IcEditar /></button>
+                  <button className="btn btn-icone btn-perigo" onClick={() => excluir(m)} aria-label="Excluir meta" title="Excluir"><IcFechar /></button>
                 </div>
               </article>
             );

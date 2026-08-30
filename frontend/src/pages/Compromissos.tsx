@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, hojeISO, paraCents } from "../api";
-import { IcCompromissos, IcMais } from "../components/icones";
+import { IcArquivar, IcCompromissos, IcEditar, IcFechar, IcMais, IcReativar } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
@@ -12,10 +12,12 @@ type Compromisso = {
   categoria_id: number | null;
   categoria: string | null;
   categoria_cor: string | null;
-  valor_total_cents: number;
+  // Nulos são o estado normal, não erro: só o nome é obrigatório (migration 014).
+  // `falta_cents` acompanha o total — sem saber quanto se deve, não há quanto falta.
+  valor_total_cents: number | null;
   pago_cents: number;
-  falta_cents: number;
-  data_limite: string;
+  falta_cents: number | null;
+  data_limite: string | null;
   forma_pagamento: string | null;
   orientacao_texto: string | null;
   status: "em_aberto" | "atrasado" | "quitado";
@@ -52,6 +54,10 @@ function diasRestantes(dataLimite: string): number {
 }
 
 function rotuloPrazo(c: Compromisso): string {
+  // Sem prazo o rótulo vira um convite a preencher, não um cálculo. Antes de
+  // tratar o nulo aqui, `new Date("null" + "T00:00")` produzia Invalid Date e a
+  // linha saía como "vence em NaN dias".
+  if (c.data_limite === null) return "sem prazo definido";
   if (c.status === "quitado") return `quitado · vencia ${dataBR(c.data_limite)}`;
   const d = diasRestantes(c.data_limite);
   if (d < 0) return `atrasado há ${-d} dia${-d > 1 ? "s" : ""}`;
@@ -124,7 +130,7 @@ export default function Compromissos() {
     setEdit(c);
     setNome(c?.nome ?? "");
     setCredor(c?.credor ?? "");
-    setValor(c ? (c.valor_total_cents / 100).toFixed(2).replace(".", ",") : "");
+    setValor(c?.valor_total_cents != null ? (c.valor_total_cents / 100).toFixed(2).replace(".", ",") : "");
     setDataLimite(c?.data_limite ?? "");
     setCategoriaId(c?.categoria_id ? String(c.categoria_id) : "");
     setForma(c?.forma_pagamento ?? "");
@@ -133,14 +139,18 @@ export default function Compromissos() {
 
   async function salvar(e: FormEvent) {
     e.preventDefault();
-    const cents = paraCents(valor);
-    if (!(cents > 0)) { toast("Informe um valor maior que zero.", "erro"); return; }
+    // Campo vazio é ausência legítima (só o nome é obrigatório); campo PREENCHIDO
+    // com algo que não vira valor positivo continua sendo erro de digitação, e
+    // deixar passar gravaria null como se o usuário não tivesse informado nada.
+    const temValor = valor.trim() !== "";
+    const cents = temValor ? paraCents(valor) : null;
+    if (temValor && !(cents! > 0)) { toast("Informe um valor maior que zero, ou deixe em branco.", "erro"); return; }
     const corpo = JSON.stringify({
       nome,
       credor: credor.trim() || null,
       categoria_id: categoriaId ? Number(categoriaId) : null,
       valor_total_cents: cents,
-      data_limite: dataLimite,
+      data_limite: dataLimite || null,
       forma_pagamento: forma || null,
     });
     try {
@@ -234,7 +244,11 @@ export default function Compromissos() {
   }
 
   const emAberto = itens.filter((c) => c.status !== "quitado");
-  const totalFalta = emAberto.reduce((s, c) => s + c.falta_cents, 0);
+  // Soma só o que tem valor conhecido — `null` viraria NaN e contaminaria o total
+  // da página inteira. Quantos ficaram de fora é dito ao lado do número, senão o
+  // total pareceria completo estando incompleto.
+  const semValor = emAberto.filter((c) => c.falta_cents === null).length;
+  const totalFalta = emAberto.reduce((s, c) => s + (c.falta_cents ?? 0), 0);
 
   return (
     <>
@@ -247,7 +261,10 @@ export default function Compromissos() {
 
       {emAberto.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-          <span className="chip">{emAberto.length} em aberto · falta {brl(totalFalta)}</span>
+          <span className="chip">
+            {emAberto.length} em aberto · falta {brl(totalFalta)}
+            {semValor > 0 && ` · ${semValor} sem valor`}
+          </span>
           {emAberto.length > 1 && (
             <button className="btn" disabled={priorizando} onClick={pedirPrioridade}>
               {priorizando ? "Pensando…" : "Por onde começar?"}
@@ -260,7 +277,7 @@ export default function Compromissos() {
         <div className="card insights-sugestao" style={{ marginTop: "0.75rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
             <strong>Ordem sugerida pela IA</strong>
-            <button className="btn btn-icone" onClick={() => setPrioridade(null)} aria-label="Fechar sugestão">×</button>
+            <button className="btn btn-icone" onClick={() => setPrioridade(null)} aria-label="Fechar sugestão"><IcFechar /></button>
           </div>
           {prioridade.resumo && <p style={{ whiteSpace: "pre-line" }}>{prioridade.resumo}</p>}
           <ol style={{ margin: "0.5rem 0 0 1.1rem", padding: 0 }}>
@@ -292,7 +309,11 @@ export default function Compromissos() {
       ) : (
         <div className="grid-metas">
           {itens.map((c) => {
-            const pct = Math.min((c.pago_cents / c.valor_total_cents) * 100, 100);
+            // Sem total não existe percentual: `x / null` é Infinity em JS, e a
+            // barra encheria 100% sugerindo quitado. `null` some a barra.
+            const pct = c.valor_total_cents === null
+              ? null
+              : Math.min((c.pago_cents / c.valor_total_cents) * 100, 100);
             return (
               <article key={c.id} className="ficha surgir" style={{ display: "flex", flexDirection: "column", gap: "0.7rem", opacity: c.ativo ? 1 : 0.6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
@@ -303,21 +324,30 @@ export default function Compromissos() {
                     {c.credor && <div className="sub" style={{ fontSize: "0.8rem" }}>para {c.credor}</div>}
                   </div>
                   <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
-                    <button className="btn btn-icone" onClick={() => abrirForm(c)} aria-label={`Editar ${c.nome}`} title="Editar">✎</button>
-                    <button className="btn btn-icone" onClick={() => arquivar(c)} aria-label={c.ativo ? `Arquivar ${c.nome}` : `Reativar ${c.nome}`} title={c.ativo ? "Arquivar" : "Reativar"}>{c.ativo ? "⌷" : "↺"}</button>
-                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(c)} aria-label={`Excluir ${c.nome}`} title="Excluir">×</button>
+                    <button className="btn btn-icone" onClick={() => abrirForm(c)} aria-label={`Editar ${c.nome}`} title="Editar"><IcEditar /></button>
+                    <button className="btn btn-icone" onClick={() => arquivar(c)} aria-label={c.ativo ? `Arquivar ${c.nome}` : `Reativar ${c.nome}`} title={c.ativo ? "Arquivar" : "Reativar"}>{c.ativo ? <IcArquivar /> : <IcReativar />}</button>
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(c)} aria-label={`Excluir ${c.nome}`} title="Excluir"><IcFechar /></button>
                   </div>
                 </div>
 
                 <div>
                   <div className="num">
-                    {brl(c.pago_cents)} <span style={{ color: "var(--content-3)" }}>de {brl(c.valor_total_cents)}</span>
+                    {brl(c.pago_cents)}{" "}
+                    <span style={{ color: "var(--content-3)" }}>
+                      {c.valor_total_cents === null ? "pago · total a definir" : `de ${brl(c.valor_total_cents)}`}
+                    </span>
                   </div>
-                  <div className="progresso" style={{ marginTop: "0.35rem" }}>
-                    <i style={{ width: `${pct}%`, background: corBarra(c) }} />
-                  </div>
+                  {pct !== null && (
+                    <div className="progresso" style={{ marginTop: "0.35rem" }}>
+                      <i style={{ width: `${pct}%`, background: corBarra(c) }} />
+                    </div>
+                  )}
                   <div className="sub" style={{ fontSize: "0.8rem", marginTop: "0.3rem", color: c.status === "atrasado" ? "var(--negative)" : undefined }}>
-                    {c.status === "quitado" ? rotuloPrazo(c) : `falta ${brl(c.falta_cents)} · ${rotuloPrazo(c)}`}
+                    {c.status === "quitado"
+                      ? rotuloPrazo(c)
+                      : c.falta_cents === null
+                        ? rotuloPrazo(c)
+                        : `falta ${brl(c.falta_cents)} · ${rotuloPrazo(c)}`}
                   </div>
                 </div>
 
@@ -342,16 +372,24 @@ export default function Compromissos() {
                   <button className="btn" onClick={() => verPagamentos(c.id)}>
                     {expandido === c.id ? "Ocultar" : "Pagamentos"}
                   </button>
-                  {c.status !== "quitado" && (
-                    <>
-                      <button className="btn" disabled={pensandoId === c.id} onClick={() => pedirOrientacao(c)}>
-                        {pensandoId === c.id ? "Pensando…" : c.orientacao_texto ? "Refazer orientação" : "Orientação da IA"}
-                      </button>
-                      <button className="btn" disabled={pensandoId === c.id} onClick={() => pedirPlano(c)}>
-                        Plano de quitação
-                      </button>
-                    </>
-                  )}
+                  {c.status !== "quitado" && (() => {
+                    // Orientação e plano são aritmética sobre valor e prazo (quanto
+                    // separar por mês, até quando). Sem os dois o servidor recusa
+                    // com 422 — desabilitar aqui poupa a ida e diz o porquê antes
+                    // do clique, em vez de depois.
+                    const incompleto = c.valor_total_cents === null || c.data_limite === null;
+                    const motivo = incompleto ? "Informe o valor total e o prazo para usar a IA neste compromisso" : undefined;
+                    return (
+                      <>
+                        <button className="btn" disabled={pensandoId === c.id || incompleto} title={motivo} onClick={() => pedirOrientacao(c)}>
+                          {pensandoId === c.id ? "Pensando…" : c.orientacao_texto ? "Refazer orientação" : "Orientação da IA"}
+                        </button>
+                        <button className="btn" disabled={pensandoId === c.id || incompleto} title={motivo} onClick={() => pedirPlano(c)}>
+                          Plano de quitação
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {expandido === c.id && (
@@ -420,11 +458,11 @@ export default function Compromissos() {
           <label>Para quem ou por quê
             <input value={credor} onChange={(e) => setCredor(e.target.value)} placeholder="Detran, João, reforma da cozinha…" />
           </label>
-          <label>Valor total
-            <input value={valor} onChange={(e) => setValor(e.target.value)} required inputMode="decimal" placeholder="1.200,00" />
+          <label>Valor total (opcional)
+            <input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" placeholder="deixe em branco se ainda não sabe" />
           </label>
-          <label>Vence em
-            <input type="date" value={dataLimite} onChange={(e) => setDataLimite(e.target.value)} required />
+          <label>Vence em (opcional)
+            <input type="date" value={dataLimite} onChange={(e) => setDataLimite(e.target.value)} />
           </label>
           <label>Categoria do gasto
             <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
@@ -444,7 +482,13 @@ export default function Compromissos() {
 
       <Modal aberto={!!pagando} aoFechar={() => setPagando(null)} titulo={`Pagar ${pagando?.nome ?? ""}`}>
         <form onSubmit={pagar} className="form">
-          {pagando && <p className="sub">Falta {brl(pagando.falta_cents)} de {brl(pagando.valor_total_cents)}.</p>}
+          {pagando && (
+            <p className="sub">
+              {pagando.falta_cents === null || pagando.valor_total_cents === null
+                ? `${brl(pagando.pago_cents)} pago até agora — este compromisso ainda não tem valor total.`
+                : `Falta ${brl(pagando.falta_cents)} de ${brl(pagando.valor_total_cents)}.`}
+            </p>
+          )}
           <label>Valor
             <input value={valorPag} onChange={(e) => setValorPag(e.target.value)} required inputMode="decimal" placeholder="400,00" autoFocus />
           </label>

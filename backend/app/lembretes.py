@@ -373,17 +373,25 @@ def pendencias_compromissos(db: sqlite3.Connection, hoje_: date | None = None) -
     Quitado nunca avisa, mesmo vencido.
     """
     hoje_ = hoje_ or hoje()
+    # Sem prazo não há o que agendar — é a data que decide se hoje é dia de
+    # avisar. Filtrado no SQL porque `date.fromisoformat(None)` levanta TypeError,
+    # que o `except ValueError` abaixo não pega: um único compromisso sem prazo
+    # derrubaria o job de lembretes do dia inteiro.
+    # Sem VALOR, ao contrário, o aviso continua valendo: "vence hoje" é útil mesmo
+    # sem o número, e omitir o compromisso seria esconder um vencimento real.
     linhas = db.execute(
         """SELECT c.*, COALESCE(SUM(l.valor_cents), 0) AS pago_cents
            FROM compromissos c
            LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
-           WHERE c.ativo = 1 GROUP BY c.id"""
+           WHERE c.ativo = 1 AND c.data_limite IS NOT NULL GROUP BY c.id"""
     ).fetchall()
 
     out = []
     for c in linhas:
-        falta = c["valor_total_cents"] - c["pago_cents"]
-        if falta <= 0:
+        # Sem total não dá para afirmar que quitou: pagar R$ 50 de um valor
+        # desconhecido não fecha nada. Fica em aberto, sem valor a anunciar.
+        falta = None if c["valor_total_cents"] is None else c["valor_total_cents"] - c["pago_cents"]
+        if falta is not None and falta <= 0:
             continue  # quitado
         try:
             venc = date.fromisoformat(c["data_limite"])
@@ -425,7 +433,10 @@ def _mensagens_compromissos(db: sqlite3.Connection, pend: list[dict]) -> list[di
     ordem = {"atraso": 0, "hoje": 1, "antes": 2}
     for (tipo, dias), itens in sorted(grupos.items(), key=lambda kv: (ordem[kv[0][0]], kv[0][1] or 0)):
         n = len(itens)
-        total = sum(i["falta_cents"] for i in itens)
+        # Só soma o que tem valor conhecido; compromisso sem valor entra no aviso
+        # pelo nome, mas não pode inflar nem zerar o total.
+        com_valor = [i for i in itens if i["falta_cents"] is not None]
+        total = sum(i["falta_cents"] for i in com_valor)
         if tipo == "hoje":
             titulo = "Compromisso vence hoje" if n == 1 else f"{n} compromissos vencem hoje"
         elif tipo == "antes":
@@ -439,9 +450,15 @@ def _mensagens_compromissos(db: sqlite3.Connection, pend: list[dict]) -> list[di
             # "falta" e não o total: com pagamento parcial, anunciar o valor
             # cheio faria o aviso pedir dinheiro que já saiu.
             rotulo = f"{i['nome']}{f' ({i['credor']})' if i['credor'] else ''}"
-            partes.append(f"{rotulo}: {'falta ' if i['parcial'] else ''}{brl(i['falta_cents'])}")
+            if i["falta_cents"] is None:
+                # "sem valor definido" e não R$ 0,00: zero seria lido como quitado.
+                partes.append(f"{rotulo}: sem valor definido")
+            else:
+                partes.append(f"{rotulo}: {'falta ' if i['parcial'] else ''}{brl(i['falta_cents'])}")
         corpo = " · ".join(partes)
-        if n > 1:
+        # "no total" só quando há mais de um valor a somar — com um único valor
+        # conhecido a linha repetiria o mesmo número, e com nenhum diria R$ 0,00.
+        if n > 1 and len(com_valor) > 1:
             corpo += f" — {brl(total)} no total"
 
         # Peso do mês: só faz sentido quando o grupo é de um mês só.

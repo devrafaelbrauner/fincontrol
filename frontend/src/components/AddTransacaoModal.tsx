@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, hojeISO, paraCents } from "../api";
 import { useAtualizacao } from "../estado";
 import AnexoCampo from "./AnexoCampo";
+import { IcExtrair } from "./icones";
 import Modal from "./Modal";
 import { useToast } from "./Toast";
 
@@ -171,7 +172,7 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
       <form onSubmit={salvar} className="campos">
         <div className="ia-box">
           <label htmlFor="add-nl" style={{ fontSize: "0.8rem", color: "var(--content-2)" }}>
-            ✨ Descreva em uma frase, ou anexe um comprovante:
+            <IcExtrair width={14} height={14} /> Descreva em uma frase, ou anexe um comprovante:
           </label>
           <div className="linha-form" style={{ alignItems: "stretch" }}>
             <input id="add-nl" placeholder="ex: paguei 50 no mercado ontem no crédito"
@@ -266,7 +267,7 @@ export default function AddTransacaoModal({ aberto, aoFechar }: { aberto: boolea
                 {catsDoTipo.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
               <button type="button" className="btn" onClick={sugerirCategoria} disabled={sugerindo || !descricao.trim()} title="Sugerir com IA">
-                {sugerindo ? "…" : "✨ IA"}
+                {sugerindo ? "…" : <><IcExtrair />IA</>}
               </button>
             </div>
           </div>

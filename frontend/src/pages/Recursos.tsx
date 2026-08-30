@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, brl, paraCents } from "../api";
-import { IcMais, IcRecursos } from "../components/icones";
+import { IcArquivar, IcFechar, IcMais, IcReativar, IcRecursos } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
@@ -244,7 +244,7 @@ export default function Recursos() {
         <div className="card insights-sugestao" style={{ marginTop: "0.6rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
             <strong>Saldos × lançamentos</strong>
-            <button className="btn btn-icone" onClick={() => setRecon(null)} aria-label="Fechar">×</button>
+            <button className="btn btn-icone" onClick={() => setRecon(null)} aria-label="Fechar"><IcFechar /></button>
           </div>
           {recon.contas_medidas === 0 ? (
             <p className="sub">
@@ -301,9 +301,9 @@ export default function Recursos() {
                 </div>
                 <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0 }}>
                   <button className="btn btn-icone" onClick={() => arquivar(c)} title={c.ativa ? "Arquivar" : "Reativar"}
-                    aria-label={c.ativa ? `Arquivar ${c.banco}` : `Reativar ${c.banco}`}>{c.ativa ? "⌷" : "↺"}</button>
+                    aria-label={c.ativa ? `Arquivar ${c.banco}` : `Reativar ${c.banco}`}>{c.ativa ? <IcArquivar /> : <IcReativar />}</button>
                   <button className="btn btn-icone btn-perigo" onClick={() => excluir(c)}
-                    aria-label={`Excluir ${c.banco}`} title="Excluir">×</button>
+                    aria-label={`Excluir ${c.banco}`} title="Excluir"><IcFechar /></button>
                 </div>
               </div>
 
@@ -346,7 +346,7 @@ export default function Recursos() {
                         </div>
                       </div>
                       <button className="btn btn-icone btn-perigo" onClick={() => apagarLeitura(c.id, l.id)}
-                        aria-label="Apagar leitura" title="Apagar leitura">×</button>
+                        aria-label="Apagar leitura" title="Apagar leitura"><IcFechar /></button>
                     </div>
                   ))}
                 </div>

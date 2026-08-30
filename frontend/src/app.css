@@ -359,7 +359,12 @@ a.card:hover, button.card:hover, .card.clicavel:hover {
    ============================================================ */
 .campo { display: flex; flex-direction: column; gap: 0.35rem; }
 .campo > label { font-size: 0.8rem; font-weight: 500; color: var(--content-2); }
-input, select, textarea {
+/* O `:not` cobre caixa de marcar e rádio pelo mesmo motivo que o `.auth-form` já
+   fazia isolado: `width: 100%` mais padding e borda esticam um checkbox pela
+   linha inteira e empurram o rótulo ao lado dele para o outro extremo da tela.
+   Era o que acontecia com "Mostrar arquivados" em Compromissos e com outras
+   cinco caixas do app — o login escapava só porque tinha a exceção própria. */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   padding: 0.55rem 0.75rem; border-radius: 10px;
   border: 1px solid var(--edge-strong); background: var(--field);
   color: var(--content); width: 100%;
@@ -712,6 +717,17 @@ tfoot td {
   white-space: nowrap;   /* obrigatório: sem isto o "R$" quebra sozinho */
 }
 .hero-cents { font-size: 32px; color: var(--content-3); }
+/* Marca de variação + o número que ela qualifica, numa linha só.
+   Flex, e não texto corrido, porque o SVG e o número são caixas separadas: no
+   fluxo inline o navegador pode quebrar entre os dois, e num contêiner apertado
+   — o chip do hero cabia em 99px e o conteúdo pedia 112 — quebrava mesmo,
+   jogando a marca para uma linha só dela, acima do número. Container flex não
+   quebra entre itens (`flex-wrap: nowrap` é o default), e o `white-space`
+   impede a quebra dentro do próprio texto. O `align-items` é o que centra o SVG
+   na altura do número: inline, ele assentaria na linha de base como se fosse
+   letra e ficaria alto. */
+.com-marca { display: inline-flex; align-items: center; gap: 0.3em; white-space: nowrap; }
+
 .chip-var {
   font: 500 12px var(--font-mono); padding: 3px 9px;
   border-radius: var(--radius-pill); border: 1px solid currentColor;
@@ -782,20 +798,6 @@ tfoot td {
 /* Nav inferior (mobile) + FAB */
 .bottom-nav { display: none; }
 .fab { display: none; }
-
-/* ============================================================
-   StatCard
-   ============================================================ */
-.stat { display: flex; flex-direction: column; gap: 0.5rem; }
-.stat .topo-stat { display: flex; align-items: center; justify-content: space-between; }
-.stat .icone {
-  width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
-  background: var(--surface-hover); color: var(--content-2); border: 1px solid var(--edge);
-}
-.stat .rotulo { font-size: 0.72rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--content-2); }
-.stat .valor { font-size: 1.65rem; font-weight: 650; letter-spacing: -0.02em; }
-.stat .variacao { font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.25rem; }
-.stat .spark { margin-top: 0.2rem; }
 
 /* ============================================================
    Modal / Drawer
@@ -1077,7 +1079,10 @@ tfoot td {
 }
 .anexo-upload:hover, .anexo-link:hover { border-color: var(--accent); }
 .anexo-link { border-style: solid; }
-.anexo-remover { cursor: pointer; background: none; border: none; color: var(--negative); font-size: 1rem; padding: 0 0.2rem; }
+/* Alinhamento por flex, não pela linha de base do texto: o conteúdo virou SVG
+   (era o caractere ×), e SVG inline assenta na baseline como se fosse letra —
+   fica alguns pixels acima do centro do rótulo ao lado. */
+.anexo-remover { cursor: pointer; background: none; border: none; color: var(--negative); padding: 0 0.2rem; display: inline-flex; align-items: center; }
 
 /* Legenda de donut */
 .legenda { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1148,8 +1153,6 @@ tfoot td {
   .modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
   .overlay { padding: 0; }
   .grid-stats { grid-template-columns: 1fr 1fr; }
-  .stat .valor { font-size: 1.35rem; }
-
   /* Bottom sheet: alça de 38×4 e raio só em cima, como no desenho. */
   .sheet { border-radius: 22px 22px 0 0; padding-top: 8px; }
   .sheet::before {

@@ -184,11 +184,18 @@ def buscar(
             "valor_cents": r["falta_cents"],
             "valor_total_cents": r["valor_total_cents"],
             "data": r["data_limite"],
-            "quitado": r["falta_cents"] <= 0,
+            # Sem valor total não há como afirmar que quitou — e `None <= 0` seria
+            # TypeError, derrubando a busca inteira por causa de um item.
+            "quitado": r["falta_cents"] is not None and r["falta_cents"] <= 0,
             "categoria_id": r["categoria_id"],
             "categoria": r["categoria"],
         })
 
-    itens.sort(key=lambda i: i["data"], reverse=True)
+    # A chave é uma tupla porque `data` pode ser None: compromisso sem prazo
+    # (migration 014) é o único item da busca sem data, e comparar None com None
+    # — ou com uma string — levanta TypeError, derrubando a busca inteira.
+    # O primeiro elemento agrupa (com reverse=True, `False` vem depois), então os
+    # sem data caem no fim; o segundo ordena os datados entre si.
+    itens.sort(key=lambda i: (i["data"] is not None, i["data"] or ""), reverse=True)
     truncado = len(itens) > LIMITE
     return {"itens": itens[:LIMITE], "truncado": truncado}

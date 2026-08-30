@@ -1,6 +1,6 @@
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import { api, apiUpload, brl, abrirAnexo, hojeISO, paraCents } from "../api";
-import { IcAnexo, IcExtrair, IcImportar } from "../components/icones";
+import { IcAnexo, IcExtrair, IcFechar, IcImportar, IcOk } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
 
@@ -272,9 +272,9 @@ export default function Importar() {
               {i.status === "pronto" && i.confianca != null && (
                 <span className="chip" title="Confiança da IA na extração">IA {Math.round(i.confianca * 100)}%</span>
               )}
-              {i.status === "confirmado" && <span className="chip">✓ Lançado</span>}
+              {i.status === "confirmado" && <span className="chip"><IcOk width={14} height={14} /> Lançado</span>}
               <button className="btn btn-icone" style={{ marginLeft: "auto" }} aria-label="Remover da lista"
-                onClick={() => setItens((l) => l.filter((x) => x.key !== i.key))}>×</button>
+                onClick={() => setItens((l) => l.filter((x) => x.key !== i.key))}><IcFechar /></button>
             </div>
 
             {(i.status === "enviando" || i.status === "extraindo") && <div className="skeleton" style={{ height: 56 }} />}

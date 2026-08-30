@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, brl } from "../api";
-import { IcEntradas } from "../components/icones";
+import { IcEntradas, IcFechar } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import ValorHero from "../components/ValorHero";
@@ -68,7 +68,7 @@ export default function Entradas() {
                     </span>
                   </td>
                   <td className="num positivo">{brl(i.valor_cents)}</td>
-                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i.id)} aria-label="Excluir">×</button></td>
+                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i.id)} aria-label="Excluir"><IcFechar /></button></td>
                 </tr>
               ))}
             </tbody>

@@ -1,5 +1,6 @@
 import { ChangeEvent, useState } from "react";
 import { abrirAnexo, apiUpload } from "../api";
+import { IcFechar } from "./icones";
 
 type Props = {
   anexoId: number | null;
@@ -34,8 +35,8 @@ export default function AnexoCampo({ anexoId, onChange }: Props) {
           <button type="button" className="anexo-link" onClick={() => abrirAnexo(anexoId)}>
             📎 ver anexo
           </button>
-          <button type="button" className="anexo-remover" onClick={() => onChange(null)} title="Remover anexo">
-            ×
+          <button type="button" className="anexo-remover" onClick={() => onChange(null)} title="Remover anexo" aria-label="Remover anexo">
+            <IcFechar width={15} height={15} />
           </button>
         </>
       ) : (

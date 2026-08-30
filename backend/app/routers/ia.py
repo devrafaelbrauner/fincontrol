@@ -22,8 +22,15 @@ from ..util import hoje, validar_competencia, validar_data, gerar_lancamentos_fi
 router = APIRouter(prefix="/ia", tags=["ia"])
 
 
-def _data_ok(valor: str) -> bool:
-    """Data que o modelo devolveu serve para gravar/recortar por mês?"""
+def _data_ok(valor: str | None) -> bool:
+    """Data que o modelo devolveu serve para gravar/recortar por mês?
+
+    `None` responde False em vez de estourar: o prazo do compromisso é opcional
+    desde a migration 014, e `validar_data(None)` levanta TypeError — que não é
+    ValueError e escaparia deste try, virando 500 na priorização.
+    """
+    if valor is None:
+        return False
     try:
         validar_data(valor)
     except ValueError:
@@ -113,9 +120,18 @@ def _contexto_financeiro(db: sqlite3.Connection, competencia: str, excluir_meta_
            ORDER BY c.data_limite"""
     ).fetchall()
     if comps:
+        # "sem prazo definido" em vez de interpolar o None: o texto vai cru para o
+        # modelo, e "vence None" seria lido como data — a IA passaria a raciocinar
+        # em cima de um prazo que não existe.
+        # Sem VALOR, ao contrário, o compromisso fica de fora, e o `HAVING` acima já
+        # faz isso sozinho (`NULL > 0` nunca é verdadeiro). É de propósito: este
+        # contexto existe para dizer quanto do dinheiro já está comprometido, e uma
+        # dívida sem número não muda essa conta — mencioná-la só convidaria o modelo
+        # a arbitrar um valor. Ela continua visível onde importa (tela e dashboard).
         partes.append("Compromissos em aberto: " + "; ".join(
             f"{c['nome']}" + (f" (para {c['credor']})" if c["credor"] else "")
-            + f" falta {reais(c['falta_cents'])}, vence {c['data_limite']}"
+            + f" falta {reais(c['falta_cents'])}, "
+            + (f"vence {c['data_limite']}" if c["data_limite"] else "sem prazo definido")
             for c in comps) + ".")
     return "\n".join(partes)
 
@@ -492,6 +508,14 @@ def _compromisso_para_ia(db: sqlite3.Connection, compromisso_id: int) -> dict:
     ).fetchone()
     if not row:
         raise HTTPException(404, "Compromisso não encontrado")
+    # Valor e prazo são opcionais (migration 014), mas o plano de quitação é
+    # aritmética sobre os dois: quanto separar por mês até quando. Sem eles não há
+    # o que calcular — e a conta estouraria em TypeError. Recusar aqui, antes da
+    # chamada, evita cobrar do dono uma resposta que a IA teria que inventar.
+    faltando = [r for c, r in (("valor_total_cents", "o valor total"),
+                               ("data_limite", "o prazo")) if row[c] is None]
+    if faltando:
+        raise HTTPException(422, f"Para orientar sobre este compromisso, informe {' e '.join(faltando)}.")
     falta = row["valor_total_cents"] - row["pago_cents"]
     if falta <= 0:
         # Pagar uma chamada de IA para orientar sobre dívida já quitada é queimar

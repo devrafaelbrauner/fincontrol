@@ -5,7 +5,7 @@ import AnimatedNumber from "../components/AnimatedNumber";
 import ValorHero from "../components/ValorHero";
 import { Fio } from "../components/Fio";
 import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
-import { IcExtrair, IcMetas } from "../components/icones";
+import { IcDesceu, IcEstavel, IcExtrair, IcMetas, IcSubiu } from "../components/icones";
 import { useAtualizacao, useCompetencia } from "../estado";
 
 type Dash = {
@@ -14,7 +14,10 @@ type Dash = {
   fixas_cents: number;
   variaveis_cents: number;
   saldo_cents: number;
-  proximos_vencimentos: { id: number; nome: string; valor_cents: number; vencimento: string; status: string }[];
+  // valor_cents nulo = compromisso registrado sem valor (o prazo e o valor são
+  // opcionais desde a migration 014). Nunca renderizar como 0: R$ 0,00 se lê como
+  // "não devo nada", que é o oposto de "ainda não sei quanto".
+  proximos_vencimentos: { id: number; nome: string; valor_cents: number | null; vencimento: string; status: string }[];
 };
 type Categoria = { id: number; nome: string; cor: string | null };
 type Variavel = { valor_cents: number; categoria_id: number | null };
@@ -39,8 +42,8 @@ function TrilhoItem({ rotulo, cents, cor, variacao: v, menosMelhor, serie }: {
       <div className="trilho-topo">
         <span className="trilho-rotulo">{rotulo}</span>
         {v != null && (
-          <span className="trilho-var num" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
-            {v >= 0 ? "▲" : "▼"} {Math.abs(v).toFixed(1)}%
+          <span className="trilho-var num com-marca" style={{ color: bom ? "var(--positive)" : "var(--negative)" }}>
+            {v >= 0 ? <IcSubiu /> : <IcDesceu />}{Math.abs(v).toFixed(1)}%
           </span>
         )}
       </div>
@@ -225,8 +228,8 @@ export default function Dashboard() {
               <ValorHero cents={atual.saldo_cents} />
             </span>
             {varSaldo != null && (
-              <span className={`chip-var ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
-                {varSaldo > 0 ? "▲" : varSaldo < 0 ? "▼" : "•"} {Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
+              <span className={`chip-var com-marca ${varSaldo >= 0 ? "bom" : "ruim"}`} title="Variação vs. mês anterior">
+                {varSaldo > 0 ? <IcSubiu /> : varSaldo < 0 ? <IcDesceu /> : <IcEstavel />}{Math.abs(varSaldo)}% vs. {mesCurto(ant.competencia)}
               </span>
             )}
           </div>
@@ -308,7 +311,7 @@ export default function Dashboard() {
                   <tr key={v.id}>
                     <td>{v.nome}</td>
                     <td>{new Date(v.vencimento + "T00:00").toLocaleDateString("pt-BR")}</td>
-                    <td className="num">{brl(v.valor_cents)}</td>
+                    <td className="num">{v.valor_cents === null ? <span style={{ color: "var(--content-3)" }}>sem valor</span> : brl(v.valor_cents)}</td>
                     <td><span className={`badge ${v.status}`}>{v.status}</span></td>
                   </tr>
                 ))}

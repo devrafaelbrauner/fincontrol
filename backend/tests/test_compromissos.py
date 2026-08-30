@@ -195,11 +195,88 @@ def test_campos_obrigatorios_e_patch_vazio(db, autenticado):
     assert autenticado.patch(f"/api/compromissos/{cid}", json={}).status_code == 400
     # Null explícito em coluna NOT NULL é 422, não 500:
     assert autenticado.patch(f"/api/compromissos/{cid}", json={"nome": None}).status_code == 422
-    assert autenticado.patch(f"/api/compromissos/{cid}", json={"valor_total_cents": None}).status_code == 422
     # Já um campo opcional aceita null (tirar o credor):
     assert autenticado.patch(f"/api/compromissos/{cid}", json={"credor": None}).status_code == 200
+    # Desde a migration 014, valor e prazo também: mandar null é como se apaga um
+    # palpite que não vale mais. Este assert já valeu o contrário — o campo era
+    # NOT NULL e a resposta, 422.
+    assert autenticado.patch(f"/api/compromissos/{cid}", json={"valor_total_cents": None}).status_code == 200
+    assert autenticado.patch(f"/api/compromissos/{cid}", json={"data_limite": None}).status_code == 200
 
 
 def test_pagamento_em_compromisso_inexistente_e_404(db, autenticado):
     assert autenticado.post("/api/compromissos/99999/pagamentos", json={"valor_cents": 100}).status_code == 404
     assert autenticado.get("/api/compromissos/99999/pagamentos").status_code == 404
+
+
+# ---------- só o nome é obrigatório (migration 014) ----------
+
+def test_so_o_nome_e_obrigatorio(db, autenticado):
+    """Registrar a dívida antes de saber quanto e até quando."""
+    r = autenticado.post("/api/compromissos", json={"nome": "Acerto com o João"})
+    assert r.status_code == 201, r.text
+    c = autenticado.get(f"/api/compromissos/{r.json()['id']}").json()
+    assert c["valor_total_cents"] is None
+    assert c["data_limite"] is None
+    # `falta_cents` NÃO é 0: zero se lê como quitado, e é o oposto de "não sei".
+    assert c["falta_cents"] is None
+    # Sem prazo não existe atraso; sem total não dá para dizer que quitou.
+    assert c["status"] == "em_aberto"
+
+
+def test_valor_invalido_continua_recusado(db, autenticado):
+    """Opcional é diferente de "aceita qualquer coisa": o CHECK > 0 sobrevive à
+    reconstrução da tabela, e só deixa de morder quando o valor está ausente."""
+    assert autenticado.post("/api/compromissos", json={"nome": "X", "valor_total_cents": 0}).status_code == 422
+    assert autenticado.post("/api/compromissos", json={"nome": "X", "valor_total_cents": -50}).status_code == 422
+    assert autenticado.post("/api/compromissos", json={"nome": "X", "data_limite": "31/12/2026"}).status_code == 422
+
+
+def test_sem_prazo_vai_para_o_fim_da_lista(db, autenticado):
+    """No SQLite NULL ordena ANTES de tudo — sem cuidado no ORDER BY, o
+    compromisso sem prazo apareceria acima do que vence amanhã."""
+    criar(autenticado, nome="Sem prazo", data_limite=None)
+    criar(autenticado, nome="Urgente", data_limite=em(1))
+    nomes = [c["nome"] for c in autenticado.get("/api/compromissos").json()]
+    assert nomes == ["Urgente", "Sem prazo"]
+
+
+def test_pagamento_em_compromisso_sem_valor_nao_quita(db, autenticado):
+    """Pagar R$ 50 de um total desconhecido não fecha nada."""
+    cid = criar(autenticado, nome="Dívida", valor_total_cents=None)
+    autenticado.post(f"/api/compromissos/{cid}/pagamentos", json={"valor_cents": 5_000})
+    c = autenticado.get(f"/api/compromissos/{cid}").json()
+    assert c["pago_cents"] == 5_000
+    assert c["falta_cents"] is None
+    assert c["status"] == "em_aberto"
+
+
+def test_incompletos_nao_derrubam_as_telas_que_os_leem(db, autenticado):
+    """Regressão dos TypeError: `None` em aritmética ou em `date.fromisoformat`
+    derrubava busca, dashboard, .ics e lembretes com 500. Cada rota abaixo já
+    quebrou com um destes três compromissos."""
+    criar(autenticado, nome="Sem nada", valor_total_cents=None, data_limite=None)
+    criar(autenticado, nome="Sem valor", valor_total_cents=None, data_limite=em(3))
+    criar(autenticado, nome="Sem prazo", valor_total_cents=90_000, data_limite=None)
+
+    # busca: `falta_cents <= 0` era TypeError
+    r = autenticado.get("/api/busca?q=sem")
+    assert r.status_code == 200, r.text
+    assert {i["descricao"] for i in r.json()["itens"]} >= {"Sem nada", "Sem valor", "Sem prazo"}
+
+    # dashboard: o que vence no mês sem valor precisa APARECER, não sumir
+    h = hoje()
+    r = autenticado.get(f"/api/dashboard/{h.year:04d}-{h.month:02d}")
+    assert r.status_code == 200, r.text
+
+    # .ics: `date.fromisoformat(None)` levanta TypeError, que o except ValueError
+    # de lá não pegava
+    from app.ics import gerar_feed
+    assert "BEGIN:VCALENDAR" in gerar_feed(db)
+
+    # lembretes: mesmo TypeError, no job diário
+    from app.lembretes import pendencias_compromissos
+    pend = pendencias_compromissos(db)
+    assert all(p["vencimento"] is not None for p in pend)
+    # o de daqui a 3 dias entra sem valor definido, em vez de ser omitido
+    assert any(p["nome"] == "Sem valor" and p["falta_cents"] is None for p in pend)

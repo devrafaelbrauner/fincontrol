@@ -51,13 +51,19 @@ def dashboard(competencia: str, db: sqlite3.Connection = Depends(get_db)):
     # Compromissos em aberto do mês entram na mesma lista: para quem olha o
     # dashboard, "o que ainda tenho a pagar este mês" é uma pergunta só — deixá-los
     # de fora escondia justamente as obrigações pontuais, que são as esquecíveis.
+    # `falta_cents IS NULL` no HAVING inclui o compromisso que vence este mês mas
+    # ainda não tem valor (opcional desde a migration 014). Sem essa cláusula ele
+    # sumiria do dashboard — `NULL > 0` nunca é verdadeiro —, e some justamente o
+    # tipo de obrigação que este bloco existe para não deixar esquecer.
+    # Sem data continua fora, e deve mesmo: a lista é do mês, e `substr(NULL,1,7)`
+    # não casa com competência nenhuma.
     for r in db.execute(
         """SELECT c.id, c.nome, c.credor, c.data_limite,
                   c.valor_total_cents - COALESCE(SUM(l.valor_cents), 0) AS falta_cents
            FROM compromissos c
            LEFT JOIN lancamentos_variaveis l ON l.compromisso_id = c.id
            WHERE c.ativo = 1 AND substr(c.data_limite, 1, 7) = ?
-           GROUP BY c.id HAVING falta_cents > 0""",
+           GROUP BY c.id HAVING falta_cents > 0 OR falta_cents IS NULL""",
         (competencia,),
     ):
         proximos.append({
