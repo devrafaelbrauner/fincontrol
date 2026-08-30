@@ -101,6 +101,53 @@ cd backend && .venv/bin/pip install -r requirements-dev.txt
 cd frontend && npm test                   # vitest
 ```
 
+## Versionamento
+
+O número vive em [`VERSION`](VERSION), na raiz, e é a **única fonte**. Todo o
+resto é espelho: `frontend/package.json` (de onde o Gradle tira o `versionName`
+do APK), o `MARKETING_VERSION` do projeto Xcode e o `FastAPI(version=...)`, que
+lê o arquivo em tempo de execução. `backend/tests/test_versao.py` falha se algum
+deles divergir — foi assim que se descobriu que o iOS dizia `1.0` enquanto o
+resto dizia `0.1.0`.
+
+O esquema é [SemVer](https://semver.org/lang/pt-BR/), e num app single-user o que
+cada dígito significa é isto:
+
+| Dígito | Sobe quando |
+|---|---|
+| **MAJOR** | o dado ou a API mudam de forma que exige atenção — uma migration que não volta atrás, um endpoint que sai, um formato de exportação diferente |
+| **MINOR** | entra funcionalidade, de forma compatível |
+| **PATCH** | correção ou ajuste visual, sem mexer na forma dos dados |
+
+Redesenho visual sozinho é PATCH: incomoda, mas não quebra nada de quem integra
+nem invalida dado guardado.
+
+### Para lançar
+
+```bash
+./scripts/versao.sh                 # confere (não escreve nada)
+./scripts/versao.sh minor           # sobe e sincroniza os espelhos
+```
+
+Depois, à mão — o script não faz de propósito, porque cada um exige uma decisão:
+
+1. Descrever a versão em [`CHANGELOG.md`](CHANGELOG.md). O teste exige a seção.
+2. Subir `fincontrolVersionCode` em `frontend/android/gradle.properties` **se for
+   distribuir APK**. É um inteiro à parte do SemVer, e é ele que o Android usa
+   para decidir o que é atualização: repetir o número faz a instalação por cima
+   ser recusada.
+3. `cd backend && .venv/bin/python -m pytest tests/test_versao.py`
+4. Commitar, marcar a tag **anotada** e empurrar:
+
+```bash
+git commit -am "Versão 1.1.0"
+git tag -a v1.1.0 -m "Versão 1.1.0"
+git push && git push origin v1.1.0
+```
+
+A tag é anotada (`-a`), não leve: ela carrega autor e data, aparece em
+`git describe` e é o que o GitHub usa para montar a release.
+
 ## Fases
 
 - **Fases 0–3:** ✅ fundação, MVP, anexos, metas, calendário `.ics`, IA (OpenRouter).

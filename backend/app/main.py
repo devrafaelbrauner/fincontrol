@@ -17,6 +17,7 @@ from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limite
 from .auth import router as auth_router
 from .db import connect, migrate
 from .util import ConflitoDeVersao
+from .versao import VERSAO
 from .routers import analises, anexos, busca, calendario, categorias, compromissos, contas_bancarias, contas_fixas, dashboard, entradas, ia, metas, orcamentos, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
@@ -91,7 +92,7 @@ async def lifespan(_app: FastAPI):
 
 # Em produção o schema/docs da API não ficam expostos.
 app = FastAPI(
-    title="FinControl API", version="0.1.0", lifespan=lifespan,
+    title="FinControl API", version=VERSAO, lifespan=lifespan,
     **({"docs_url": None, "redoc_url": None, "openapi_url": None} if IS_PROD else {}),
 )
 
@@ -234,6 +235,14 @@ app.include_router(calendario.feed_router)
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+# A versão fica atrás do login, e o /health continua devolvendo só `ok`. Saber o
+# que está no ar é uma pergunta de operação, que quem opera responde logado; para
+# a internet o número seria só a impressão digital de qual código está rodando.
+@app.get("/api/versao", dependencies=[Depends(require_auth)])
+def versao():
+    return {"versao": VERSAO}
 
 
 # Serve o frontend buildado quando frontend/dist existe (app nativo macOS e teste
