@@ -1,0 +1,95 @@
+# Changelog
+
+Todas as mudanças relevantes do FinControl. O formato segue
+[Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração segue
+[SemVer](https://semver.org/lang/pt-BR/) — o que cada dígito significa aqui está
+descrito em [`README.md`](README.md#versionamento).
+
+## [Não lançado]
+
+## [1.0.0] — 2026-08-30
+
+Primeira versão numerada. O aplicativo já estava em produção e em uso diário
+antes disso; o que muda hoje é que passa a existir um número que diz **qual**
+código está no ar.
+
+### Adicionado
+
+- Versionamento semântico com fonte única em [`VERSION`](VERSION). O
+  `package.json`, o `MARKETING_VERSION` do Xcode e o `FastAPI(version=...)`
+  deixam de ser cópias soltas e passam a ser espelhos conferidos por
+  `backend/tests/test_versao.py`.
+- `./scripts/versao.sh` para subir a versão e sincronizar os espelhos numa
+  operação só.
+- `GET /api/versao`, autenticado, para saber que versão está de pé num ambiente.
+
+### Corrigido
+
+- As cópias da versão **já estavam divergentes**: `package.json` e a API diziam
+  `0.1.0` enquanto o projeto Xcode dizia `1.0`. Todas passam a dizer `1.0.0`.
+
+---
+
+## Antes do versionamento
+
+O que segue não são versões — são os marcos do desenvolvimento entre 25/07 e
+30/08 de 2026, reconstruídos a partir dos 67 PRs mergeados. Nenhum deles chegou
+a ser publicado sob um número, e por isso ficam fora da lista acima. Cada marco
+aponta os PRs que o compõem, para quem quiser o detalhe no histórico do git.
+
+### Aplicativos e distribuição
+
+- **APK Android de release assinado**, apontado para a VPS, com keystore fixa e
+  `versionCode` próprio (#58, #64, #66). Antes disso houve um APK de teste
+  separado, com pacote e nome distintos para conviver no mesmo aparelho (#43,
+  #46).
+- **Apps iOS/iPadOS via Capacitor**, incluindo a autenticação cross-origin que o
+  WebView exige — o refresh token passa a trafegar no corpo quando o cliente se
+  identifica como nativo (#12, #23, #38).
+- **Wrapper macOS em AppKit** que sobe o backend sozinho, com anexos em janela
+  própria (#13, #16, #17).
+
+### Deploy
+
+- VPS com Caddy (HTTPS), systemd e frontend estático servido same-origin (#5,
+  #10, #19).
+- Recusa de subir com segredo padrão ou sem chave de criptografia, ordem do CSP
+  e variáveis de ambiente do Caddy (#47).
+
+### Funcionalidades
+
+- **Compromissos**: cadastro, acompanhamento e plano de quitação (#36, #40); na
+  versão 1.0.0 passam a exigir só o nome (#57).
+- **Orçamentos** em dois níveis, com parcela futura (#32, #35).
+- **Compras parceladas**, com exclusão da série inteira (#29).
+- **Metas** e sua leitura no painel (#24, #25).
+- **Análises e histórico**, com comparativo entre meses e tendência por
+  categoria (#28).
+- **Busca global**, com acento e filtros de data (#30, #34).
+- **Lembretes** por push e feed `.ics` assinável por token (#26).
+- **Importação de documentos** e extração assistida por IA via OpenRouter (#8,
+  #14).
+- **Assistente** cuja conversa vira memória e mora no servidor (#65).
+- **Contas bancárias**, categorias padrão e cadastro da conta (#15, #20).
+
+### Sincronização entre aparelhos
+
+- Corrida do `/refresh` que deslogava todos os aparelhos: resolvida dos dois
+  lados, com single-flight no cliente e janela de graça no servidor (#37, #42).
+- Edição concorrente passa a usar `If-Match` por linha, no lugar do
+  last-write-wins silencioso (#42).
+
+### Visual
+
+Três direções sucessivas, cada uma substituindo a anterior por inteiro: Liquid
+Glass (#9), Premium Flat (#18) e **Mono editorial** (#48–#56), a vigente —
+IBM Plex Sans com JetBrains Mono nos números, fontes auto-hospedadas porque a CSP
+de produção recusaria uma externa. Depois vieram o ajuste para telas pequenas e
+as convenções do Material 3 no Android (#59), o tratamento dos gráficos (#60–#62)
+e o login (#22, #27, #45, #63).
+
+Na versão 1.0.0, os glifos de texto que faziam papel de ícone viraram SVG — eles
+caíam fora dos subsets da fonte e sumiam justamente nos aparelhos Android (#57).
+
+[Não lançado]: https://github.com/devrafaelbrauner/fincontrol/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/devrafaelbrauner/fincontrol/releases/tag/v1.0.0
