@@ -505,108 +505,50 @@ tfoot td {
 }
 
 /* ============================================================
-   Estrutura: shell (sidebar + header + conteúdo + bottom-nav)
+   Estrutura: hub (header minimo + conteudo + FAB)
+   O hub nao tem sidebar, bottom-nav nem sheet "Mais": a navegacao mora na
+   grade de atalhos do Dashboard. O chrome eh so logo, competencia, busca,
+   tema, sair e o FAB de transacao.
    ============================================================ */
-.app {
-  display: grid;
-  grid-template-columns: var(--sidebar-larg, 236px) 1fr;
+.app-hub {
+  display: flex; flex-direction: column;
   min-height: 100dvh;
   background: var(--page);
-  transition: grid-template-columns var(--dur) var(--ease);
 }
-.app.recolhido { --sidebar-larg: 76px; }
-
-/* Sidebar */
-.sidebar {
-  position: sticky; top: 0; height: 100dvh;
-  display: flex; flex-direction: column;
-  padding: 24px 18px;
-  background: var(--surface);
-  border-right: 1px solid var(--edge);
-  overflow: hidden;
-}
-.sidebar .marca {
+.topo-hub .hub-marca { display: flex; align-items: center; }
+.hub-logo {
   display: flex; align-items: center; gap: 0.6rem;
-  padding: 0 0 4px;
   font: 700 15px/1 var(--font-mono); letter-spacing: -0.03em;
 }
-.sidebar .marca .logo {
+.hub-logo .logo {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
   display: grid; place-items: center;
   background: var(--content); color: var(--page);
 }
-
-/* Grupos: o rótulo é o que dá sentido à ordem, e some quando a barra recolhe. */
-.sidebar nav { display: flex; flex-direction: column; flex: 1; }
-.nav-grupo { display: flex; flex-direction: column; gap: 1px; }
-.nav-grupo-rotulo { margin: 18px 0 9px; padding: 0 10px; }
-.app.recolhido .nav-grupo-rotulo { margin: 12px 0 6px; }
-
-.sidebar nav a {
-  display: flex; align-items: center; gap: 0.7rem;
-  padding: 8px 10px; border-radius: 7px;
-  color: var(--content-2); font-size: var(--fs-body);
-  white-space: nowrap;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+/* Voltar das internas: texto com seta, nao breadcrumb — so ha um nivel. */
+.voltar {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 0.8rem; font-weight: 600; color: var(--content-2);
 }
-.sidebar nav a svg { flex: 0 0 20px; }
-.sidebar nav a:hover { background: var(--surface-hover); color: var(--content); }
-.sidebar nav a.active {
-  background: var(--surface-hover); color: var(--content); font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--accent);
-}
+.voltar:hover { color: var(--content); }
+.voltar svg { width: 14px; height: 14px; }
 
-/* Item reordenável (alça de arrastar) */
-.nav-item { display: flex; align-items: center; border-radius: 10px; }
-.nav-item > a { flex: 1; min-width: 0; }
-.nav-item.arrastando { opacity: 0.45; }
-.nav-item .grip {
-  flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 30px;
-  background: none; border: none; color: var(--content-3); cursor: grab; opacity: 0;
-  border-radius: 6px; transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease);
+/* Grade de atalhos do hub: 12 destinos, acima do resumo financeiro. */
+.hub-atalhos {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem; margin-bottom: 1.5rem;
 }
-.nav-item:hover .grip, .nav-item .grip:focus-visible { opacity: 1; }
-.nav-item .grip:hover { color: var(--content); }
-.nav-item .grip:active { cursor: grabbing; }
-.app.recolhido .nav-item .grip { display: none; }
-.app.recolhido .sidebar .rotulo { display: none; }
-.app.recolhido .sidebar .marca { justify-content: center; }
-
-.sidebar .usuario {
+.hub-atalho {
   display: flex; align-items: center; gap: 0.6rem;
-  padding: 14px 2px 0; margin-top: 18px;
-  border-top: 1px solid var(--edge);
+  padding: 0.75rem 0.85rem; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--edge);
+  color: var(--content-2); font-size: 0.85rem;
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
-.sidebar .usuario .avatar {
-  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
-  display: grid; place-items: center; font-weight: 600; font-size: 0.85rem;
-  background: var(--accent); color: #fff;
-}
-/* min-width:0 + ellipsis: um nome longo encolhe em vez de empurrar os botões
-   para fora da barra. */
-.sidebar .usuario > .rotulo { min-width: 0; }
-.sidebar .usuario .nome,
-.sidebar .usuario .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar .usuario .nome { font-size: 12.5px; font-weight: 600; }
-.sidebar .usuario .sub { font-size: var(--fs-meta); color: var(--content-3); }
-/* 28px em vez dos 38px do .btn-icone padrão: a 236px de barra, os dois botões
-   cheios comiam a largura do texto e "Conta pessoal" quebrava em duas linhas. */
-.sidebar .usuario-acoes { display: flex; gap: 2px; margin-left: auto; flex: 0 0 auto; }
-.sidebar .usuario-acoes .btn-icone { width: 28px; height: 28px; padding: 0; }
-.sidebar .usuario-acoes svg { width: 16px; height: 16px; }
-.app.recolhido .sidebar .usuario { flex-direction: column; }
-.app.recolhido .sidebar .usuario-acoes { margin-left: 0; }
-
-/* Dentro da sidebar, alinhado à marca: pendurado para fora ele flutuava sobre a
-   régua do conteúdo, sem pertencer visualmente a nenhum dos dois lados. */
-.recolher {
-  position: absolute; top: 24px; right: 14px; z-index: 3;
-  width: 24px; height: 24px; border-radius: 6px; padding: 0;
-  display: grid; place-items: center;
-  opacity: 0; transition: opacity var(--dur) var(--ease);
-}
-.sidebar:hover .recolher, .recolher:focus-visible { opacity: 1; }
-.app.recolhido .recolher { position: static; opacity: 1; margin: 0 auto 8px; }
+.hub-atalho:hover { border-color: var(--edge-strong); color: var(--content); }
+.hub-atalho.active { border-color: var(--edge-strong); color: var(--content); font-weight: 600; }
+.hub-atalho svg { flex: 0 0 20px; }
 
 /* Conteúdo */
 .conteudo { display: flex; flex-direction: column; min-width: 0; }
@@ -795,7 +737,9 @@ tfoot td {
 .grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
 .grid-metas { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
 
-/* Nav inferior (mobile) + FAB */
+/* Nav inferior (mobile) + FAB — legado removido no hub (etapa 4):
+   sem sidebar, sem bottom-nav, sem sheet "Mais". Mantidos os seletores vazios
+   para nenhum JSX antigo quebrar em silêncio caso referencie a classe. */
 .bottom-nav { display: none; }
 .fab { display: none; }
 
@@ -1101,21 +1045,13 @@ tfoot td {
    Responsivo
    ============================================================ */
 @media (max-width: 1023px) {
-  .app { grid-template-columns: 76px 1fr; }
-  .app .sidebar .rotulo, .app .sidebar .usuario .nome, .app .sidebar .usuario .sub { display: none; }
-  .app .sidebar .marca { justify-content: center; }
-  .app .sidebar .marca .titulo { display: none; }
-  .recolher { display: none; }
   .grid-2 { grid-template-columns: 1fr; }
+  .hub-atalhos { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 
 @media (max-width: 640px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
-  /* 96px, não 76: são os 76 da barra MAIS a folga do FAB, que flutua acima
-     dela. Com só a altura da barra, o último item da lista nasce embaixo do
-     botão — é a quinta armadilha que o handoff lista. */
-  .conteudo { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  /* Sem bottom-nav: o FAB flutua sozinho, 20px da borda e da base. */
+  .app-hub .pagina { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .topo { padding: 0.85rem 1rem; }
   .pagina { padding: 1rem; }
   .topo .btn-adicionar-texto { display: none; }
@@ -1125,67 +1061,41 @@ tfoot td {
   .hero-cents { font-size: 24px; }
   .tela-titulo { font-size: 21px; }
 
-  .bottom-nav {
-    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-    height: calc(76px + env(safe-area-inset-bottom));
-    justify-content: space-around; align-items: flex-start;
-    padding: 10px 0.5rem calc(10px + env(safe-area-inset-bottom));
-    background: var(--surface);
-    border-top: 1px solid var(--edge);
-  }
-  .bottom-nav a, .bottom-nav button {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 4px 10px; border-radius: 8px; color: var(--content-3);
-    font-size: 10px;
-    background: none; border: none; cursor: pointer;
-  }
-  .bottom-nav a.active { color: var(--accent); font-weight: 600; }
-
-  /* 52px e raio 16, 20px da borda e 14px acima da barra — medidas do design. */
-  .fab {
+  /* FAB do hub: sempre visível (desktop e mobile) — é o "+" do chrome mínimo. */
+  .fab-hub {
     display: grid; place-items: center; position: fixed; z-index: 45;
-    right: 20px; bottom: calc(76px + 14px + env(safe-area-inset-bottom));
+    right: 20px; bottom: calc(20px + env(safe-area-inset-bottom));
     width: 52px; height: 52px; border-radius: 16px;
     background: var(--accent); color: #fff; border: none;
     box-shadow: 0 12px 32px -8px color-mix(in oklab, var(--accent) 55%, transparent);
     cursor: pointer;
   }
+  .hub-atalhos { grid-template-columns: repeat(3, 1fr); }
+  .hub-atalho { flex-direction: column; text-align: center; gap: 0.35rem; font-size: 0.72rem; }
   .modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: none; }
   .overlay { padding: 0; }
   .grid-stats { grid-template-columns: 1fr 1fr; }
-  /* Bottom sheet: alça de 38×4 e raio só em cima, como no desenho. */
-  .sheet { border-radius: 22px 22px 0 0; padding-top: 8px; }
-  .sheet::before {
-    content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
-    background: var(--edge-strong); margin: 0 auto 12px;
-  }
+}
+
+/* FAB do hub no desktop: mesmo botão, ancorado no canto. */
+.fab-hub {
+  display: grid; place-items: center; position: fixed; z-index: 45;
+  right: 24px; bottom: 24px;
+  width: 52px; height: 52px; border-radius: 16px;
+  background: var(--accent); color: #fff; border: none;
+  box-shadow: 0 12px 32px -8px color-mix(in oklab, var(--accent) 55%, transparent);
+  cursor: pointer;
 }
 
 /* ---------- Android: convenções do Material 3 ----------
-   O desenho base é o do iOS/web; aqui entram só as diferenças que o Material
-   manda, e que num aparelho Android a ausência faria o app parecer estrangeiro. */
+   O desenho base é o do iOS/web; aqui entra só o FAB estendido do M3. */
 @media (max-width: 640px) {
-  [data-plataforma="android"] .bottom-nav {
-    height: calc(80px + env(safe-area-inset-bottom));
-    padding-top: 12px;
-  }
-  /* Pílula tonal de 60×32 sob o ícone ativo — a marca registrada da navigation
-     bar do M3. Vai no ícone, não no rótulo, por isso o padding assimétrico. */
-  [data-plataforma="android"] .bottom-nav a.active svg {
-    box-sizing: content-box;
-    padding: 6px 20px; border-radius: 16px;
-    background: var(--accent-bg); color: var(--accent);
-  }
-  [data-plataforma="android"] .bottom-nav a.active { color: var(--content); }
-
   /* FAB estendido: no M3 ele carrega rótulo, não só o ícone. */
-  [data-plataforma="android"] .fab {
+  [data-plataforma="android"] .fab-hub {
     width: auto; height: 56px; border-radius: 16px; padding: 0 20px;
     grid-auto-flow: column; gap: 8px; font-weight: 600; font-size: 14px;
   }
-  [data-plataforma="android"] .fab::after { content: "Transação"; }
-
-  [data-plataforma="android"] .sheet { border-radius: 28px 28px 0 0; }
+  [data-plataforma="android"] .fab-hub::after { content: "Transação"; }
 }
 
 @media (max-width: 400px) {

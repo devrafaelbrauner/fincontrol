@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { abreviarBRL, cadastrar, competenciaAtual, contaConfigurada, hojeISO, mensagemDeErro, paraCents } from "./api";
+import { abreviarBRL, cadastrar, competenciaAtual, contaConfigurada, hojeISO, isNativo, mensagemDeErro, paraCents } from "./api";
 
 describe("paraCents", () => {
   it("converte formatos brasileiros para centavos", () => {
@@ -153,5 +153,27 @@ describe("abreviarBRL", () => {
     // O eixo do fluxo desce abaixo do zero quando o saldo é negativo.
     expect(abreviarBRL(-120_000)).toBe("-R$ 1,2 mil");
     expect(abreviarBRL(-95_000)).toBe("-R$ 950");
+  });
+});
+
+describe("isNativo", () => {
+  // Este arquivo roda em node (sem DOM): `window` não existe aqui. Os casos de
+  // __TAURI__ ficam para teste de browser; aqui vale o ramo Capacitor.
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("Capacitor nativo dispara o caminho nativo (etapa 1 do plano)", async () => {
+    // O throw de VITE_API_BASE ausente usa isNativo(): o cheque aqui é da
+    // FUNÇÃO (o throw roda no import, com cache — reimportar não re-executa).
+    const { Capacitor } = await import("@capacitor/core");
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    expect(isNativo()).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it("no web (sem Capacitor) não é nativo", async () => {
+    const { Capacitor } = await import("@capacitor/core");
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(false);
+    expect(isNativo()).toBe(false);
+    vi.restoreAllMocks();
   });
 });

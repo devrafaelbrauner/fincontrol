@@ -1,19 +1,37 @@
 import { Capacitor } from "@capacitor/core";
 
 // Base da API. Vazio no web (same-origin, Caddy faz o proxy de /api).
-// Nos builds nativos (Capacitor), defina VITE_API_BASE com a URL absoluta do backend:
+// Nos builds nativos (Capacitor/Tauri), defina VITE_API_BASE com a URL absoluta do backend:
 //   VITE_API_BASE=https://seu-dominio npm run ios
+export function isNativo(): boolean {
+  // `typeof window` antes de tocá-la: os testes (vitest/node) importam este
+  // módulo sem DOM, e `window` nu lançaria ReferenceError no import.
+  if (typeof window !== "undefined" && typeof (window as unknown as { __TAURI__?: unknown }).__TAURI__ !== "undefined") return true;
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
-if (Capacitor.isNativePlatform() && !API_BASE) {
+if (isNativo() && !API_BASE) {
   // Sem a base, todo request cairia no asset handler do Capacitor (index.html)
   // e o login quebraria com erro de JSON. Falha alto e cedo.
+  // Vale para Capacitor E Tauri: nos dois o bundle é file/custom-scheme e
+  // same-origin não alcança o backend.
   throw new Error("Build nativo sem VITE_API_BASE — rode: VITE_API_BASE=https://seu-dominio npm run ios");
 }
 
 // No web, o refresh token vive num cookie httpOnly gerenciado pelo backend.
 // No app nativo (WebView cross-origin), o cookie não trafega: guardamos o refresh
 // token localmente e o enviamos por header. O backend identifica o cliente por X-Client.
-const NATIVE = Capacitor.isNativePlatform();
+//
+// Etapa 7 (Keychain/Keystore): o ideal seria guardar o refresh no keystore do
+// aparelho (seguro contra backup/roubo de WebView), via plugin Capacitor/Capacitor.
+// Hoje é localStorage — documentado como pendente porque exige plugin nativo +
+// migração de quem já tem sessão (ler do localStorage, gravar no keystore, apagar).
+// Não fingir: é localStorage até o plugin existir (ver MELHORIAS.md "lock biométrico").
+const NATIVE = isNativo();
 const CHAVE_REFRESH = "refresh_token";
 
 export function getToken(): string | null {
@@ -73,6 +91,11 @@ function guardarSessao(corpo: { token: string; refresh_token?: string; nome?: st
   setToken(corpo.token);
   if (corpo.refresh_token) setRefresh(corpo.refresh_token);
   if (corpo.nome) localStorage.setItem("nome", corpo.nome);
+}
+
+/** Aplica a sessão devolvida por /auth/login ou /auth/webauthn/login/finish. */
+export function aplicarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
+  guardarSessao(corpo);
 }
 
 async function postAuth(path: string, body: unknown): Promise<void> {

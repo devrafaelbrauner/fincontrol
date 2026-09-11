@@ -7,6 +7,50 @@ descrito em [`README.md`](README.md#versionamento).
 
 ## [Não lançado]
 
+## [1.1.0] — 2026-09-11
+
+Acesso multiplataforma sem Python local: o Mac vira cliente Tauri como o
+iPhone/Android já eram, a navegação vira hub e o login ganha passkeys.
+
+### Adicionado
+
+- **App macOS em Tauri 2** (`frontend/src-tauri/`, `npm run macos`): janela
+  nativa servindo o bundle `frontend/dist`, cliente `X-Client: native` contra a
+  VPS via `VITE_API_BASE` (obrigatório, checado em build). O wrapper AppKit em
+  `macos/` fica como fallback experimental/rollback.
+- **Hub**: `App.tsx` sem sidebar/bottom-nav/sheet "Mais" — chrome mínimo (logo,
+  competência, busca, tema, sair + FAB) e grade de 12 atalhos no Dashboard
+  **acima** do resumo financeiro. Rotas atuais permanecem; internas voltam → `/`.
+- **Passkeys (WebAuthn)**: registro autenticado + login sem senha
+  (`/api/auth/webauthn/{register,login}/{begin,finish}`, migration `017`,
+  `webauthn>=3.0`), com `sign_count` anti-clonagem, desafio one-shot de 5 min e
+  `rpId`/`origin` do host de produção (`GET /api/auth/webauthn/status` para o
+  botão do login, sem criar desafio). Login web mostra "Entrar com passkey"
+  primeiro (senha+TOTP em "Outra forma"); Configurações lista as credenciais.
+- **Association nativa** (placeholders documentados até haver domínio/Team ID):
+  AASA + `assetlinks.json` no Caddy, Associated Domains no iOS (entitlements),
+  `intent-filter` com `autoVerify` no Android, mesmo `rpId` no Tauri.
+- `tzdata` como dependência (Windows não tem base tz própria) e `tzdata`/`webauthn`
+  no `requirements.txt`; `test_webauthn.py` e `isNativo()` cobertos no
+  vitest; `versao.sh` + `test_versao.py` passam a sincronizar o `Cargo.toml`.
+
+### Alterado
+
+- `isNativo()` (Capacitor **ou** `__TAURI__`) no throw de `VITE_API_BASE` e no
+  refresh single-flight; CORS inclui `tauri://localhost`,
+  `https://tauri.localhost` e `:1420` (dev).
+- `macos/README.md` e root `README.md`: caminho diário Mac = Tauri.
+
+### Corrigido
+
+- Login por passkey agora grava a sessão (`aplicarSessao`); sem isso o finish
+  autenticava no servidor e o cliente voltava para o login.
+- Em produção, `FINCONTROL_WEBAUTHN_RP_ID`/`ORIGIN` são obrigatórios (não derivam
+  do header Host).
+- `pytest` no Windows: `ZoneInfo("America/Sao_Paulo")` sem `tzdata` + leitura
+  de migration sem `encoding="utf-8"` (cp1252 quebrava acentos).
+- `vitest` sem DOM: `isNativo()` não toca em `window` inexistente.
+
 ## [1.0.0] — 2026-08-30
 
 Primeira versão numerada. O aplicativo já estava em produção e em uso diário

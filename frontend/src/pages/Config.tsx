@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import QRCode from "qrcode";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
-import { resetarOrdem } from "../ordem";
+import { cadastrarPasskey } from "../passkeys";
 
 type IaConfig = { configurada: boolean; modelo: string };
 type PushConfig = { habilitado: boolean; vapid_public: string | null; inscritos: number; hora_lembrete: number };
@@ -29,13 +29,21 @@ export default function Config() {
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [previa, setPrevia] = useState<Notificacao[] | null>(null);
   const [pushOcupado, setPushOcupado] = useState(false);
-  const [ordemMsg, setOrdemMsg] = useState<string | null>(null);
 
   const [mfaAtivo, setMfaAtivo] = useState<boolean | null>(null);
   const [mfaQr, setMfaQr] = useState<string | null>(null);
   const [mfaSecret, setMfaSecret] = useState("");
   const [mfaCodigo, setMfaCodigo] = useState("");
   const [mfaMsg, setMfaMsg] = useState<string | null>(null);
+
+  type Passkey = { id: string; nome: string | null; criado_em: string; ultimo_uso_em: string | null };
+  const [passkeys, setPasskeys] = useState<Passkey[] | null>(null);
+  const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
+  const [passkeyNome, setPasskeyNome] = useState("");
+
+  const carregarPasskeys = useCallback(() => {
+    api<Passkey[]>("/auth/webauthn/credenciais").then(setPasskeys).catch(() => setPasskeys(null));
+  }, []);
 
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
@@ -76,6 +84,24 @@ export default function Config() {
   }
 
   useEffect(carregar, [carregar]);
+  useEffect(carregarPasskeys, [carregarPasskeys]);
+
+  async function adicionarPasskey(e: FormEvent) {
+    e.preventDefault();
+    setPasskeyMsg(null);
+    try {
+      await cadastrarPasskey(passkeyNome.trim() || undefined);
+      setPasskeyNome("");
+      setPasskeyMsg("Passkey cadastrada neste aparelho.");
+      carregarPasskeys();
+    } catch (err) { setPasskeyMsg((err as Error).message); }
+  }
+
+  async function removerPasskey(id: string) {
+    if (!confirm("Remover esta passkey? O aparelho perde o acesso sem senha.")) return;
+    await api(`/auth/webauthn/credenciais/${id}`, { method: "DELETE" });
+    carregarPasskeys();
+  }
 
   async function ativarPush() {
     setPushMsg(null);
@@ -239,11 +265,38 @@ export default function Config() {
         {mfaMsg && <p style={{ marginTop: "0.5rem" }}>{mfaMsg}</p>}
       </section>
 
+      <section className="surgir secao" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">Passkeys</h3>
+        <p className="sub">Um toque para entrar, sem senha — por aparelho. O TOTP continua valendo como segundo fator da senha.</p>
+        {passkeys === null && <p className="sub">Carregando…</p>}
+        {passkeys !== null && passkeys.length === 0 && (
+          <p className="sub">Nenhuma passkey cadastrada. Cadastre a deste aparelho abaixo.</p>
+        )}
+        {passkeys !== null && passkeys.length > 0 && (
+          <ul className="sub" style={{ paddingLeft: "1.1rem" }}>
+            {passkeys.map((p) => (
+              <li key={p.id}>
+                <strong>{p.nome || "Sem nome"}</strong>
+                {p.ultimo_uso_em ? ` — último uso ${p.ultimo_uso_em}` : " — nunca usada"}{" "}
+                <button className="auth-secundario" type="button" style={{ height: "auto" }} onClick={() => removerPasskey(p.id)}>
+                  remover
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form onSubmit={adicionarPasskey} className="linha-form" style={{ marginTop: "0.5rem" }}>
+          <input placeholder="Nome deste aparelho (ex.: iPhone)" value={passkeyNome}
+            onChange={(e) => setPasskeyNome(e.target.value)} style={{ maxWidth: 240 }} />
+          <button className="btn btn-primario" type="submit">Cadastrar passkey aqui</button>
+        </form>
+        {passkeyMsg && <p style={{ marginTop: "0.5rem" }}>{passkeyMsg}</p>}
+      </section>
+
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
           instalada pela tela de início (iOS ≥ 16.4). */}
       {!Capacitor.isNativePlatform() && <section className="surgir secao" style={{ maxWidth: 560 }}>
-        <h3 className="secao-titulo">Notificações push</h3>
-        {push?.habilitado ? (
+        <h3 className="secao-titulo">Notificações push</h3>        {push?.habilitado ? (
           <>
             <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>
             <p className="sub">
@@ -272,15 +325,6 @@ export default function Config() {
           <p className="sub">Push não está configurado no servidor (chaves VAPID ausentes). O calendário assinado continua sendo o lembrete principal.</p>
         )}
       </section>}
-
-      <section className="surgir secao" style={{ maxWidth: 560 }}>
-        <h3 className="secao-titulo">Barra lateral</h3>
-        <p className="sub">Você pode reordenar os itens do menu arrastando pela alça (ou com ↑/↓ pelo teclado). Para voltar ao layout original:</p>
-        <button className="btn" onClick={() => { resetarOrdem(); setOrdemMsg("Ordem padrão restaurada."); }}>
-          Restaurar ordem padrão
-        </button>
-        {ordemMsg && <p className="positivo" style={{ marginTop: "0.5rem" }}>{ordemMsg}</p>}
-      </section>
     </>
   );
 }

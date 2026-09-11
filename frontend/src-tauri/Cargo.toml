@@ -1,0 +1,23 @@
+[package]
+name = "fincontrol"
+# Espelho do VERSION da raiz (como frontend/package.json): quem sobe a versao
+# roda ./scripts/versao.sh, que sincroniza os dois. Nao editar a mao.
+version = "1.1.0"
+description = "FinControl — controle financeiro pessoal (cliente Tauri)"
+edition = "2021"
+
+# Todo o Rust deste crate eh o main minimo do Tauri: a regra de negocio mora no
+# frontend (React) e no backend (FastAPI, remoto via VITE_API_BASE). Este app eh
+# so cliente — nao sobe Python, nao abre banco local.
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

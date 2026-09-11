@@ -12,3 +12,7 @@ frontend/dev-dist/
 # App nativo macOS (gerados — recriar com xcodegen/xcodebuild)
 macos/build/
 macos/FinControl.xcodeproj/
+
+# Tauri (gerados — recriar com `npm run macos`)
+frontend/src-tauri/target/
+frontend/src-tauri/gen/

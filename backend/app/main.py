@@ -18,6 +18,7 @@ from .auth import router as auth_router
 from .db import connect, migrate
 from .util import ConflitoDeVersao
 from .versao import VERSAO
+from .webauthn_routes import router as webauthn_router
 from .routers import analises, anexos, busca, calendario, categorias, compromissos, contas_bancarias, contas_fixas, dashboard, entradas, ia, metas, orcamentos, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
@@ -203,6 +204,10 @@ app.add_middleware(LimiteCorpo, limite=LIMITE_CORPO_BYTES)
 ORIGENS_NATIVAS = (
     "capacitor://localhost",  # iOS/iPadOS
     "https://localhost",      # Android
+    # Tauri 2 no macOS (WKWebView): confirmar o origin real no primeiro build —
+    # se o preflight do Mac falhar, é aqui que se ajusta (ver etapa 2 do plano).
+    "tauri://localhost",      # Tauri production (custom scheme)
+    "https://tauri.localhost",  # Tauri production HTTPS fallback
 )
 
 
@@ -212,7 +217,7 @@ def origens_cors(extras: str = "", producao: bool = True) -> list[str]:
     Função (e não expressão solta no módulo) para que a composição seja testável
     sem depender do ambiente lido no import.
     """
-    dev = () if producao else ("http://localhost:5173",)  # dev server do Vite
+    dev = () if producao else ("http://localhost:5173", "http://localhost:1420")  # Vite e Tauri dev servers
     return [*ORIGENS_NATIVAS, *dev, *(o.strip() for o in extras.split(",") if o.strip())]
 
 
@@ -225,6 +230,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(webauthn_router, prefix="/api")
 for r in (categorias.router, contas_fixas.router, contas_bancarias.router, variaveis.router, entradas.router, metas.router, compromissos.router, dashboard.router, analises.router, busca.router, orcamentos.router, anexos.router, calendario.router, ia.router, push.router):
     app.include_router(r, prefix="/api", dependencies=[Depends(require_auth)])
 

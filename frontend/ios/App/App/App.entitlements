@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Passkeys nativas (etapa 7 do plano multiplataforma).
+	     O domínio real entra quando houver FINCONTROL_DOMAIN + Apple Team ID pago:
+	     trocar o placeholder abaixo pelo domínio e habilitar a capability
+	     Associated Domains no Xcode. Sem eles, o iOS segue com senha+TOTP —
+	     placeholder vazio de propósito, para não fingir association funcionando.
+	     Ver deploy/Caddyfile (bloco /.well-known/apple-app-site-association). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:FINCONTROL_DOMAIN_PLACEHOLDER</string>
+	</array>
+</dict>
+</plist>

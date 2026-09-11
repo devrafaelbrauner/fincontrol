@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
+import Atalhos from "../components/Atalhos";
 import ValorHero from "../components/ValorHero";
 import { Fio } from "../components/Fio";
 import { AreaChart, BarrasRank, COR_SEM_CATEGORIA, FatiaDonut, ROTULO_SEM_CATEGORIA, SerieMes, Sparkline, dobrarEmOutros, resolverCores } from "../components/graficos";
@@ -218,6 +219,10 @@ export default function Dashboard() {
 
   return (
     <>
+      {/* Grade de atalhos do hub: ACIMA do resumo, não no lugar dele. O resumo
+          financeiro continua logo abaixo, intacto. */}
+      <Atalhos />
+
       <p className="sub">Resumo de {mesCurto(competencia)} de {competencia.slice(0, 4)}</p>
 
       <div className="visao-topo surgir">

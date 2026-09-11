@@ -27,6 +27,7 @@ RAIZ_REPO = Path(__file__).resolve().parents[2]
 ARQUIVO_VERSION = RAIZ_REPO / "VERSION"
 PACKAGE_JSON = RAIZ_REPO / "frontend" / "package.json"
 PBXPROJ = RAIZ_REPO / "frontend" / "ios" / "App" / "App.xcodeproj" / "project.pbxproj"
+CARGO_TOML = RAIZ_REPO / "frontend" / "src-tauri" / "Cargo.toml"
 CHANGELOG = RAIZ_REPO / "CHANGELOG.md"
 
 # MAJOR.MINOR.PATCH, sem sufixo. O projeto não usa pré-lançamento nem metadado de
@@ -68,6 +69,18 @@ def test_xcode_espelha_o_version():
     # Debug e Release são duas configurações: se só uma foi trocada, o app de
     # release sai com a versão errada e o de debug parece certo na máquina.
     assert len(re.findall(r"MARKETING_VERSION = ", PBXPROJ.read_text(encoding="utf-8"))) >= 2
+
+
+def test_tauri_espelha_o_version():
+    """O bundle .app/.dmg carrega a versão do Cargo.toml, não do package.json."""
+    if not CARGO_TOML.is_file():  # pragma: no cover - checkout sem o alvo Tauri
+        pytest.skip("Cargo.toml do Tauri ausente")
+    m = re.search(r'^version = "([^"]*)"', CARGO_TOML.read_text(encoding="utf-8"), flags=re.M)
+    assert m, "version não encontrado no Cargo.toml do Tauri"
+    assert m.group(1) == VERSAO, (
+        f"src-tauri/Cargo.toml diz {m.group(1)!r} e VERSION diz {VERSAO!r} — "
+        "rodar ./scripts/versao.sh sincronizar"
+    )
 
 
 def test_api_reporta_a_versao():

@@ -41,9 +41,12 @@ def test_origem_desconhecida_nao_e_liberada(cliente):
 
 def test_ios_e_android_tem_origens_diferentes():
     """O .env.example trocava as duas, mandando `capacitor://localhost` para
-    Android. São os defaults do Capacitor 8, um por plataforma."""
+    Android. São os defaults do Capacitor 8, um por plataforma. Também verifica
+    as origens Tauri adicionadas."""
     assert "capacitor://localhost" in ORIGENS_NATIVAS  # iOS/iPadOS
     assert "https://localhost" in ORIGENS_NATIVAS      # Android
+    assert "tauri://localhost" in ORIGENS_NATIVAS
+    assert "https://tauri.localhost" in ORIGENS_NATIVAS
 
 
 # ---------- composição da lista ----------
@@ -67,3 +70,9 @@ def test_extras_aceitam_lista_com_espacos_e_vazios():
 def test_dev_server_do_vite_so_fora_de_producao():
     assert "http://localhost:5173" in origens_cors(producao=False)
     assert "http://localhost:5173" not in origens_cors(producao=True)
+
+
+def test_dev_server_do_tauri_so_fora_de_producao():
+    """O `npm run macos` (Tauri dev) serve em :1420; nunca em produção."""
+    assert "http://localhost:1420" in origens_cors(producao=False)
+    assert "http://localhost:1420" not in origens_cors(producao=True)

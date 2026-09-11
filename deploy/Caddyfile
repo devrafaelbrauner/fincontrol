@@ -65,8 +65,29 @@
 		# useEffect do React — piscando o tema errado a cada carregamento.
 		# ATENÇÃO: mexeu no <script> inline do index.html, recalcule o hash:
 		#   deploy/csp-hash.sh
+		# (e espelhe no CSP do Tauri em frontend/src-tauri/tauri.conf.json)
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-E1sQz/9HiCJOhs0ouPeDzKAQH9XpNxjotrXCUu5LB4Y='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 		Permissions-Policy "geolocation=(), microphone=(), interest-cohort=()"
 		-Server
+	}
+
+	# Passkeys: associação do app com o domínio (etapa 7 do plano multiplataforma).
+	#
+	# Sem domínio real configurado, estes blocos servem placeholders documentados —
+	# NÃO fingem association funcionando: o iOS só confia no AASA servido do domínio
+	# real (FINCONTROL_DOMAIN), e o Android só no assetlinks do host real.
+	# Com FINCONTROL_DOMAIN + Apple Team ID + fingerprint do APK, preencher os
+	# valores abaixo e o login por passkey passa a valer nos nativos com o mesmo
+	# rpId do web.
+	@aasa path /.well-known/apple-app-site-association
+	handle @aasa {
+		header Content-Type "application/json"
+		respond `{"applinks":{"apps":[],"details":[]},"webcredentials":{"apps":[]}}` 200
+	}
+
+	@assetlinks path /.well-known/assetlinks.json
+	handle @assetlinks {
+		header Content-Type "application/json"
+		respond `[{"relation":["delegate_permission/common.handle_all_urls","delegate_permission/common.get_login_creds"],"target":{"namespace":"android_app","package_name":"com.rafaelbrauner.fincontrol","sha256_cert_fingerprints":[]}}]` 200
 	}
 }

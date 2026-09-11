@@ -40,6 +40,7 @@ def banco_limpo():
 # Tabelas de movimento, filhas antes das mães (as FKs estão ligadas).
 # NÃO inclui `categorias` (a migration 004 semeia as padrão, e vários testes
 # dependem delas) nem `config`, que o banco_limpo já cuida.
+# Nem `webauthn_*`: cada teste de passkey limpa as suas (fixture em test_webauthn).
 TABELAS_MOVIMENTO = (
     "lancamentos_variaveis", "parcelamentos", "compromissos",
     "lancamentos_fixos", "contas_fixas", "entradas",

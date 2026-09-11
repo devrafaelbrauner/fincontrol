@@ -49,7 +49,7 @@ def migrate() -> None:
         for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
             if sql_file.name in aplicadas:
                 continue
-            conn.executescript(sql_file.read_text())
+            conn.executescript(sql_file.read_text(encoding="utf-8"))
             conn.execute("INSERT INTO schema_migrations (nome) VALUES (?)", (sql_file.name,))
             conn.commit()
     finally:

@@ -7,6 +7,22 @@ Plano completo em [PLANO.md](PLANO.md).
 
 - **Backend:** FastAPI + SQLite (`backend/`)
 - **Frontend:** React + TypeScript + Vite, PWA (`frontend/`)
+- **Apps:** Capacitor (iOS/Android) + Tauri 2 (macOS, `frontend/src-tauri/`)
+
+## Apps nativos
+
+Caminho diário no Mac: o app **Tauri** (não o uvicorn local):
+
+```bash
+cd frontend
+npm install
+VITE_API_BASE=https://seu-dominio npm run macos   # build + bundle .app/.dmg
+VITE_API_BASE=http://localhost:8000 npm run macos:dev  # dev contra o backend local
+```
+
+O Tauri é só cliente (o backend mora na VPS, via `VITE_API_BASE`); o wrapper
+AppKit antigo em `macos/` ficou como fallback experimental — ver
+[`macos/README.md`](macos/README.md).
 
 ## Rodando em desenvolvimento
 

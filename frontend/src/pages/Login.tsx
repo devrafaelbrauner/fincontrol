@@ -3,8 +3,9 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { api, cadastrar, contaConfigurada, login } from "../api";
 import Logo from "../components/Logo";
 import { IcOk } from "../components/icones";
+import { entrarComPasskey, cadastrarPasskey, temPasskey } from "../passkeys";
 
-type Modo = "carregando" | "login" | "login-mfa" | "cadastro" | "mfa-qr";
+type Modo = "carregando" | "login" | "login-mfa" | "login-senha" | "cadastro" | "mfa-qr";
 
 /** Regras da senha exibidas e validadas em tempo real (o backend revalida).
  *  Espelha SENHA_MINIMA em backend/app/auth.py — mexeu lá, mexa aqui. */
@@ -107,6 +108,11 @@ export default function Login() {
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState("");
 
+  // passkey: o botão entra primeiro quando há credencial; a senha fica em "Outra forma".
+  const [comPasskey, setComPasskey] = useState<boolean | null>(null);
+  // Convite pós-cadastro: mensagem do resultado (não erro fatal — o MFA segue).
+  const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
+
   useEffect(() => {
     contaConfigurada().then((tem) => {
       // Só `true` (resposta afirmativa do servidor) esconde o cadastro. Em `null`
@@ -114,8 +120,34 @@ export default function Login() {
       // conta à vista, que é o motivo de o helper distinguir os dois casos.
       setJaTemConta(tem === true);
       setModo(tem === false ? "cadastro" : "login");
+      if (tem !== false) temPasskey().then(setComPasskey).catch(() => setComPasskey(false));
+      else setComPasskey(false);
     });
   }, []);
+
+  async function entrarPasskey() {
+    setErro(null);
+    setOcupado(true);
+    try {
+      await entrarComPasskey();
+    } catch (err) {
+      setErro((err as Error).message);
+      setOcupado(false);
+    }
+  }
+
+  async function oferecerPasskeyPosCadastro() {
+    setPasskeyMsg(null);
+    setOcupado(true);
+    try {
+      await cadastrarPasskey("Este aparelho");
+      setPasskeyMsg("Passkey cadastrada — da próxima vez, entre com um toque.");
+    } catch (err) {
+      setPasskeyMsg((err as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   function falha(err: unknown) {
     const msg = (err as Error).message;
@@ -206,14 +238,108 @@ export default function Login() {
     );
   }
 
+  if (modo === "login") {
+    return (
+      <Shell>
+        <div style={{ display: "contents" }}>
+          <div className="campo" style={{ gap: "0.35rem", marginBottom: "0.3rem" }}>
+            <h2>Bem-vindo de volta</h2>
+            <p className="sub">Entre na sua conta para continuar</p>
+          </div>
+          {comPasskey !== false && (
+            <>
+              <button className="auth-entrar" type="button" onClick={entrarPasskey} disabled={ocupado}>
+                {ocupado ? "Verificando…" : "Entrar com passkey"}
+              </button>
+              {erro && <div className="auth-erro">{erro}</div>}
+              <button className="auth-secundario" type="button" onClick={() => { setModo("login-senha"); setErro(null); }}>
+                Outra forma: senha + código
+              </button>
+            </>
+          )}
+          {comPasskey === false && (
+            <form onSubmit={entrar} style={{ display: "contents" }}>
+              {formaSenha()}
+            </form>
+          )}
+          {/* Sem conta ainda, o app já abre no cadastro; o link cobre o caso de o
+              /status ter falhado e caído no login por precaução. Com conta criada
+              ele some — levava a um formulário que só sabia responder 409. */}
+          {!jaTemConta && (
+            <p className="auth-troca">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("cadastro"); }}>Criar conta</a></p>
+          )}
+        </div>
+      </Shell>
+    );
+  }
+
+  if (modo === "login-senha") {
+    return (
+      <Shell>
+        <form onSubmit={entrar} style={{ display: "contents" }}>
+          <div className="campo" style={{ gap: "0.35rem", marginBottom: "0.3rem" }}>
+            <h2>Entrar com senha</h2>
+            <p className="sub">Senha + código do autenticador (se ativo)</p>
+          </div>
+          {formaSenha()}
+          <button className="auth-secundario" type="button" onClick={() => { setModo("login"); setErro(null); }}>
+            Voltar
+          </button>
+        </form>
+      </Shell>
+    );
+  }
+
+  function formaSenha() {
+    // Declarada antes dos returns (hooks/ordem estável): função, não componente,
+    // para não remontar os inputs a cada render.
+    return (
+      <>
+        <div className="campo">
+          <label htmlFor="l-email">E-mail</label>
+          <input id="l-email" type="email" inputMode="email" placeholder="voce@email.com"
+            value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="email" />
+        </div>
+        <div className="campo">
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <label htmlFor="l-senha">Senha</label>
+            <a href="#" onClick={(e) => { e.preventDefault(); setDicaSenha((v) => !v); }}>Esqueci a senha</a>
+          </div>
+          <div className="auth-senha-wrap">
+            <input id="l-senha" type={verSenha ? "text" : "password"} placeholder="Sua senha"
+              value={senha} onChange={(e) => setSenha(e.target.value)} required autoComplete="current-password" />
+            <button className="auth-ver" type="button" onClick={() => setVerSenha((v) => !v)}>{verSenha ? "ocultar" : "ver"}</button>
+          </div>
+          {dicaSenha && (
+            <p className="sub" style={{ fontSize: "0.78rem" }}>
+              App pessoal, sem recuperação por e-mail: redefina no servidor com <code>python -m app.setup_user</code>.
+            </p>
+          )}
+        </div>
+        {erro && <div className="auth-erro">{erro}</div>}
+        <label className="auth-lembrar">
+          <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
+          Manter conectado
+        </label>
+        <button className="auth-entrar" type="submit" disabled={ocupado}>
+          {ocupado ? "Entrando…" : "Entrar"}
+        </button>
+      </>
+    );
+  }
+
   if (modo === "mfa-qr") {
     return (
       <Shell>
         <form onSubmit={confirmarAdesaoMfa} style={{ display: "contents" }}>
           <div className="campo" style={{ gap: "0.35rem" }}>
-            <h2>Proteja sua conta (MFA)</h2>
-            <p className="sub">Escaneie com o Google Authenticator, 1Password ou similar e confirme o código de 6 dígitos.</p>
+            <h2>Proteja sua conta</h2>
+            <p className="sub">Dois caminhos, nesta ordem: a passkey deste aparelho primeiro (um toque, sem senha), o MFA depois (código do autenticador).</p>
           </div>
+          <button className="auth-entrar" type="button" onClick={oferecerPasskeyPosCadastro} disabled={ocupado}>
+            Cadastrar passkey neste aparelho
+          </button>
+          {passkeyMsg && <p className="sub">{passkeyMsg}</p>}
           {qr && <img className="auth-qr" src={qr} alt="QR code do autenticador" />}
           <p className="sub" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>Sem câmera? Chave manual: <code>{secret}</code></p>
           <input className="codigo-mfa" inputMode="numeric" placeholder="000000" maxLength={6} required
@@ -287,40 +413,11 @@ export default function Login() {
           <h2>Bem-vindo de volta</h2>
           <p className="sub">Entre na sua conta para continuar</p>
         </div>
-        <div className="campo">
-          <label htmlFor="l-email">E-mail</label>
-          <input id="l-email" type="email" inputMode="email" placeholder="voce@email.com"
-            value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="email" />
-        </div>
-        <div className="campo">
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <label htmlFor="l-senha">Senha</label>
-            <a href="#" onClick={(e) => { e.preventDefault(); setDicaSenha((v) => !v); }}>Esqueci a senha</a>
-          </div>
-          <div className="auth-senha-wrap">
-            <input id="l-senha" type={verSenha ? "text" : "password"} placeholder="Sua senha"
-              value={senha} onChange={(e) => setSenha(e.target.value)} required autoComplete="current-password" />
-            <button className="auth-ver" type="button" onClick={() => setVerSenha((v) => !v)}>{verSenha ? "ocultar" : "ver"}</button>
-          </div>
-          {dicaSenha && (
-            <p className="sub" style={{ fontSize: "0.78rem" }}>
-              App pessoal, sem recuperação por e-mail: redefina no servidor com <code>python -m app.setup_user</code>.
-            </p>
-          )}
-        </div>
-        {erro && <div className="auth-erro">{erro}</div>}
-        <label className="auth-lembrar">
-          <input type="checkbox" checked={lembrar} onChange={(e) => setLembrar(e.target.checked)} />
-          Manter conectado
-        </label>
-        <button className="auth-entrar" type="submit" disabled={ocupado}>
-          {ocupado ? "Entrando…" : "Entrar"}
-        </button>
-        {/* Sem conta ainda, o app já abre no cadastro; o link cobre o caso de o
-            /status ter falhado e caído no login por precaução. Com conta criada
-            ele some — levava a um formulário que só sabia responder 409. */}
-        {!jaTemConta && (
-          <p className="auth-troca">Não tem conta? <a href="#" onClick={(e) => { e.preventDefault(); setErro(null); setModo("cadastro"); }}>Criar conta</a></p>
+        {formaSenha()}
+        {comPasskey && (
+          <button className="auth-secundario" type="button" onClick={() => { setModo("login"); setErro(null); }}>
+            Entrar com passkey
+          </button>
         )}
       </form>
     </Shell>

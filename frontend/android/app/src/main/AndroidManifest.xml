@@ -23,6 +23,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Passkeys nativas (etapa 7): Digital Asset Links com o domínio real.
+                 FINCONTROL_DOMAIN_PLACEHOLDER vira o host de produção quando houver;
+                 sem ele, o Android segue com senha+TOTP (nenhum host = sem fingir).
+                 O sha256 do cert sai de: keytool -list -v -keystore ~/.fincontrol-keys/fincontrol-release.jks.
+                 Ver deploy/Caddyfile (bloco /.well-known/assetlinks.json). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="FINCONTROL_DOMAIN_PLACEHOLDER" />
+            </intent-filter>
+
         </activity>
 
         <provider

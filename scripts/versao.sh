@@ -16,6 +16,7 @@ RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARQ_VERSION="$RAIZ/VERSION"
 PACKAGE_JSON="$RAIZ/frontend/package.json"
 PBXPROJ="$RAIZ/frontend/ios/App/App.xcodeproj/project.pbxproj"
+CARGO_TOML="$RAIZ/frontend/src-tauri/Cargo.toml"
 
 erro() { printf '\033[31merro:\033[0m %s\n' "$1" >&2; exit 1; }
 
@@ -40,10 +41,10 @@ esac
 # `sed -i` difere entre BSD (macOS) e GNU; o Python já é dependência do backend,
 # e aqui evita tanto essa diferença quanto ter de escapar ponto em regex.
 escrever() {
-  VERSAO_NOVA="$NOVA" python3 - "$PACKAGE_JSON" "$PBXPROJ" <<'PY'
+  VERSAO_NOVA="$NOVA" python3 - "$PACKAGE_JSON" "$PBXPROJ" "$CARGO_TOML" <<'PY'
 import json, os, re, sys
 nova = os.environ["VERSAO_NOVA"]
-pkg_path, pbx_path = sys.argv[1], sys.argv[2]
+pkg_path, pbx_path, cargo_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
 # O package.json é reescrito preservando a formatação: um json.dump reindentaria
 # o arquivo inteiro e encheria o diff de ruído que não é a versão.
@@ -75,6 +76,24 @@ if os.path.exists(pbx_path):
         print(f"  Xcode             {nova}")
 else:
     print("  Xcode             (ausente, ignorado)")
+
+# O Cargo.toml do Tauri é o quarto espelho (bundle .app/.dmg carrega a versão
+# de lá, não do package.json). Troca só a `version =` do [package] — a primeira
+# do arquivo — sem reformatar o resto.
+if os.path.exists(cargo_path):
+    with open(cargo_path, encoding="utf-8") as f:
+        bruto = f.read()
+    novo, n = re.subn(r'^version = "[^"]*"', f'version = "{nova}"', bruto, count=1, flags=re.M)
+    if n != 1:
+        sys.exit("não achei version no Cargo.toml do Tauri")
+    if novo != bruto:
+        with open(cargo_path, "w", encoding="utf-8") as f:
+            f.write(novo)
+        print(f"  Tauri Cargo.toml  -> {nova}")
+    else:
+        print(f"  Tauri Cargo.toml  {nova}")
+else:
+    print("  Tauri Cargo.toml  (ausente, ignorado)")
 PY
 }
 
@@ -86,10 +105,10 @@ if [[ "${SO_CONFERIR-0}" == 1 ]]; then
   # `|| status=$?` porque sob `set -e` o exit 1 do Python derrubaria o script
   # antes de chegar no teste logo abaixo.
   status=0
-  VERSAO_ESPERADA="$ATUAL" python3 - "$PACKAGE_JSON" "$PBXPROJ" <<'PY' || status=$?
+  VERSAO_ESPERADA="$ATUAL" python3 - "$PACKAGE_JSON" "$PBXPROJ" "$CARGO_TOML" <<'PY' || status=$?
 import json, os, re, sys
 esperada = os.environ["VERSAO_ESPERADA"]
-pkg_path, pbx_path = sys.argv[1], sys.argv[2]
+pkg_path, pbx_path, cargo_path = sys.argv[1], sys.argv[2], sys.argv[3]
 VERDE, AMARELO, FIM = "\033[32m", "\033[33m", "\033[0m"
 divergiu = False
 
@@ -107,6 +126,16 @@ if os.path.exists(pbx_path):
     print(f"  Xcode          {VERDE if ok else AMARELO}{', '.join(achados) or '(nenhum)'}{FIM}")
 else:
     print("  Xcode          (ausente)")
+
+if os.path.exists(cargo_path):
+    with open(cargo_path, encoding="utf-8") as f:
+        m = re.search(r'^version = "([^"]*)"', f.read(), flags=re.M)
+    achado = m.group(1) if m else "(nenhum)"
+    ok = achado == esperada
+    divergiu |= not ok
+    print(f"  Tauri Cargo    {VERDE if ok else AMARELO}{achado}{FIM}")
+else:
+    print("  Tauri Cargo    (ausente)")
 
 sys.exit(1 if divergiu else 0)
 PY

@@ -16,7 +16,10 @@
 
 const base = (process.env.VITE_API_BASE ?? "").trim();
 const local = process.env.FINCONTROL_BUILD_LOCAL === "1";
-const exemplo = "VITE_API_BASE=https://seu-dominio npm run <ios|android>";
+// `npm run macos:dev` checa sem exigir https nem host remoto: o dev roda contra
+// o backend local (VITE_API_BASE=http://localhost:8000) via `tauri dev`.
+const dev = process.argv.includes("--dev");
+const exemplo = "VITE_API_BASE=https://seu-dominio npm run <ios|android|macos>";
 
 function erro(problema, dica) {
   console.error(`\nERRO: build nativo com VITE_API_BASE inválida.\n  ${problema}`);
@@ -44,14 +47,15 @@ if (url.protocol !== "https:" && url.protocol !== "http:") {
 // localhost/loopback no aparelho é o PRÓPRIO aparelho — nunca o seu Mac.
 // A faixa inteira 127.0.0.0/8 é loopback, não só o .1 — e o parser de URL já
 // normaliza as formas abreviadas (`127.1` e `0177.0.0.1` viram `127.0.0.1`).
+// Exceção: `tauri dev` (--dev), que roda o WebView contra a máquina local.
 const LOOPBACK = new Set(["localhost", "[::1]", "::1", "0.0.0.0"]);
 const ehLoopback = (h) => LOOPBACK.has(h) || /^127\.\d+\.\d+\.\d+$/.test(h);
-if (ehLoopback(url.hostname)) {
+if (ehLoopback(url.hostname) && !dev) {
   erro(`A base aponta para ${url.hostname}, que no celular é o próprio celular.`,
        "Use o domínio da VPS — ou, para teste em rede local, o IP do Mac com FINCONTROL_BUILD_LOCAL=1.");
 }
 
-if (url.protocol === "http:" && !local) {
+if (url.protocol === "http:" && !local && !dev) {
   erro(`Base em http:// (${base}).`,
        "Produção exige https. Para o teste em rede local, rode com FINCONTROL_BUILD_LOCAL=1.");
 }

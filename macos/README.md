@@ -1,4 +1,8 @@
-# FinControl — app nativo macOS (experimental)
+# FinControl — wrapper macOS em AppKit (experimental / obsoleto)
+
+> **Caminho diário no Mac é o app Tauri** (`VITE_API_BASE=... npm run macos`, ver
+> root `README.md`). Este wrapper fica só como **fallback / rollback**: se o
+> Tauri quebrar, é ele que abre enquanto se conserta — não recebe features novas.
 
 Wrapper mínimo em Swift/AppKit: uma janela `WKWebView` apontando para o backend
 local (`http://127.0.0.1:8000`), que serve o `frontend/dist` buildado. Service

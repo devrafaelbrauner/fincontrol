@@ -8,3 +8,5 @@ python-multipart>=0.0.9
 httpx>=0.27
 slowapi>=0.1.9
 pywebpush>=2.0
+webauthn>=3.0  # passkeys (WebAuthn): registro + login sem senha
+tzdata>=2024.1  # ZoneInfo("America/Sao_Paulo") no Windows, que não tem base tz própria
