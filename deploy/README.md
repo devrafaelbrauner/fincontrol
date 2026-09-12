@@ -33,7 +33,7 @@ cat /opt/fincontrol-ssh/id_ed25519.pub
 
 # 3. Clone como fincontrol (diretório destino não pode existir antes)
 sudo -u fincontrol GIT_SSH_COMMAND="ssh -i /opt/fincontrol-ssh/id_ed25519 -o StrictHostKeyChecking=accept-new" \
-  git clone git@github.com:rafaelbrauner22-bit/fincontrol.git /opt/fincontrol
+  git clone git@github.com:devrafaelbrauner/fincontrol.git /opt/fincontrol
 # Persiste a chave para os git pull futuros:
 sudo -u fincontrol git -C /opt/fincontrol config core.sshCommand \
   "ssh -i /opt/fincontrol-ssh/id_ed25519 -o StrictHostKeyChecking=accept-new"

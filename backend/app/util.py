@@ -139,7 +139,12 @@ def status_lancamento(data_pagamento: str | None, data_vencimento: str) -> str:
 
 # Tabelas que suportam edição condicional. Lista fechada porque o nome entra no
 # SQL por interpolação — nunca pode vir de fora.
-TABELAS_VERSIONADAS = frozenset({"compromissos", "contas_fixas", "contas_bancarias"})
+TABELAS_VERSIONADAS = frozenset({
+    "compromissos", "contas_fixas", "contas_bancarias",
+    "lancamentos_variaveis", "lancamentos_fixos", "entradas",
+    "metas", "metas_itens", "metas_aportes", "categorias",
+    "orcamentos", "parcelamentos",
+})
 
 
 class ConflitoDeVersao(Exception):
@@ -150,7 +155,13 @@ class ConflitoDeVersao(Exception):
         super().__init__("A linha foi alterada por outro aparelho")
 
 
-def conferir_versao(db: sqlite3.Connection, tabela: str, id_: int, if_match: str | None) -> None:
+def conferir_versao(
+    db: sqlite3.Connection,
+    tabela: str,
+    id_: int,
+    if_match: str | None,
+    coluna_id: str = "id",
+) -> None:
     """Barra o PATCH quando a linha mudou desde que o cliente a leu.
 
     Sem isto todo PATCH era last-write-wins SILENCIOSO: dois aparelhos editando
@@ -161,12 +172,17 @@ def conferir_versao(db: sqlite3.Connection, tabela: str, id_: int, if_match: str
     `if_match` ausente passa direto, de propósito: é como o HTTP define
     (precondição opcional) e o que permite adotar tela a tela sem quebrar o que
     ainda não manda o cabeçalho.
+
+    `coluna_id` só desvia de "id" onde a chave da tabela é outra (orcamentos —
+    a chave é categoria_id, e não existe coluna `id` para a qual o CHECK caberia).
     """
     if if_match is None:
         return
     if tabela not in TABELAS_VERSIONADAS:
         raise ValueError(f"tabela não versionada: {tabela}")
-    row = db.execute(f"SELECT versao FROM {tabela} WHERE id = ?", (id_,)).fetchone()
+    row = db.execute(
+        f"SELECT versao FROM {tabela} WHERE {coluna_id} = ?", (id_,)
+    ).fetchone()
     if row is None:
         return  # inexistente é 404 de quem chamou, não conflito
     if str(row["versao"]) != str(if_match).strip():

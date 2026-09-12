@@ -1,10 +1,10 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataISO, hoje
+from ..util import DataISO, conferir_versao, hoje
 
 router = APIRouter(prefix="/metas", tags=["metas"])
 
@@ -94,7 +94,9 @@ def criar(body: MetaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{meta_id}")
-def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "metas", meta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
@@ -103,7 +105,7 @@ def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_d
         campos["ativa"] = 1 if campos["ativa"] else 0
     sets = ", ".join(f"{c} = ?" for c in campos)
     cur = db.execute(
-        f"UPDATE metas SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        f"UPDATE metas SET {sets}, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 WHERE id = ?",
         (*campos.values(), meta_id),
     )
     if cur.rowcount == 0:
@@ -112,10 +114,13 @@ def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_d
 
 
 @router.delete("/{meta_id}")
-def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "metas", meta_id, if_match)
     if not db.execute("SELECT 1 FROM metas WHERE id = ?", (meta_id,)).fetchone():
         raise HTTPException(404, "Meta não encontrada")
     db.execute("DELETE FROM metas_aportes WHERE meta_id = ?", (meta_id,))
+    db.execute("DELETE FROM metas_itens WHERE meta_id = ?", (meta_id,))
     db.execute("DELETE FROM metas WHERE id = ?", (meta_id,))
     return {"ok": True}
 
@@ -143,7 +148,9 @@ COLUNAS_EDITAVEIS = frozenset({"nome", "valor_cents", "descricao"})
 
 
 @router.patch("/{meta_id}/itens/{item_id}")
-def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connection = Depends(get_db),
+                if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "metas_itens", item_id, if_match)
     campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
@@ -154,7 +161,8 @@ def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connect
             raise HTTPException(422, "Informe o nome do item")
     sets = ", ".join(f"{c} = ?" for c in campos)
     cur = db.execute(
-        f"UPDATE metas_itens SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ? AND meta_id = ?",
+        f"UPDATE metas_itens SET {sets}, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 "
+        f"WHERE id = ? AND meta_id = ?",
         (*campos.values(), item_id, meta_id),
     )
     if cur.rowcount == 0:
@@ -163,7 +171,9 @@ def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connect
 
 
 @router.delete("/{meta_id}/itens/{item_id}")
-def excluir_item(meta_id: int, item_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir_item(meta_id: int, item_id: int, db: sqlite3.Connection = Depends(get_db),
+                 if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "metas_itens", item_id, if_match)
     cur = db.execute("DELETE FROM metas_itens WHERE id = ? AND meta_id = ?", (item_id, meta_id))
     if cur.rowcount == 0:
         raise HTTPException(404, "Item não encontrado")

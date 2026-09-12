@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, brl } from "../api";
+import { api, brl, ehConflito } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
 import { IcBusca, IcExcluirSerie, IcExportar, IcExtrair, IcFechar, IcVariaveis } from "../components/icones";
 import { useToast } from "../components/Toast";
@@ -10,6 +10,7 @@ const ultimoDia = (comp: string) => new Date(Number(comp.slice(0, 4)), Number(co
 
 type Variavel = {
   id: number;
+  versao: number;
   descricao: string;
   valor_cents: number;
   data: string;
@@ -19,6 +20,7 @@ type Variavel = {
   parcelamento_id: number | null;
   parcela_num: number | null;
   parcelas_total: number | null;
+  parcelamento_versao: number | null;
 };
 type Categoria = { id: number; nome: string; tipo: string };
 
@@ -47,6 +49,12 @@ export default function Variaveis() {
   useEffect(carregar, [carregar, versao]);
 
   const semCategoria = itens.filter((i) => i.categoria_id == null).length;
+
+  /** 409 = outro aparelho editou; recarrega para mostrar a versão atual. */
+  function aoFalhar(e: unknown) {
+    toast((e as Error).message, ehConflito(e) ? undefined : "erro");
+    if (ehConflito(e)) carregar();
+  }
 
   function exportarCSV() {
     const nomeCat = new Map(categorias.map((c) => [c.id, c.nome] as const));
@@ -91,23 +99,24 @@ export default function Variaveis() {
       : "Excluir este lançamento?";
     if (!confirm(pergunta)) return;
     try {
-      await api(`/variaveis/${i.id}`, { method: "DELETE" });
+      await api(`/variaveis/${i.id}`, { method: "DELETE", headers: { "If-Match": String(i.versao) } });
       toast("Lançamento excluído.");
       atualizar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) { aoFalhar(e); }
   }
 
   async function excluirParcelamento(i: Variavel) {
     if (!confirm(`Excluir a compra parcelada "${i.descricao}" INTEIRA — todas as ${i.parcelas_total} parcelas, incluindo as de meses passados e futuros?`)) return;
     try {
-      const r = await api<{ parcelas_removidas: number }>(`/variaveis/parcelado/${i.parcelamento_id}`, { method: "DELETE" });
+      const r = await api<{ parcelas_removidas: number }>(`/variaveis/parcelado/${i.parcelamento_id}`,
+        { method: "DELETE", headers: { "If-Match": String(i.parcelamento_versao) } });
       toast(`Compra parcelada excluída (${r.parcelas_removidas} parcelas).`);
       atualizar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) { aoFalhar(e); }
   }
 
-  async function definirAnexo(id: number, anexoId: number | null) {
-    await api(`/variaveis/${id}`, { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }) });
+  async function definirAnexo(id: number, anexoId: number | null, versao: number) {
+    await api(`/variaveis/${id}`, { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }), headers: { "If-Match": String(versao) } });
     carregar();
   }
 
@@ -122,12 +131,14 @@ export default function Variaveis() {
     )));
     try {
       if (todas) {
-        await api(`/variaveis/parcelado/${item.parcelamento_id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+        await api(`/variaveis/parcelado/${item.parcelamento_id}`,
+          { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }), headers: { "If-Match": String(item.parcelamento_versao) } });
       } else {
-        await api(`/variaveis/${item.id}`, { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }) });
+        await api(`/variaveis/${item.id}`,
+          { method: "PATCH", body: JSON.stringify({ categoria_id: categoriaId }), headers: { "If-Match": String(item.versao) } });
       }
       atualizar();
-    } catch (e) { toast((e as Error).message, "erro"); carregar(); }
+    } catch (e) { aoFalhar(e); carregar(); }
   }
 
   return (
@@ -188,7 +199,7 @@ export default function Variaveis() {
                   </td>
                   <td>{i.forma_pagamento && <span className="chip">{i.forma_pagamento}</span>}</td>
                   <td className="num negativo">{brl(i.valor_cents)}</td>
-                  <td><AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a)} /></td>
+                  <td><AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a, i.versao)} /></td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)}
                       aria-label={i.parcelamento_id != null ? "Excluir esta parcela" : "Excluir"}

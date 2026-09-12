@@ -104,3 +104,125 @@ def test_versao_da_linha_nao_e_a_data_do_saldo(db, autenticado):
     # Registrar saldo não mexe na linha da conta: a versão segue válida.
     assert autenticado.patch(f"/api/contas-bancarias/{cid}", json={"nome": "Reserva 2"},
                              headers={"If-Match": str(versao)}).status_code == 200
+
+
+# ---------- restante das tabelas mutáveis (migration 018) ----------
+#
+# Sem versão nessas tabelas o sync offline não reconcilia: um PATCH/DELETE que
+# saísse da fila depois de outro aparelho editar a mesma linha passaria por cima
+# em silêncio. Cada teste repete o roteiro de test_patch_com_versao_velha_e_409:
+# ler a versão → aparelho A salva → aparelho B (versão velha) leva 409.
+
+def test_vale_para_lancamento_variavel(db, autenticado):
+    lid = autenticado.post("/api/variaveis",
+                           json={"descricao": "Mercado", "valor_cents": 5_000, "data": "2026-03-10"}).json()["id"]
+    versao = autenticado.get("/api/variaveis").json()["itens"][0]["versao"]
+
+    assert autenticado.patch(f"/api/variaveis/{lid}", json={"descricao": "A"},
+                             headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.patch(f"/api/variaveis/{lid}", json={"descricao": "B"},
+                             headers={"If-Match": str(versao)}).status_code == 409
+    # E a escrita de A permaneceu.
+    assert autenticado.get("/api/variaveis").json()["itens"][0]["descricao"] == "A"
+
+
+def test_delete_de_lancamento_tambem_exige_versao(db, autenticado):
+    """DELETE sem If-Match apaga; com versão velha, 409 — senão a exclusão da
+    fila offline apagaria uma linha que outro aparelho acabou de editar."""
+    lid = autenticado.post("/api/variaveis",
+                           json={"descricao": "Farmácia", "valor_cents": 3_000, "data": "2026-03-11"}).json()["id"]
+    versao = autenticado.get("/api/variaveis").json()["itens"][0]["versao"]
+
+    autenticado.patch(f"/api/variaveis/{lid}", json={"descricao": "Farmácia 2"},
+                      headers={"If-Match": str(versao)})
+    assert autenticado.delete(f"/api/variaveis/{lid}", headers={"If-Match": str(versao)}).status_code == 409
+
+    nova = autenticado.get("/api/variaveis").json()["itens"][0]["versao"]
+    assert autenticado.delete(f"/api/variaveis/{lid}", headers={"If-Match": str(nova)}).status_code == 200
+
+
+def test_vale_para_parcelamento(db, autenticado):
+    """Recategorizar/excluir a compra inteira é uma edição do GRUPO: a versão
+    conferida é a do parcelamento, não a de cada parcela."""
+    pid = autenticado.post("/api/variaveis/parcelado", json={
+        "descricao": "Notebook", "valor_parcela_cents": 50_000, "parcelas": 10, "primeira_data": "2026-03-05",
+    }).json()["id"]
+    versao = autenticado.get("/api/variaveis").json()["itens"][0]["parcelamento_versao"]
+
+    assert autenticado.patch(f"/api/variaveis/parcelado/{pid}", json={"categoria_id": None},
+                             headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.patch(f"/api/variaveis/parcelado/{pid}", json={"categoria_id": None},
+                             headers={"If-Match": str(versao)}).status_code == 409
+    assert autenticado.delete(f"/api/variaveis/parcelado/{pid}",
+                              headers={"If-Match": str(versao)}).status_code == 409
+
+
+def test_vale_para_lancamento_fixo(db, autenticado):
+    autenticado.post("/api/contas-fixas",
+                     json={"nome": "Aluguel", "dia_vencimento": 10, "valor_estimado_cents": 100_000})
+    l = autenticado.get("/api/contas-fixas/lancamentos/2026-03").json()[0]
+
+    assert autenticado.post(f"/api/contas-fixas/lancamentos/{l['id']}/pagar", json={},
+                            headers={"If-Match": str(l["versao"])}).status_code == 200
+    assert autenticado.post(f"/api/contas-fixas/lancamentos/{l['id']}/desfazer-pagamento", json={},
+                            headers={"If-Match": str(l["versao"])}).status_code == 409
+
+
+def test_vale_para_entrada(db, autenticado):
+    eid = autenticado.post("/api/entradas",
+                           json={"descricao": "Salário", "valor_cents": 800_000, "data": "2026-03-05"}).json()["id"]
+    versao = autenticado.get("/api/entradas").json()["itens"][0]["versao"]
+
+    # Entrada não tem PATCH: a versão existe para reconciliar o DELETE da fila.
+    assert autenticado.delete(f"/api/entradas/{eid}", headers={"If-Match": str(versao)}).status_code == 200
+
+
+def test_vale_para_meta(db, autenticado):
+    mid = autenticado.post("/api/metas",
+                           json={"nome": "Viagem", "valor_total_cents": 500_000, "prazo": "2026-12-31"}).json()["id"]
+    versao = autenticado.get("/api/metas").json()[0]["versao"]
+
+    assert autenticado.patch(f"/api/metas/{mid}", json={"nome": "A"},
+                             headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.patch(f"/api/metas/{mid}", json={"nome": "B"},
+                             headers={"If-Match": str(versao)}).status_code == 409
+    assert autenticado.delete(f"/api/metas/{mid}", headers={"If-Match": str(versao)}).status_code == 409
+
+
+def test_vale_para_item_de_meta(db, autenticado):
+    mid = autenticado.post("/api/metas",
+                           json={"nome": "Casa", "valor_total_cents": 500_000, "prazo": "2026-12-31"}).json()["id"]
+    iid = autenticado.post(f"/api/metas/{mid}/itens", json={"nome": "Pintura", "valor_cents": 1_000}).json()["id"]
+    versao = autenticado.get("/api/metas").json()[0]["itens"][0]["versao"]
+
+    assert autenticado.patch(f"/api/metas/{mid}/itens/{iid}", json={"nome": "A"},
+                             headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.patch(f"/api/metas/{mid}/itens/{iid}", json={"nome": "B"},
+                             headers={"If-Match": str(versao)}).status_code == 409
+    assert autenticado.delete(f"/api/metas/{mid}/itens/{iid}",
+                              headers={"If-Match": str(versao)}).status_code == 409
+
+
+def test_vale_para_categoria(db, autenticado):
+    cid = autenticado.post("/api/categorias",
+                           json={"nome": "Assinaturas de teste", "tipo": "variavel"}).json()["id"]
+    versao = next(c for c in autenticado.get("/api/categorias").json() if c["id"] == cid)["versao"]
+
+    assert autenticado.patch(f"/api/categorias/{cid}", json={"nome": "A"},
+                             headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.patch(f"/api/categorias/{cid}", json={"nome": "B"},
+                             headers={"If-Match": str(versao)}).status_code == 409
+
+
+def test_vale_para_orcamento(db, autenticado):
+    # A chave do orçamento é categoria_id: o If-Match viaja na rota da categoria.
+    cat = next(c for c in autenticado.get("/api/categorias").json() if c["tipo"] == "variavel")
+    autenticado.put(f"/api/orcamentos/{cat['id']}", json={"limite_cents": 50_000})
+    versao = autenticado.get("/api/orcamentos").json()[0]["versao"]
+
+    assert autenticado.put(f"/api/orcamentos/{cat['id']}", json={"limite_cents": 60_000},
+                           headers={"If-Match": str(versao)}).status_code == 200
+    assert autenticado.put(f"/api/orcamentos/{cat['id']}", json={"limite_cents": 70_000},
+                           headers={"If-Match": str(versao)}).status_code == 409
+    assert autenticado.delete(f"/api/orcamentos/{cat['id']}",
+                              headers={"If-Match": str(versao)}).status_code == 409

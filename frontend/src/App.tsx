@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
+import BannerVersao from "./components/BannerVersao";
 import BuscaGlobal from "./components/BuscaGlobal";
 import Logo from "./components/Logo";
+import OfflineBar from "./components/OfflineBar";
 import {
   IcBusca, IcExpandir, IcLua, IcMais, IcRecolher, IcSair, IcSol,
 } from "./components/icones";
@@ -133,6 +135,8 @@ export default function App() {
       </header>
 
       <main className="pagina">
+        <BannerVersao />
+        <OfflineBar />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/analises" element={<Analises />} />

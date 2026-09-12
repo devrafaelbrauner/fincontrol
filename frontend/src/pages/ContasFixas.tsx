@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, brl, paraCents } from "../api";
+import { api, brl, ehConflito, paraCents } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
 import { IcEditar, IcFechar } from "../components/icones";
 import Modal from "../components/Modal";
@@ -8,7 +8,9 @@ import { useAtualizacao, useCompetencia } from "../estado";
 
 type Lancamento = {
   id: number;
+  versao: number;
   conta_fixa_id: number;
+  conta_versao: number;
   nome: string;
   valor_cents: number;
   dia_vencimento: number;
@@ -16,7 +18,7 @@ type Lancamento = {
   status: "pago" | "pendente" | "atrasado";
   anexo_id: number | null;
 };
-type Edicao = { conta_id: number; nome: string; dia: string; valor: string };
+type Edicao = { conta_id: number; versao: number; nome: string; dia: string; valor: string };
 
 export default function ContasFixas() {
   const toast = useToast();
@@ -37,27 +39,34 @@ export default function ContasFixas() {
 
   useEffect(carregar, [carregar, versao]);
 
+  /** 409 = outro aparelho editou; recarrega para mostrar a versão atual. */
+  function aoFalhar(e: unknown) {
+    toast((e as Error).message, ehConflito(e) ? undefined : "erro");
+    if (ehConflito(e)) carregar();
+  }
+
   async function alternarPago(l: Lancamento) {
     const rota = l.status === "pago" ? "desfazer-pagamento" : "pagar";
     try {
-      await api(`/contas-fixas/lancamentos/${l.id}/${rota}`, { method: "POST", body: "{}" });
+      await api(`/contas-fixas/lancamentos/${l.id}/${rota}`, { method: "POST", body: "{}", headers: { "If-Match": String(l.versao) } });
       toast(l.status === "pago" ? "Pagamento desfeito." : "Marcada como paga.");
       carregar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) { aoFalhar(e); }
   }
 
-  async function definirAnexo(id: number, anexoId: number | null) {
-    await api(`/contas-fixas/lancamentos/${id}/anexo`, { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }) });
+  async function definirAnexo(id: number, anexoId: number | null, versao: number) {
+    await api(`/contas-fixas/lancamentos/${id}/anexo`,
+      { method: "PATCH", body: JSON.stringify({ anexo_id: anexoId }), headers: { "If-Match": String(versao) } });
     carregar();
   }
 
   async function excluirConta(l: Lancamento) {
     if (!confirm(`Excluir a conta fixa "${l.nome}" e todo o histórico dela?`)) return;
     try {
-      await api(`/contas-fixas/${l.conta_fixa_id}`, { method: "DELETE" });
+      await api(`/contas-fixas/${l.conta_fixa_id}`, { method: "DELETE", headers: { "If-Match": String(l.conta_versao) } });
       toast("Conta fixa excluída.");
       carregar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) { aoFalhar(e); }
   }
 
   async function salvarEdicao(e: FormEvent) {
@@ -67,11 +76,12 @@ export default function ContasFixas() {
       await api(`/contas-fixas/${edicao.conta_id}`, {
         method: "PATCH",
         body: JSON.stringify({ nome: edicao.nome, dia_vencimento: Number(edicao.dia), valor_estimado_cents: paraCents(edicao.valor) }),
+        headers: { "If-Match": String(edicao.versao) },
       });
       toast("Conta fixa atualizada.");
       setEdicao(null);
       carregar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   const totalMes = lancamentos.reduce((s, l) => s + l.valor_cents, 0);
@@ -120,12 +130,12 @@ export default function ContasFixas() {
                   <td>{new Date(l.vencimento + "T00:00").toLocaleDateString("pt-BR")}</td>
                   <td className="num">{brl(l.valor_cents)}</td>
                   <td><span className={`badge ${l.status}`}>{l.status}</span></td>
-                  <td><AnexoCampo anexoId={l.anexo_id} onChange={(a) => definirAnexo(l.id, a)} /></td>
+                  <td><AnexoCampo anexoId={l.anexo_id} onChange={(a) => definirAnexo(l.id, a, l.versao)} /></td>
                   <td style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                     <button className={`btn ${l.status === "pago" ? "" : "btn-primario"}`} onClick={() => alternarPago(l)}>
                       {l.status === "pago" ? "Desfazer" : "Pagar"}
                     </button>
-                    <button className="btn btn-icone" onClick={() => setEdicao({ conta_id: l.conta_fixa_id, nome: l.nome, dia: String(l.dia_vencimento), valor: (l.valor_cents / 100).toFixed(2).replace(".", ",") })} aria-label="Editar conta" title="Editar"><IcEditar /></button>
+                    <button className="btn btn-icone" onClick={() => setEdicao({ conta_id: l.conta_fixa_id, versao: l.conta_versao, nome: l.nome, dia: String(l.dia_vencimento), valor: (l.valor_cents / 100).toFixed(2).replace(".", ",") })} aria-label="Editar conta" title="Editar"><IcEditar /></button>
                     <button className="btn btn-icone btn-perigo" onClick={() => excluirConta(l)} aria-label="Excluir conta" title="Excluir"><IcFechar /></button>
                   </td>
                 </tr>

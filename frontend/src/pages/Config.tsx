@@ -2,7 +2,11 @@ import { Capacitor } from "@capacitor/core";
 import QRCode from "qrcode";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { instalarAtualizacao, type ResultadoAtualizacao, verificarAtualizacao } from "../atualizacao";
+import { isNativo, isTauri } from "../plataforma";
 import { cadastrarPasskey } from "../passkeys";
+import { definirServidor, getApiBase } from "../servidor";
+import { limparSessao } from "../sessao";
 
 type IaConfig = { configurada: boolean; modelo: string };
 type PushConfig = { habilitado: boolean; vapid_public: string | null; inscritos: number; hora_lembrete: number };
@@ -40,6 +44,44 @@ export default function Config() {
   const [passkeys, setPasskeys] = useState<Passkey[] | null>(null);
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
   const [passkeyNome, setPasskeyNome] = useState("");
+
+  // Servidor (só nativo): a URL efetiva é cofre > VITE_API_BASE > "".
+  const [servidor, setServidor] = useState(getApiBase());
+  const [servidorMsg, setServidorMsg] = useState<string | null>(null);
+
+  // Atualização assinada (só Tauri).
+  const [att, setAtt] = useState<ResultadoAtualizacao | null>(null);
+  const [attOcupado, setAttOcupado] = useState(false);
+
+  async function checarAtualizacao() {
+    setAttOcupado(true);
+    setAtt(null);
+    try { setAtt(await verificarAtualizacao()); } finally { setAttOcupado(false); }
+  }
+
+  async function instalar() {
+    setAttOcupado(true);
+    try {
+      await instalarAtualizacao();
+    } catch (err) {
+      setAtt({ estado: "erro", erro: (err as Error).message });
+      setAttOcupado(false);
+    }
+  }
+
+  async function salvarServidor(e: FormEvent) {
+    e.preventDefault();
+    const limpa = servidor.trim().replace(/\/+$/, "");
+    if (!/^https?:\/\/.+/i.test(limpa)) {
+      setServidorMsg("Informe a URL completa, começando com https:// (ou http:// no teste local).");
+      return;
+    }
+    // Trocar de servidor encerra a sessão: o token de um ambiente não vale no
+    // outro, e manter a tela logada apontando para o servidor errado confunde.
+    await limparSessao();
+    await definirServidor(limpa);
+    window.location.href = "/login";
+  }
 
   const carregarPasskeys = useCallback(() => {
     api<Passkey[]>("/auth/webauthn/credenciais").then(setPasskeys).catch(() => setPasskeys(null));
@@ -292,6 +334,46 @@ export default function Config() {
         </form>
         {passkeyMsg && <p style={{ marginTop: "0.5rem" }}>{passkeyMsg}</p>}
       </section>
+
+      {isNativo() && (
+        <section className="surgir secao" style={{ maxWidth: 560 }}>
+          <h3 className="secao-titulo">Servidor</h3>
+          <p className="sub">
+            Endereço da API usada por este aplicativo. A sessão do servidor atual é encerrada ao trocar.
+          </p>
+          <form onSubmit={salvarServidor} className="campos">
+            <div className="campo">
+              <label htmlFor="cfg-servidor">URL do servidor</label>
+              <input id="cfg-servidor" type="url" inputMode="url" placeholder="https://fincontrol.exemplo.com"
+                value={servidor} onChange={(e) => setServidor(e.target.value)} required />
+            </div>
+            <div className="acoes-modal">
+              <button className="btn btn-primario" type="submit">Salvar servidor</button>
+            </div>
+          </form>
+          {servidorMsg && <p className="erro">{servidorMsg}</p>}
+        </section>
+      )}
+
+      {isTauri() && (
+        <section className="surgir secao" style={{ maxWidth: 560 }}>
+          <h3 className="secao-titulo">Atualizações</h3>
+          <p className="sub">Busca uma versão nova no repositório de releases e instala com um clique.</p>
+          <div className="linha-form">
+            <button className="btn" onClick={checarAtualizacao} disabled={attOcupado}>
+              {attOcupado && !att?.versao ? "Verificando…" : "Verificar atualizações"}
+            </button>
+            {att?.estado === "disponivel" && (
+              <button className="btn btn-primario" onClick={instalar} disabled={attOcupado}>
+                Instalar {att.versao}
+              </button>
+            )}
+          </div>
+          {att?.estado === "atual" && <p className="positivo">Você está na versão mais recente.</p>}
+          {att?.estado === "erro" && <p className="erro">{att.erro}</p>}
+          {att?.estado === "indisponivel" && <p className="sub">Disponível apenas no app para computador.</p>}
+        </section>
+      )}
 
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
           instalada pela tela de início (iOS ≥ 16.4). */}

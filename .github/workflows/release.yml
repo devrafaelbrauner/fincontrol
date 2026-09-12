@@ -1,0 +1,127 @@
+name: Release
+
+# Binários assinados do app desktop. O código é privado; os artefatos e o
+# `latest.json` (consumido pelo updater) vão para o repo PÚBLICO de releases.
+# Dispara numa tag `v*` ou manualmente. NÃO republica uma tag existente por
+# acidente: use workflow_dispatch apenas para uma versão nova.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RELEASES_REPO: devrafaelbrauner/fincontrol-releases
+  # Mesmo domínio de produção usado pelo deploy. Vem de secret: o default
+  # bakeado no pacote tem de ser o servidor real do dono, não um placeholder.
+  VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+  # A chave privada de assinatura do updater vive SÓ aqui (GitHub Secrets).
+  # A pubkey correspondente está no tauri.conf.json.
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
+      - run: npm ci
+
+      # macOS: `.dmg` para instalar + `*.app.tar.gz` (fonte do updater).
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      # Windows: tenta WiX (.msi); se o WiX falhar, cai para NSIS.
+      - name: Build (Windows, MSI; NSIS se o WiX falhar)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          npx tauri build --target ${{ matrix.target }} --bundles msi \
+            || npx tauri build --target ${{ matrix.target }} --bundles nsis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            frontend/src-tauri/target/**/release/bundle/**
+            frontend/src-tauri/target/**/release/*.sig
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Baixar todos os pacotes
+        uses: actions/download-artifact@v4
+        with:
+          path: artefatos
+          merge-multiple: true
+
+      - name: Montar o latest.json
+        working-directory: frontend
+        run: |
+          VERSAO="${GITHUB_REF_NAME#v}"
+          node scripts/latest-json.mjs \
+            --versao "$VERSAO" \
+            --tag "$GITHUB_REF_NAME" \
+            --repo "$RELEASES_REPO" \
+            --dir ../artefatos
+
+      - name: Publicar no repositório público de releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_PAT }}
+          tag_name: ${{ github.ref_name }}
+          name: FinControl ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          files: |
+            artefatos/**/*.dmg
+            artefatos/**/*.msi
+            artefatos/**/*.nsis.zip
+            artefatos/**/*.msi.zip
+            artefatos/**/*.app.tar.gz
+            artefatos/**/*.sig
+            artefatos/latest.json

@@ -36,10 +36,15 @@ export function assinarRetorno(aoVoltar: () => void): () => void {
   // `pageshow` cobre a volta pelo bfcache (voltar do navegador no celular), em
   // que nem `focus` nem `visibilitychange` disparam.
   window.addEventListener("pageshow", revalidar);
+  // O replay da fila offline aplicou escritas: os dados do servidor mudaram e as
+  // telas precisam revalidar sem esperar a próxima alternância de janela.
+  const aoReplay = () => { ultima = 0; revalidar(); };
+  window.addEventListener("fincontrol:atualizar", aoReplay);
   return () => {
     document.removeEventListener("visibilitychange", aoFicarVisivel);
     window.removeEventListener("focus", revalidar);
     window.removeEventListener("pageshow", revalidar);
+    window.removeEventListener("fincontrol:atualizar", aoReplay);
   };
 }
 

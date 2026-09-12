@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, brl } from "../api";
+import { api, brl, ehConflito } from "../api";
 import { IcEntradas, IcFechar } from "../components/icones";
 import { useToast } from "../components/Toast";
 import { useAtualizacao, useCompetencia } from "../estado";
 import ValorHero from "../components/ValorHero";
 
-type Entrada = { id: number; descricao: string; valor_cents: number; data: string; recorrente: number };
+type Entrada = { id: number; versao: number; descricao: string; valor_cents: number; data: string; recorrente: number };
 
 const ultimoDia = (comp: string) => new Date(Number(comp.slice(0, 4)), Number(comp.slice(5)), 0).getDate();
 
@@ -29,13 +29,16 @@ export default function Entradas() {
 
   useEffect(carregar, [carregar, versao]);
 
-  async function excluir(id: number) {
+  async function excluir(i: Entrada) {
     if (!confirm("Excluir esta entrada?")) return;
     try {
-      await api(`/entradas/${id}`, { method: "DELETE" });
+      await api(`/entradas/${i.id}`, { method: "DELETE", headers: { "If-Match": String(i.versao) } });
       toast("Entrada excluída.");
       atualizar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) {
+      toast((e as Error).message, ehConflito(e) ? undefined : "erro");
+      if (ehConflito(e)) carregar();
+    }
   }
 
   return (
@@ -68,7 +71,7 @@ export default function Entradas() {
                     </span>
                   </td>
                   <td className="num positivo">{brl(i.valor_cents)}</td>
-                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i.id)} aria-label="Excluir"><IcFechar /></button></td>
+                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i)} aria-label="Excluir"><IcFechar /></button></td>
                 </tr>
               ))}
             </tbody>

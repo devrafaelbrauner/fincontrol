@@ -1,12 +1,12 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, brl, hojeISO, paraCents } from "../api";
+import { api, brl, ehConflito, hojeISO, paraCents } from "../api";
 import { ProgressRing } from "../components/graficos";
 import { IcEditar, IcExtrair, IcFechar, IcMais, IcMetas } from "../components/icones";
 import Modal from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { useAtualizacao } from "../estado";
 
-type Item = { id: number; nome: string; valor_cents: number; descricao: string | null };
+type Item = { id: number; versao: number; nome: string; valor_cents: number; descricao: string | null };
 
 type Meta = {
   id: number;
@@ -14,6 +14,7 @@ type Meta = {
   valor_total_cents: number;
   valor_atual_cents: number;
   valor_mensal_necessario_cents: number;
+  versao: number;
   prazo: string;
   estrategia_texto: string | null;
   itens: Item[];
@@ -69,19 +70,20 @@ export default function Metas() {
     if (!(cents >= 0)) { toast("Valor inválido.", "erro"); return; }
     const corpo = JSON.stringify({ nome: itemNome, valor_cents: cents, descricao: itemDesc.trim() || null });
     try {
-      if (itemEdit) await api(`/metas/${itemMeta.id}/itens/${itemEdit.id}`, { method: "PATCH", body: corpo });
+      if (itemEdit) await api(`/metas/${itemMeta.id}/itens/${itemEdit.id}`,
+        { method: "PATCH", body: corpo, headers: { "If-Match": String(itemEdit.versao) } });
       else await api(`/metas/${itemMeta.id}/itens`, { method: "POST", body: corpo });
       toast(itemEdit ? "Item atualizado." : "Item adicionado.");
       setItemMeta(null);
       carregar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   async function excluirItem(m: Meta, i: Item) {
     try {
-      await api(`/metas/${m.id}/itens/${i.id}`, { method: "DELETE" });
+      await api(`/metas/${m.id}/itens/${i.id}`, { method: "DELETE", headers: { "If-Match": String(i.versao) } });
       carregar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   async function planejarComIa(m: Meta) {
@@ -129,6 +131,12 @@ export default function Metas() {
 
   useEffect(carregar, [carregar, versao]);
 
+  /** 409 = outro aparelho editou; recarrega para mostrar a versão atual. */
+  function aoFalhar(e: unknown) {
+    toast((e as Error).message, ehConflito(e) ? undefined : "erro");
+    if (ehConflito(e)) carregar();
+  }
+
   async function gerarEstrategia(m: Meta) {
     setEstrategiaId(m.id);
     try {
@@ -142,10 +150,10 @@ export default function Metas() {
   async function excluir(m: Meta) {
     if (!confirm(`Excluir a meta "${m.nome}" e seus aportes?`)) return;
     try {
-      await api(`/metas/${m.id}`, { method: "DELETE" });
+      await api(`/metas/${m.id}`, { method: "DELETE", headers: { "If-Match": String(m.versao) } });
       toast("Meta excluída.");
       carregar();
-    } catch (e) { toast((e as Error).message, "erro"); }
+    } catch (e) { aoFalhar(e); }
   }
 
   async function salvarEdicao(e: FormEvent) {
@@ -157,11 +165,12 @@ export default function Metas() {
       await api(`/metas/${editMeta.id}`, {
         method: "PATCH",
         body: JSON.stringify({ nome: editMeta.nome, valor_total_cents: cents, prazo: editMeta.prazo }),
+        headers: { "If-Match": String(editMeta.versao) },
       });
       toast("Meta atualizada.");
       setEditMeta(null);
       carregar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   async function criar(e: FormEvent) {

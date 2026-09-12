@@ -81,7 +81,9 @@ def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends
 
 
 @router.delete("/{conta_id}")
-def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "contas_fixas", conta_id, if_match)
     if not db.execute("SELECT 1 FROM contas_fixas WHERE id = ?", (conta_id,)).fetchone():
         raise HTTPException(404, "Conta fixa não encontrada")
     db.execute("DELETE FROM lancamentos_fixos WHERE conta_fixa_id = ?", (conta_id,))
@@ -97,8 +99,8 @@ def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db)):
         raise HTTPException(400, str(e))
     gerar_lancamentos_fixos(db, competencia)
     rows = db.execute(
-        """SELECT l.id, l.conta_fixa_id, l.competencia, l.valor_cents, l.data_pagamento, l.anexo_id,
-                  c.nome, c.dia_vencimento
+        """SELECT l.id, l.conta_fixa_id, l.competencia, l.valor_cents, l.data_pagamento, l.anexo_id, l.versao,
+                  c.nome, c.dia_vencimento, c.versao AS conta_versao
            FROM lancamentos_fixos l JOIN contas_fixas c ON c.id = l.conta_fixa_id
            WHERE l.competencia = ? ORDER BY c.dia_vencimento, c.nome""",
         (competencia,),
@@ -113,16 +115,20 @@ def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/lancamentos/{lancamento_id}/pagar")
-def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db)):
+def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db),
+          if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     data = body.data_pagamento or hoje().isoformat()
     if body.valor_cents is not None:
         cur = db.execute(
-            "UPDATE lancamentos_fixos SET data_pagamento = ?, valor_cents = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE lancamentos_fixos SET data_pagamento = ?, valor_cents = ?, atualizado_em = CURRENT_TIMESTAMP, "
+            "versao = versao + 1 WHERE id = ?",
             (data, body.valor_cents, lancamento_id),
         )
     else:
         cur = db.execute(
-            "UPDATE lancamentos_fixos SET data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE lancamentos_fixos SET data_pagamento = ?, atualizado_em = CURRENT_TIMESTAMP, "
+            "versao = versao + 1 WHERE id = ?",
             (data, lancamento_id),
         )
     if cur.rowcount == 0:
@@ -131,9 +137,11 @@ def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depend
 
 
 @router.patch("/lancamentos/{lancamento_id}/anexo")
-def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection = Depends(get_db)):
+def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     cur = db.execute(
-        "UPDATE lancamentos_fixos SET anexo_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        "UPDATE lancamentos_fixos SET anexo_id = ?, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 WHERE id = ?",
         (body.anexo_id, lancamento_id),
     )
     if cur.rowcount == 0:
@@ -142,9 +150,12 @@ def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection =
 
 
 @router.post("/lancamentos/{lancamento_id}/desfazer-pagamento")
-def desfazer_pagamento(lancamento_id: int, db: sqlite3.Connection = Depends(get_db)):
+def desfazer_pagamento(lancamento_id: int, db: sqlite3.Connection = Depends(get_db),
+                       if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     cur = db.execute(
-        "UPDATE lancamentos_fixos SET data_pagamento = NULL, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+        "UPDATE lancamentos_fixos SET data_pagamento = NULL, atualizado_em = CURRENT_TIMESTAMP, "
+        "versao = versao + 1 WHERE id = ?",
         (lancamento_id,),
     )
     if cur.rowcount == 0:

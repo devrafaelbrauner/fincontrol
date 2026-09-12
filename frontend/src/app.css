@@ -1123,4 +1123,16 @@ tfoot td {
 .importar-item.confirmado { opacity: 0.65; }
 .importar-topo { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; min-width: 0; }
 
+.offline-barra {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 0.6rem 0.8rem; margin-bottom: 0.8rem;
+  border: 1px solid var(--warning); border-radius: 10px;
+  background: var(--warning-bg); color: var(--warning);
+  font-size: 0.85rem;
+}
+.offline-texto { font-weight: 600; }
+.offline-conflitos ul { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.offline-conflitos li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: var(--content); }
+.offline-conflitos li > span { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+
 } /* fim @layer components */

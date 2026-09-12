@@ -101,7 +101,7 @@ export async function entrarComPasskey(): Promise<void> {
       method: "POST",
       body: JSON.stringify({ token: inicio.token, credencial: respostaParaJson(cred) }),
     });
-  aplicarSessao(sessao);
+  await aplicarSessao(sessao);
   window.location.href = "/";
 }
 

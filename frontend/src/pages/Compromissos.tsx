@@ -224,7 +224,8 @@ export default function Compromissos() {
   async function excluir(c: Compromisso) {
     if (!confirm(`Excluir "${c.nome}"? Os pagamentos já registrados continuam nos gastos do mês.`)) return;
     try {
-      const r = await api<{ pagamentos_desvinculados: number }>(`/compromissos/${c.id}`, { method: "DELETE" });
+      const r = await api<{ pagamentos_desvinculados: number }>(`/compromissos/${c.id}`,
+        { method: "DELETE", headers: { "If-Match": String(c.versao) } });
       toast(r.pagamentos_desvinculados
         ? `Compromisso excluído. ${r.pagamentos_desvinculados} pagamento(s) seguem nos gastos.`
         : "Compromisso excluído.");

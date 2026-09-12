@@ -9,6 +9,10 @@
  *  A base entra em build time e fica congelada no bundle (`webDir: 'dist'`, sem
  *  `server.url`), então o erro só aparece no aparelho, muito depois.
  *
+ *  Ausente NÃO é erro desde que a URL passou a ser configurável em runtime: sem
+ *  default bakeado, o app mostra a tela de primeiro aviso e pede o endereço uma
+ *  vez (o valor vai para o cofre). O que não pode é sair um default QUEBRADO.
+ *
  *  FINCONTROL_BUILD_LOCAL=1 libera http:// e IP privado, para o teste em rede
  *  local documentado no deploy/README.md. `localhost` segue proibido sempre:
  *  no aparelho ele nunca aponta para a sua máquina.
@@ -29,7 +33,9 @@ function erro(problema, dica) {
 }
 
 if (!base) {
-  erro("A variável está ausente ou vazia.");
+  // Sem default: o app pede o servidor na primeira abertura. Não é build quebrado.
+  console.log("VITE_API_BASE ausente — o app vai pedir o endereço do servidor na primeira abertura.");
+  process.exit(0);
 }
 
 let url;

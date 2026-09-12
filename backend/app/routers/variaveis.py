@@ -2,11 +2,11 @@ import sqlite3
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataFiltro, DataISO, somar_meses, vencimento
+from ..util import DataFiltro, DataISO, conferir_versao, somar_meses, vencimento
 
 router = APIRouter(prefix="/variaveis", tags=["variaveis"])
 
@@ -52,10 +52,12 @@ def listar(
         params.append(categoria_id)
     sql_where = " AND ".join(where)
     # parcelas_total junto: a UI mostra "3/10" sem uma requisição por linha.
+    # `parcelamento_versao` é o If-Match do PATCH/DELETE /variaveis/parcelado/{id}:
+    # cada parcela tem a própria versão, mas o grupo tem a dele.
     itens = [
         dict(r)
         for r in db.execute(
-            f"""SELECT l.*, p.parcelas AS parcelas_total
+            f"""SELECT l.*, p.parcelas AS parcelas_total, p.versao AS parcelamento_versao
                 FROM lancamentos_variaveis l
                 LEFT JOIN parcelamentos p ON p.id = l.parcelamento_id
                 WHERE {sql_where} ORDER BY l.data DESC, l.id DESC""",
@@ -129,17 +131,23 @@ class ParceladoPatch(BaseModel):
 
 
 @router.patch("/parcelado/{parcelamento_id}")
-def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqlite3.Connection = Depends(get_db)):
+def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqlite3.Connection = Depends(get_db),
+                            if_match: str | None = Header(default=None, alias="If-Match")):
     """Muda a categoria da compra INTEIRA — todas as parcelas, passadas e
     futuras. Recategorizar só um mês é o PATCH comum do lançamento; sem este
     endpoint, a mesma compra ficaria com categorias diferentes entre os meses
     sem o usuário perceber."""
+    conferir_versao(db, "parcelamentos", parcelamento_id, if_match)
     if not db.execute("SELECT 1 FROM parcelamentos WHERE id = ?", (parcelamento_id,)).fetchone():
         raise HTTPException(404, "Parcelamento não encontrado")
     try:
-        db.execute("UPDATE parcelamentos SET categoria_id = ? WHERE id = ?", (body.categoria_id, parcelamento_id))
+        db.execute(
+            "UPDATE parcelamentos SET categoria_id = ?, versao = versao + 1 WHERE id = ?",
+            (body.categoria_id, parcelamento_id),
+        )
         cur = db.execute(
-            "UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE parcelamento_id = ?",
+            "UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP, "
+            "versao = versao + 1 WHERE parcelamento_id = ?",
             (body.categoria_id, parcelamento_id),
         )
     except sqlite3.IntegrityError:
@@ -148,9 +156,11 @@ def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqli
 
 
 @router.delete("/parcelado/{parcelamento_id}")
-def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get_db),
+                      if_match: str | None = Header(default=None, alias="If-Match")):
     """Exclui a compra parcelada inteira — todas as parcelas, passadas e futuras.
     Para tirar só um mês, exclua a parcela como um lançamento comum."""
+    conferir_versao(db, "parcelamentos", parcelamento_id, if_match)
     removidas = db.execute(
         "DELETE FROM lancamentos_variaveis WHERE parcelamento_id = ?", (parcelamento_id,)
     ).rowcount
@@ -175,14 +185,17 @@ def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{lancamento_id}")
-def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db)):
+def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db),
+           if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "lancamentos_variaveis", lancamento_id, if_match)
     campos = body.model_dump(exclude_unset=True)  # atualização parcial (anexo e/ou categoria)
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
     sets = ", ".join(f"{c} = ?" for c in campos)
     try:
         cur = db.execute(
-            f"UPDATE lancamentos_variaveis SET {sets}, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
+            f"UPDATE lancamentos_variaveis SET {sets}, atualizado_em = CURRENT_TIMESTAMP, "
+            f"versao = versao + 1 WHERE id = ?",
             (*campos.values(), lancamento_id),
         )
     except sqlite3.IntegrityError:
@@ -193,7 +206,9 @@ def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Dep
 
 
 @router.delete("/{lancamento_id}")
-def excluir(lancamento_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(lancamento_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "lancamentos_variaveis", lancamento_id, if_match)
     cur = db.execute("DELETE FROM lancamentos_variaveis WHERE id = ?", (lancamento_id,))
     if cur.rowcount == 0:
         raise HTTPException(404, "Lançamento não encontrado")

@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,5 +38,13 @@
       "minimumSystemVersion": "11.0"
     },
     "category": "Finance"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFDRUI3REE5MTQ3RjU2MTAKUldRUVZuOFVxWDNyckQwQVdsa1VySFBmeDJudFR0V0FrNkpseDh2ckxrOVl5MFhVUVFJU1JsV1gK",
+      "endpoints": [
+        "https://github.com/devrafaelbrauner/fincontrol-releases/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

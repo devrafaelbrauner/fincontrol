@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { api, brl, paraCents } from "../api";
+import { api, brl, ehConflito, paraCents } from "../api";
 import { BarChart, BarrasRank, BarraMes, COR_SEM_CATEGORIA, FatiaDonut, PALETA_SERIES, ROTULO_SEM_CATEGORIA, Sparkline, corDaCategoria, dobrarEmOutros, resolverCores } from "../components/graficos";
 import { Fio } from "../components/Fio";
 import { IcDesceu, IcFechar, IcSubiu } from "../components/icones";
@@ -10,9 +10,9 @@ import {
   comparativo as calcComparativo, tendenciasPorCategoria,
 } from "../historico";
 
-type Categoria = { id: number; nome: string; tipo: string; cor: string | null; ativa: number };
+type Categoria = { id: number; versao: number; nome: string; tipo: string; cor: string | null; ativa: number };
 type Variavel = { valor_cents: number; categoria_id: number | null; forma_pagamento: string | null };
-type Orcamento = { categoria_id: number; nome: string; cor: string | null; limite_cents: number; gasto_cents: number };
+type Orcamento = { categoria_id: number; versao: number; nome: string; cor: string | null; limite_cents: number; gasto_cents: number };
 
 const corOrcamento = (pct: number) => (pct >= 100 ? "var(--negative)" : pct >= 80 ? "var(--warning)" : "var(--positive)");
 
@@ -171,6 +171,12 @@ export default function Analises() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  /** 409 = outro aparelho editou; recarrega para mostrar a versão atual. */
+  function aoFalhar(e: unknown) {
+    toast((e as Error).message, ehConflito(e) ? undefined : "erro");
+    if (ehConflito(e)) atualizar();
+  }
+
   async function criarCategoria(e: FormEvent) {
     e.preventDefault();
     if (!nome.trim()) return;
@@ -187,20 +193,22 @@ export default function Analises() {
     } catch (err) { toast((err as Error).message, "erro"); }
   }
 
-  async function mudarCor(id: number, novaCor: string) {
+  async function mudarCor(c: Categoria, novaCor: string) {
     // Com try/catch como os irmãos daqui: a cartela fecha ao escolher, então
     // um PATCH que falha em silêncio deixaria a tela dizendo que a cor mudou.
     try {
-      await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }) });
+      await api(`/categorias/${c.id}`, { method: "PATCH", body: JSON.stringify({ cor: novaCor }), headers: { "If-Match": String(c.versao) } });
       atualizar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
-  async function desativar(id: number) {
+  async function desativar(c: Categoria) {
     if (!confirm("Desativar esta categoria? Ela some das listas (os lançamentos existentes são mantidos).")) return;
-    await api(`/categorias/${id}`, { method: "PATCH", body: JSON.stringify({ ativa: false }) });
-    toast("Categoria desativada.");
-    atualizar();
+    try {
+      await api(`/categorias/${c.id}`, { method: "PATCH", body: JSON.stringify({ ativa: false }), headers: { "If-Match": String(c.versao) } });
+      toast("Categoria desativada.");
+      atualizar();
+    } catch (err) { aoFalhar(err); }
   }
 
   async function definirOrcamento(e: FormEvent) {
@@ -210,21 +218,28 @@ export default function Analises() {
       toast("Escolha a categoria e um limite maior que zero.", "erro");
       return;
     }
+    // Se a categoria já tem orçamento, o PUT é uma edição condicional; sem
+    // o If-Match um ajuste feito offline sobrescreveria o de outro aparelho.
+    const existente = orcamentos.find((o) => o.categoria_id === Number(orcCategoria));
     try {
-      await api(`/orcamentos/${orcCategoria}`, { method: "PUT", body: JSON.stringify({ limite_cents: cents }) });
+      await api(`/orcamentos/${orcCategoria}`, {
+        method: "PUT",
+        body: JSON.stringify({ limite_cents: cents }),
+        ...(existente ? { headers: { "If-Match": String(existente.versao) } } : {}),
+      });
       toast("Orçamento definido.");
       setOrcCategoria(""); setOrcValor("");
       atualizar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   async function removerOrcamento(o: Orcamento) {
     if (!confirm(`Remover o orçamento de ${o.nome}? Os lançamentos não mudam — só o limite deixa de existir.`)) return;
     try {
-      await api(`/orcamentos/${o.categoria_id}`, { method: "DELETE" });
+      await api(`/orcamentos/${o.categoria_id}`, { method: "DELETE", headers: { "If-Match": String(o.versao) } });
       toast("Orçamento removido.");
       atualizar();
-    } catch (err) { toast((err as Error).message, "erro"); }
+    } catch (err) { aoFalhar(err); }
   }
 
   const mesExtenso = new Date(Number(competencia.slice(0, 4)), Number(competencia.slice(5)) - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
@@ -395,7 +410,7 @@ export default function Analises() {
                 onClick={() => setEditandoCor(editandoCor === c.id ? null : c.id)} />
               {c.nome}
               <span className="pct" style={{ marginLeft: 0 }}>({c.tipo})</span>
-              <button className="anexo-remover" onClick={() => desativar(c.id)} aria-label={`Desativar ${c.nome}`}><IcFechar width={15} height={15} /></button>
+              <button className="anexo-remover" onClick={() => desativar(c)} aria-label={`Desativar ${c.nome}`}><IcFechar width={15} height={15} /></button>
             </span>
           ))}
         </div>
@@ -404,7 +419,11 @@ export default function Analises() {
             <span className="eyebrow">Cor de {categorias.find((c) => c.id === editandoCor)?.nome}</span>
             <Cartela rotulo="Escolha a cor da categoria"
               valor={categorias.find((c) => c.id === editandoCor)?.cor ?? null}
-              aoEscolher={(novaCor) => { mudarCor(editandoCor, novaCor); setEditandoCor(null); }} />
+              aoEscolher={(novaCor) => {
+                const cat = categorias.find((c) => c.id === editandoCor);
+                if (cat) mudarCor(cat, novaCor);
+                setEditandoCor(null);
+              }} />
             <button className="btn" type="button" onClick={() => setEditandoCor(null)}>Fechar</button>
           </div>
         )}

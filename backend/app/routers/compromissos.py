@@ -193,18 +193,23 @@ def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection =
 
 
 @router.delete("/{compromisso_id}")
-def excluir(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(compromisso_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
     """Apaga o compromisso e DESVINCULA os pagamentos, sem apagá-los.
 
     O dinheiro saiu de verdade: apagar os lançamentos junto reescreveria o gasto
     de meses já fechados — o dashboard, as análises e o orçamento mudariam de
     valor retroativamente por causa de uma faxina na aba de compromissos.
     """
+    conferir_versao(db, "compromissos", compromisso_id, if_match)
     if not db.execute("SELECT 1 FROM compromissos WHERE id = ?", (compromisso_id,)).fetchone():
         raise HTTPException(404, "Compromisso não encontrado")
+    # Desvincular é uma escrita nos lançamentos: incrementa a versão de cada um
+    # para que um PATCH offline que tenha lido a versão antiga receba 409 em vez
+    # de sobrescrever a desvinculação em silêncio.
     desvinculados = db.execute(
-        "UPDATE lancamentos_variaveis SET compromisso_id = NULL, atualizado_em = CURRENT_TIMESTAMP "
-        "WHERE compromisso_id = ?",
+        "UPDATE lancamentos_variaveis SET compromisso_id = NULL, atualizado_em = CURRENT_TIMESTAMP, "
+        "versao = versao + 1 WHERE compromisso_id = ?",
         (compromisso_id,),
     ).rowcount
     db.execute("DELETE FROM compromissos WHERE id = ?", (compromisso_id,))

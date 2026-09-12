@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Janela principal: o bundle inteiro roda nela; sem janelas extras, sem permissões além do essencial.",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": ["core:default", "opener:default", "biometry:default", "updater:default", "process:default"]
 }

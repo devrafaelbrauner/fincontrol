@@ -263,13 +263,15 @@ def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get
 
 
 @router.delete("/{conta_id}")
-def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
     """Apaga a conta e todo o histórico dela (ON DELETE CASCADE).
 
     Diferente do compromisso, aqui não há nada a preservar em outra tela: as
     leituras de saldo só existem para esta conta. Para guardar o histórico sem
     ver a conta na lista, arquive (`ativa = 0`).
     """
+    conferir_versao(db, "contas_bancarias", conta_id, if_match)
     cur = db.execute("DELETE FROM contas_bancarias WHERE id = ?", (conta_id,))
     if cur.rowcount == 0:
         raise HTTPException(404, "Conta não encontrada")

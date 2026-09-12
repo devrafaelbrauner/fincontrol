@@ -9,11 +9,11 @@ lembretes — e contando só o que já saiu, ao contrário da barra na tela.
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import competencia_de, hoje, validar_competencia
+from ..util import competencia_de, conferir_versao, hoje, validar_competencia
 
 router = APIRouter(prefix="/orcamentos", tags=["orcamentos"])
 
@@ -69,11 +69,12 @@ def listar(competencia: str | None = None, db: sqlite3.Connection = Depends(get_
             "cor": r["cor"],
             "limite_cents": r["limite_cents"],
             "gasto_cents": gastos.get(r["categoria_id"], 0),
+            "versao": r["versao"],
         }
         # Categoria desativada continua aparecendo enquanto tiver orçamento:
         # sumir da lista esconderia um limite ainda ativo no job de push.
         for r in db.execute(
-            """SELECT o.categoria_id, o.limite_cents, c.nome, c.cor
+            """SELECT o.categoria_id, o.limite_cents, o.versao, c.nome, c.cor
                FROM orcamentos o JOIN categorias c ON c.id = o.categoria_id
                ORDER BY c.nome"""
         )
@@ -81,23 +82,28 @@ def listar(competencia: str | None = None, db: sqlite3.Connection = Depends(get_
 
 
 @router.put("/{categoria_id}")
-def definir(categoria_id: int, body: OrcamentoIn, db: sqlite3.Connection = Depends(get_db)):
+def definir(categoria_id: int, body: OrcamentoIn, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
     cat = db.execute("SELECT tipo FROM categorias WHERE id = ?", (categoria_id,)).fetchone()
     if not cat:
         raise HTTPException(404, "Categoria não encontrada")
     if cat["tipo"] != "variavel":
         raise HTTPException(400, "Orçamento é só para categorias de gasto variável")
+    conferir_versao(db, "orcamentos", categoria_id, if_match, coluna_id="categoria_id")
     db.execute(
         """INSERT INTO orcamentos (categoria_id, limite_cents) VALUES (?, ?)
            ON CONFLICT(categoria_id) DO UPDATE SET
-             limite_cents = excluded.limite_cents, atualizado_em = CURRENT_TIMESTAMP""",
+             limite_cents = excluded.limite_cents, atualizado_em = CURRENT_TIMESTAMP,
+             versao = orcamentos.versao + 1""",
         (categoria_id, body.limite_cents),
     )
     return {"ok": True}
 
 
 @router.delete("/{categoria_id}")
-def remover(categoria_id: int, db: sqlite3.Connection = Depends(get_db)):
+def remover(categoria_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "orcamentos", categoria_id, if_match, coluna_id="categoria_id")
     cur = db.execute("DELETE FROM orcamentos WHERE categoria_id = ?", (categoria_id,))
     if cur.rowcount == 0:
         raise HTTPException(404, "Esta categoria não tem orçamento")

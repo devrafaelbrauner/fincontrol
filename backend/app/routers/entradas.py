@@ -1,10 +1,10 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import get_db
-from ..util import DataFiltro, DataISO
+from ..util import DataFiltro, DataISO, conferir_versao
 
 router = APIRouter(prefix="/entradas", tags=["entradas"])
 
@@ -54,7 +54,9 @@ def criar(body: EntradaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/{entrada_id}")
-def excluir(entrada_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(entrada_id: int, db: sqlite3.Connection = Depends(get_db),
+            if_match: str | None = Header(default=None, alias="If-Match")):
+    conferir_versao(db, "entradas", entrada_id, if_match)
     cur = db.execute("DELETE FROM entradas WHERE id = ?", (entrada_id,))
     if cur.rowcount == 0:
         raise HTTPException(404, "Entrada não encontrada")

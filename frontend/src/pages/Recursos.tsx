@@ -177,7 +177,7 @@ export default function Recursos() {
   async function excluir(c: Conta) {
     if (!confirm(`Excluir "${c.banco} — ${c.nome}"? O histórico de saldos vai junto.`)) return;
     try {
-      await api(`/contas-bancarias/${c.id}`, { method: "DELETE" });
+      await api(`/contas-bancarias/${c.id}`, { method: "DELETE", headers: { "If-Match": String(c.versao) } });
       toast("Conta excluída.");
       carregar();
     } catch (err) { toast((err as Error).message, "erro"); }

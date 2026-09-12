@@ -2,7 +2,7 @@
 name = "fincontrol"
 # Espelho do VERSION da raiz (como frontend/package.json): quem sobe a versao
 # roda ./scripts/versao.sh, que sincroniza os dois. Nao editar a mao.
-version = "1.1.0"
+version = "1.2.0"
 description = "FinControl — controle financeiro pessoal (cliente Tauri)"
 edition = "2021"
 
@@ -15,6 +15,17 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# Cofre de segredos do aparelho (Keychain / Credential Manager / Secret Service).
+# Os backends são escolhidos por target: apple-native (macOS/iOS), windows-native
+# e sync-secret-service (Linux, com o crypto-rust).
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+# Biometria do sistema: Touch ID (macOS), Windows Hello, Face ID/digital (mobile).
+tauri-plugin-biometry = "0.2.8"
+# Atualização assinada: baixa o pacote do repo público de releases e confere a
+# assinatura contra a pubkey do tauri.conf.json. A chave privada só existe no CI.
+tauri-plugin-updater = "2"
+# Necessário para reiniciar o app depois de instalar a atualização.
+tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

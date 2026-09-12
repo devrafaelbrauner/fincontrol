@@ -1,61 +1,44 @@
-import { Capacitor } from "@capacitor/core";
+import { guardarGet, lerGet } from "./offline/cache";
+import { atualizarContadores, definirOffline, registrarCacheEm } from "./offline/estadoOffline";
+import { type ItemFila, enfileirar } from "./offline/fila";
+import { aplicarOtimista } from "./offline/otimista";
+import { drenarFila } from "./offline/sincronizador";
+import { isNativo } from "./plataforma";
+import { guardarRefresh, guardarSessao as salvarSessao, guardarToken, getRefresh, getToken, limparSessao } from "./sessao";
+import { getApiBase } from "./servidor";
 
-// Base da API. Vazio no web (same-origin, Caddy faz o proxy de /api).
-// Nos builds nativos (Capacitor/Tauri), defina VITE_API_BASE com a URL absoluta do backend:
-//   VITE_API_BASE=https://seu-dominio npm run ios
-export function isNativo(): boolean {
-  // `typeof window` antes de tocá-la: os testes (vitest/node) importam este
-  // módulo sem DOM, e `window` nu lançaria ReferenceError no import.
-  if (typeof window !== "undefined" && typeof (window as unknown as { __TAURI__?: unknown }).__TAURI__ !== "undefined") return true;
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
-}
-const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
-if (isNativo() && !API_BASE) {
-  // Sem a base, todo request cairia no asset handler do Capacitor (index.html)
-  // e o login quebraria com erro de JSON. Falha alto e cedo.
-  // Vale para Capacitor E Tauri: nos dois o bundle é file/custom-scheme e
-  // same-origin não alcança o backend.
-  throw new Error("Build nativo sem VITE_API_BASE — rode: VITE_API_BASE=https://seu-dominio npm run ios");
+export { isNativo };
+export { getToken } from "./sessao";
+
+/** Falha de REDE (o fetch rejeitou), distinta de um erro HTTP nosso. Só ela
+ *  dispara o caminho offline: um 401/409/500 é resposta do servidor e não pode
+ *  ser confundido com "estou sem conexão". */
+function ehFalhaDeRede(e: unknown): boolean {
+  return e instanceof TypeError || (e as { name?: string } | null)?.name === "AbortError";
 }
 
-// No web, o refresh token vive num cookie httpOnly gerenciado pelo backend.
-// No app nativo (WebView cross-origin), o cookie não trafega: guardamos o refresh
-// token localmente e o enviamos por header. O backend identifica o cliente por X-Client.
-//
-// Etapa 7 (Keychain/Keystore): o ideal seria guardar o refresh no keystore do
-// aparelho (seguro contra backup/roubo de WebView), via plugin Capacitor/Capacitor.
-// Hoje é localStorage — documentado como pendente porque exige plugin nativo +
-// migração de quem já tem sessão (ler do localStorage, gravar no keystore, apagar).
-// Não fingir: é localStorage até o plugin existir (ver MELHORIAS.md "lock biométrico").
-const NATIVE = isNativo();
-const CHAVE_REFRESH = "refresh_token";
+/** Prefixos cuja escrita pode esperar na fila. Ficam de fora IA, push, auth,
+ *  importação e anexos: dependem do servidor na hora (ou são multipart). */
+const ENFILEIRAVEIS = [
+  "/variaveis", "/entradas", "/metas", "/categorias", "/orcamentos",
+  "/compromissos", "/contas-fixas", "/contas-bancarias",
+];
 
-export function getToken(): string | null {
-  return localStorage.getItem("token");
+function podeEnfileirar(path: string, method: string): boolean {
+  if (!["POST", "PATCH", "PUT", "DELETE"].includes(method)) return false;
+  return ENFILEIRAVEIS.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
-export function setToken(token: string | null) {
-  if (token) localStorage.setItem("token", token);
-  else localStorage.removeItem("token");
-}
-
-function getRefresh(): string | null {
-  return NATIVE ? localStorage.getItem(CHAVE_REFRESH) : null;
-}
-
-function setRefresh(token: string | null) {
-  if (!NATIVE) return; // no web o refresh fica no cookie httpOnly, não no JS
-  if (token) localStorage.setItem(CHAVE_REFRESH, token);
-  else localStorage.removeItem(CHAVE_REFRESH);
+function cabecalhoIfMatch(options: RequestInit): string | null {
+  const h = options.headers;
+  if (!h || Array.isArray(h)) return null;
+  const bruto = (h as Record<string, string>)["If-Match"];
+  return bruto ?? null;
 }
 
 /** Cabeçalhos que identificam o cliente nativo (e opcionalmente carregam o refresh token). */
 function headersNativos(comRefresh = false): Record<string, string> {
-  if (!NATIVE) return {};
+  if (!isNativo()) return {};
   const h: Record<string, string> = { "X-Client": "native" };
   const r = comRefresh ? getRefresh() : null;
   if (r) h["X-Refresh-Token"] = r;
@@ -87,19 +70,16 @@ export function mensagemDeErro(detail: unknown, fallback: string): string {
   return fallback;
 }
 
-function guardarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
-  setToken(corpo.token);
-  if (corpo.refresh_token) setRefresh(corpo.refresh_token);
-  if (corpo.nome) localStorage.setItem("nome", corpo.nome);
-}
-
-/** Aplica a sessão devolvida por /auth/login ou /auth/webauthn/login/finish. */
-export function aplicarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
-  guardarSessao(corpo);
+/** Aplica a sessão devolvida por /auth/login ou /auth/webauthn/login/finish.
+ *
+ *  Async porque, no nativo, o token vai para o cofre do aparelho — quem chama
+ *  precisa do `await` antes de navegar, senão a tela nova lê a sessão vazia. */
+export async function aplicarSessao(corpo: { token: string; refresh_token?: string; nome?: string | null }) {
+  await salvarSessao(corpo);
 }
 
 async function postAuth(path: string, body: unknown): Promise<void> {
-  const res = await fetch(API_BASE + "/api/auth/" + path, {
+  const res = await fetch(getApiBase() + "/api/auth/" + path, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headersNativos() },
@@ -114,7 +94,7 @@ async function postAuth(path: string, body: unknown): Promise<void> {
     erro.status = res.status;
     throw erro;
   }
-  guardarSessao(corpo);
+  await salvarSessao(corpo);
 }
 
 /** Login: autentica e guarda o access token (e, no nativo, o refresh token). */
@@ -133,7 +113,7 @@ export const cadastrar = (dados: { nome: string; telefone: string; email: string
  *  backend só demorou a subir — sem conta para entrar e sem caminho para criar. */
 export async function contaConfigurada(): Promise<boolean | null> {
   try {
-    const res = await fetch(API_BASE + "/api/auth/status", { credentials: "include" });
+    const res = await fetch(getApiBase() + "/api/auth/status", { credentials: "include" });
     if (!res.ok) return null;
     return ((await res.json()) as { configurado: boolean }).configurado;
   } catch {
@@ -141,23 +121,22 @@ export async function contaConfigurada(): Promise<boolean | null> {
   }
 }
 
-function irParaLogin(): never {
-  setToken(null);
-  setRefresh(null);
+async function irParaLogin(): Promise<never> {
+  await limparSessao();
   window.location.href = "/login";
   throw new Error("Não autenticado");
 }
 
 async function renovarAgora(): Promise<string | null> {
-  const res = await fetch(API_BASE + "/api/auth/refresh", {
+  const res = await fetch(getApiBase() + "/api/auth/refresh", {
     method: "POST",
     credentials: "include",
     headers: headersNativos(true),
   });
   if (!res.ok) return null;
   const { token, refresh_token } = (await res.json()) as { token: string; refresh_token?: string };
-  setToken(token);
-  if (refresh_token) setRefresh(refresh_token);
+  await guardarToken(token);
+  if (refresh_token) await guardarRefresh(refresh_token);
   return token;
 }
 
@@ -186,13 +165,13 @@ function renovar(): Promise<string | null> {
 
 /** fetch com Bearer atual; em 401 (fora das rotas públicas de /auth) tenta renovar uma vez e repete. */
 async function comAuth(path: string, montar: (token: string | null) => RequestInit): Promise<Response> {
-  let res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(getToken()) });
+  let res = await fetch(getApiBase() + "/api" + path, { credentials: "include", ...montar(getToken()) });
   // /auth/mfa/* é autenticada como as demais; só login/refresh/etc. ficam fora do retry.
   if (res.status === 401 && (!path.startsWith("/auth") || path.startsWith("/auth/mfa"))) {
     const novo = await renovar();
-    if (!novo) irParaLogin();
-    res = await fetch(API_BASE + "/api" + path, { credentials: "include", ...montar(novo) });
-    if (res.status === 401) irParaLogin();
+    if (!novo) await irParaLogin();
+    res = await fetch(getApiBase() + "/api" + path, { credentials: "include", ...montar(novo) });
+    if (res.status === 401) await irParaLogin();
   }
   return res;
 }
@@ -210,7 +189,40 @@ async function corpoOuErro<T>(res: Response): Promise<T> {
   return res.json();
 }
 
+/** O erro é um conflito de edição (409)? A tela recarrega para mostrar a versão
+ *  atual em vez de insistir com a cópia velha. */
+export function ehConflito(e: unknown): boolean {
+  return (e as { status?: number } | null)?.status === 409;
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const metodo = (options.method ?? "GET").toUpperCase();
+  if (metodo === "GET") return buscarComCache<T>(path, options);
+
+  try {
+    return await executarMutacao<T>(path, options);
+  } catch (e) {
+    if (!ehFalhaDeRede(e) || !podeEnfileirar(path, metodo)) throw e;
+    // Sem conexão: guarda a escrita (com o If-Match lido na tela) para o replay
+    // e reflete a mudança no cache, para a leitura offline não mostrar o dado
+    // velho como se nada tivesse acontecido.
+    const item = await enfileirar({
+      method: metodo,
+      path,
+      body: typeof options.body === "string" ? options.body : null,
+      ifMatch: cabecalhoIfMatch(options),
+    });
+    await aplicarOtimista(item);
+    definirOffline(true);
+    await atualizarContadores();
+    // Resposta sintética: a tela segue o fluxo (o refetch cai no cache) e o
+    // banner mostra que há escrita pendente. O id negativo é o mesmo do item
+    // otimista no cache, para quem usar o retorno não pegar um id diferente.
+    return (metodo === "POST" ? { id: -item.id } : { ok: true }) as T;
+  }
+}
+
+async function executarMutacao<T>(path: string, options: RequestInit): Promise<T> {
   const res = await comAuth(path, (token) => ({
     ...options,
     headers: {
@@ -224,6 +236,69 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     throw new Error(mensagemDeErro(corpo?.detail, res.statusText));
   }
   return corpoOuErro<T>(res);
+}
+
+/** GET: guarda a última resposta boa e, se a rede cair, serve o snapshot. */
+async function buscarComCache<T>(path: string, options: RequestInit): Promise<T> {
+  try {
+    const res = await comAuth(path, (token) => ({
+      ...options,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+    }));
+    const dados = await corpoOuErro<T>(res);
+    try { await guardarGet(path, dados); } catch { /* sem armazém, segue online */ }
+    definirOffline(false);
+    registrarCacheEm(null);
+    return dados;
+  } catch (e) {
+    if (!ehFalhaDeRede(e)) throw e;
+    const rascunho = await lerGet<T>(path).catch(() => null);
+    definirOffline(true);
+    if (rascunho) {
+      registrarCacheEm(rascunho.em);
+      return rascunho.dados;
+    }
+    throw new Error("Sem conexão e sem dados salvos para esta tela.");
+  }
+}
+
+/** Reenvia um item da fila direto no fetch (sem passar por `api`, para não
+ *  reenfileirar em loop). O 409 sobe como status para o sincronizador marcar. */
+async function executarDaFila(item: ItemFila): Promise<{ status: number; detail?: string }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (item.ifMatch) headers["If-Match"] = item.ifMatch;
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(getApiBase() + "/api" + item.path, {
+    method: item.method,
+    credentials: "include",
+    headers,
+    body: item.body ?? undefined,
+  });
+  if (!res.ok) {
+    const corpo = await res.json().catch(() => null);
+    return { status: res.status, detail: mensagemDeErro(corpo?.detail, res.statusText) };
+  }
+  return { status: res.status };
+}
+
+/** Repete a fila offline. Chamado quando a conexão volta, no foreground e no
+ *  boot. Single-flight: dois drains concorrentes leriam os MESMOS itens e os
+ *  enviariam em dobro. */
+let sincronizacaoEmVoo: Promise<void> | null = null;
+
+export function sincronizar(): Promise<void> {
+  if (!sincronizacaoEmVoo) {
+    // 401 no meio do replay tenta renovar UMA vez (mesmo single-flight das
+    // chamadas normais) antes de desistir e mandar para o login.
+    sincronizacaoEmVoo = drenarFila(executarDaFila, async () => Boolean(await renovar()))
+      .then(() => undefined)
+      .finally(() => { sincronizacaoEmVoo = null; });
+  }
+  return sincronizacaoEmVoo;
 }
 
 /** Upload multipart — não define Content-Type manualmente (o browser define com o boundary correto). */
@@ -251,17 +326,16 @@ export async function abrirAnexo(anexoId: number): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(API_BASE + "/api/auth/logout", {
+  await fetch(getApiBase() + "/api/auth/logout", {
     method: "POST",
     credentials: "include",
     // `true` manda o X-Refresh-Token. Sem ele, o app nativo — onde o cookie não
     // trafega (WebView cross-origin) — pedia logout sem se identificar: o
     // servidor não tinha o que revogar e a sessão seguia viva por até 30 dias,
-    // enquanto o "Sair" parecia ter funcionado porque limpava o localStorage.
+    // enquanto o "Sair" parecia ter funcionado porque limpava o armazenamento.
     headers: headersNativos(true),
   }).catch(() => {});
-  setToken(null);
-  setRefresh(null);
+  await limparSessao();
   window.location.href = "/login";
 }
 

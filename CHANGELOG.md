@@ -7,6 +7,51 @@ descrito em [`README.md`](README.md#versionamento).
 
 ## [Não lançado]
 
+## [1.2.0] — 2026-09-12
+
+Confiabilidade dos dados: edição concorrente reconciliável, offline real com
+fila e conflito visível, cofre do aparelho para os tokens, servidor escolhido em
+runtime e distribuição assinada de macOS/Windows.
+
+### Adicionado
+
+- **`If-Match` em todas as tabelas mutáveis** (migration `018`): `versao` em
+  `lancamentos_variaveis`, `lancamentos_fixos`, `entradas`, `metas`,
+  `metas_itens`, `metas_aportes`, `categorias`, `orcamentos` e `parcelamentos`.
+  PATCH/DELETE (e o `PUT` de orçamento) passam a aceitar `If-Match`; sem o
+  cabeçalho seguem como antes. `test_concorrencia.py` cobre cada tabela. É a base
+  da reconciliação do offline: dois aparelhos no mesmo id dão 409, nunca
+  last-write-wins silencioso.
+- **Offline com cache e fila** (IndexedDB, uma implementação para web/PWA/
+  Capacitor/Tauri): GETs guardam o último snapshot e, sem rede, a tela mostra o
+  dado salvo com o horário; escritas financeiras viram fila (`method`, `path`,
+  `body`, `If-Match`) e são repetidas em `online`/foreground. 401 renova uma vez;
+  409 vira **conflito** que não derruba o resto; 5xx volta como `erro` retentável.
+  Banner de pendentes/conflitos com escolha "Atualizar dados" × "Manter minha
+  edição". A escrita offline também é aplicada ao snapshot em cache (update
+  otimista) nos recursos de forma conhecida. IA, anexos, passkeys, push e
+  importação continuam online-only.
+- **Cofre do aparelho + lock biométrico**: no nativo o access e o refresh saem do
+  `localStorage` para o Keychain (macOS/iOS), Credential Manager (Windows) ou
+  Keystore (Android); migração única lê o `refresh_token` antigo, grava no cofre e
+  apaga. Gate de biometria na abertura a frio e no resume após 5 min (Touch ID /
+  Windows Hello / Face ID), com fallback para senha + TOTP.
+- **Servidor em runtime (nativo)**: `getApiBase()` resolve cofre > `VITE_API_BASE`
+  > same-origin; campo "Servidor" em Configurações (trocar encerra a sessão) e
+  tela de primeiro aviso quando não há default bakeado.
+- **Updater assinado (Tauri)** e workflow `release.yml`: `macos-latest` gera
+  `.dmg`, `windows-latest` gera `.msi` (NSIS como fallback), assinatura com a
+  chave privada só em GitHub Secrets e publicação no repo público
+  `devrafaelbrauner/fincontrol-releases`, com `latest.json` montado por
+  `scripts/latest-json.mjs`. Banner de versão no Capacitor.
+
+### Alterado
+
+- `scripts/checar-api-base.mjs`: `VITE_API_BASE` ausente deixa de ser erro de
+  build — o app pede o servidor na primeira abertura.
+- `isNativo()` extraído para `plataforma.ts` (Capacitor **ou** `__TAURI__`),
+  reexportado por `api.ts`.
+
 ## [1.1.0] — 2026-09-11
 
 Acesso multiplataforma sem Python local: o Mac vira cliente Tauri como o
