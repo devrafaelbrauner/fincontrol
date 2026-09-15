@@ -2,9 +2,10 @@ import hashlib
 import sqlite3
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
+from ..auth import limiter
 from ..db import DATA_DIR, get_db
 
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -40,7 +41,8 @@ router = APIRouter(prefix="/anexos", tags=["anexos"])
 
 
 @router.post("", status_code=201)
-def enviar(arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def enviar(request: Request, arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
     info = TIPOS_PERMITIDOS.get(arquivo.content_type)
     if not info:
         raise HTTPException(415, "Tipo de arquivo não suportado (use PDF, JPEG, PNG, HEIC ou WEBP)")

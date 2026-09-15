@@ -72,5 +72,11 @@ def feed(token: str, db: sqlite3.Connection = Depends(get_db)):
     return Response(
         content=corpo,
         media_type="text/calendar; charset=utf-8",
-        headers={"Content-Disposition": 'inline; filename="fincontrol.ics"'},
+        headers={
+            "Content-Disposition": 'inline; filename="fincontrol.ics"',
+            # Capability URL: tratada como senha. Não armazenar em cache
+            # compartilhado nem em disco — vai para iCloud/Google ao assinar.
+            "Cache-Control": "private, no-store, max-age=0",
+            "Pragma": "no-cache",
+        },
     )
