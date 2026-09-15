@@ -1,11 +1,1 @@
-{
-  "phase": "architecture",
-  "cycle": 0,
-  "blockers": [
-    "P1: POST /contas-bancarias/{id}/saldos ainda tem race (isolation_level IMMEDIATE sem BEGIN IMMEDIATE)",
-    "P2: _endpoint_push_ok sem teste de allowlist",
-    "WIP pós-1.2.1 uncommitted em revisao-pos-1.2.1; checkout de main arrasta o WIP",
-    "gates.json configured=false e checks npm genéricos incompatíveis com FastAPI/pytest + Vite/vitest; sem fingerprint/reviews/evidence"
-  ],
-  "next": "agency-git-workflow-master"
-}
+{"blockers": ["WIP produto + P2 teste uncommitted em revisao-pos-1.2.1; commit/push só com confirmação humana por execução (P3)", "gates.json configured=false e checks npm genéricos incompatíveis com FastAPI/pytest + Vite/vitest; quality-gates/readiness/deploy fora deste backlog (usuário configura gates.json)"], "cycle": 0, "next": "dono (P3: commit/push por execução; depois gates.json)", "phase": "qa-review"}

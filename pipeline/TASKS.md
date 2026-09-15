@@ -1,7 +1,7 @@
 # Backlog
 
-Ciclo atual: commit + push das docs de architecture, depois `IMPL-P1-SALDO`.
-Uma task ativa por vez. Branch de trabalho: `revisao-pos-1.2.1` @ `34b7c6969cf330742bbc73d41985cca2e6df7b70`.
+Ciclo atual: qa-review done. `IMPL-P1-SALDO`, `IMPL-P2-PUSH-TEST`, `IMPL-WIP-BACKEND`, `IMPL-WIP-FRONTEND`, `IMPL-CHANGELOG`, `QA-SUITE`, `QA-API`, `QA-CODE`, `GIT-PROPOSE-WIP` feitos. Próxima: P3 humano (commit/push por execução) + `gates.json` (usuário).
+Uma task ativa por vez. Branch de trabalho: `revisao-pos-1.2.1` @ `14501b113ad62230324c92f5d1cffde475343bfa` (upstream origin/revisao-pos-1.2.1).
 SPEC: `pipeline/SPEC.md` (R1–R6, aceite 1–24).
 
 ## GIT-BOOTSTRAP — Git bootstrap / reconciliação
@@ -88,120 +88,145 @@ SPEC: `pipeline/SPEC.md` (R1–R6, aceite 1–24).
 
 - **ID:** GIT-COMMIT-ARCH-DOCS
 - **Fase:** architecture
-- **Status:** in_progress
+- **Status:** done
 - **Owner:** agency-git-workflow-master
 - **Dependências:** ARCH-STACK
 - **Arquivos exclusivos:** `pipeline/ARCHITECTURE.md`, `pipeline/TASKS.md`, `pipeline/STATE.json`
-- **Critério:** commit atômico só desses caminhos em `revisao-pos-1.2.1`. Sem produto. Sem tag.
+- **Evidência:** commit `69395beaad252377c7fc69e79d9f65eaca24692c` em `revisao-pos-1.2.1`. Sem produto. Sem tag.
 
 ## GIT-PUSH-BRANCH — Push de `revisao-pos-1.2.1`
 
 - **ID:** GIT-PUSH-BRANCH
 - **Fase:** architecture
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-git-workflow-master
 - **Dependências:** GIT-COMMIT-ARCH-DOCS
 - **Arquivos exclusivos:** nenhum (só `git push`)
-- **Critério:** push da branch `revisao-pos-1.2.1` para `origin`. **Não** push de `main`. **Não** criar tag. Push não é deploy. `security.yml` dispara em push de `main`/PR; `release.yml` em tag `v*`.
+- **Evidência:** `git push -u origin revisao-pos-1.2.1` → `origin/revisao-pos-1.2.1` = `69395be`. `origin/main` intocado (`d35a2cf`). Sem tag. Sem CI nesta branch. Push não é deploy.
 
 ## IMPL-P1-SALDO — Race de saldo (P1)
 
 - **ID:** IMPL-P1-SALDO
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-backend-architect
 - **Dependências:** ARCH-STACK
 - **Arquivos exclusivos:** `backend/app/routers/contas_bancarias.py`
-- **Critérios de aceite:** 14, 15, 16, 17 (R3.20–21). String SQL `BEGIN IMMEDIATE` visível em `atualizar_saldo`; `_ultimo_saldo` **depois** do lock e **antes** do `INSERT`; `delta_cents` sobre o valor relido; `isolation_level = "IMMEDIATE"` sozinho **não** conta
-- **Evidência esperada:** diff pontual (não reescrever o router); comentário alinhado ao código; `test_contas_bancarias.py` existente continua passando (arquivo não é exclusivo desta task)
+- **Evidência:** `db.execute("BEGIN IMMEDIATE")` em `atualizar_saldo` (linha 296); `_ultimo_saldo` depois do BEGIN e antes do INSERT; `isolation_level` removido. `pytest tests/test_contas_bancarias.py` → 25 passed.
+
+## GIT-COMMIT-P1 — Commit local do P1
+
+- **ID:** GIT-COMMIT-P1
+- **Fase:** implementation
+- **Status:** done
+- **Owner:** agency-git-workflow-master
+- **Dependências:** IMPL-P1-SALDO
+- **Arquivos exclusivos:** `backend/app/routers/contas_bancarias.py`
+- **Evidência:** commit `14501b113ad62230324c92f5d1cffde475343bfa`. Sem resto do WIP. Sem pipeline/. Sem tag.
+
+## GIT-PUSH-P1 — Push de `revisao-pos-1.2.1` após P1
+
+- **ID:** GIT-PUSH-P1
+- **Fase:** implementation
+- **Status:** done
+- **Owner:** agency-git-workflow-master
+- **Dependências:** GIT-COMMIT-P1
+- **Arquivos exclusivos:** nenhum (só `git push`)
+- **Evidência:** `69395be..14501b1` em `origin/revisao-pos-1.2.1`. `origin/main` intocado. Sem tag. Sem CI nesta branch. Push não é deploy.
 
 ## IMPL-P2-PUSH-TEST — Testes da allowlist de push (P2)
 
 - **ID:** IMPL-P2-PUSH-TEST
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-test-automation-engineer
 - **Dependências:** ARCH-STACK, IMPL-P1-SALDO
 - **Arquivos exclusivos:** `backend/tests/test_push_allowlist.py` (arquivo novo)
-- **Critérios de aceite:** 18, 19 (R4.22–23). Casos identificáveis: `http://…` recusa; IP interno recusa; host fora de `_HOSTS_PUSH`/`_SUFIXOS_PUSH` recusa. Allowlist do WIP **não** é enfraquecida; inscrição HTTPS legítima não é quebrada. `push.py` é só leitura nesta task
-- **Evidência esperada:** pytest dos três recusados verde; se o código falhar, **não** “corrigir” `push.py` aqui — devolver correção ao owner do backend
+- **Evidência:** 9 testes (http, IP interno, host fora, allowlist HTTPS, userinfo, + 4 via `POST /push/subscribe`). `pytest tests/test_push_allowlist.py` → 9 passed. `push.py` não editado. Sem commit do P2.
 
 ## IMPL-WIP-BACKEND — Fechar WIP backend (verificação pontual)
 
 - **ID:** IMPL-WIP-BACKEND
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-backend-architect
 - **Dependências:** ARCH-STACK, IMPL-P1-SALDO, IMPL-P2-PUSH-TEST
 - **Arquivos exclusivos:** `backend/app/auth.py`, `backend/app/setup_user.py`, `backend/app/webauthn_routes.py`, `backend/app/routers/anexos.py`, `backend/app/routers/ia.py`, `backend/app/routers/push.py`, `backend/tests/test_auth_sessoes.py`, `backend/tests/test_login_mfa.py`, `backend/tests/test_webauthn.py`, `backend/tests/test_anexos.py`, `backend/tests/test_ia_versao.py`
 - **Critérios de aceite:** 3, 4, 5, 6, 7, 8, 9 (R2.3–10, R2.19 backend). Não reescrever; só conferir o WIP e corrigir furo pontual. Não tocar em `contas_bancarias.py`. Não descartar o WIP (aceite 21)
 - **Evidência esperada:** testes nomeados do aceite 3–9 passando **ou** lista de furos com arquivo/esperado/observado para correction
+- **Evidência:** verificação sem edição; 49 passed em `test_login_mfa + test_auth_sessoes + test_webauthn + test_anexos + test_ia_versao + test_cors_nativo`. Nenhum furo; sem commit.
 
 ## IMPL-WIP-FRONTEND — Fechar WIP frontend/nativo (verificação pontual)
 
 - **ID:** IMPL-WIP-FRONTEND
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-frontend-developer
 - **Dependências:** ARCH-STACK, IMPL-WIP-BACKEND
 - **Arquivos exclusivos:** `frontend/src/api.ts`, `frontend/src/App.tsx`, `frontend/src/main.tsx`, `frontend/src/sw.ts`, `frontend/src/components/AnexoCampo.tsx`, `frontend/src/offline/estadoOffline.ts`, `frontend/src/offline/fila.ts`, `frontend/src/offline/otimista.ts`, `frontend/src/offline/sincronizador.ts`, `frontend/src/offline/offline.test.ts`, `frontend/src/pages/Config.tsx`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Entradas.tsx`, `frontend/src/pages/Variaveis.tsx`, `frontend/ios/App/App/Info.plist`, `frontend/ios/App/CapApp-SPM/Package.swift`, `frontend/android/app/src/main/AndroidManifest.xml`, `frontend/android/app/capacitor.build.gradle`, `frontend/android/capacitor.settings.gradle`
 - **Critérios de aceite:** 10, 11, 12, 13 (R2.11–18, R2.19 fila). Sem tela nova; sem UI de “Descartar” (N9); sem genericizar ErrorBoundary (N8). Não descartar o WIP
 - **Evidência esperada:** vitest da fila 404/422; checagem pontual dos arquivos acima vs. aceite 10–13; correção só se faltar
+- **Evidência:** verificação sem edição; `npm test -- --run` → 9 files, 86 tests passed. Aceites 10–13 conferem.
 
 ## IMPL-CHANGELOG — Alinhar [Não lançado] ao código
 
 - **ID:** IMPL-CHANGELOG
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-senior-developer
 - **Dependências:** IMPL-P1-SALDO, IMPL-WIP-BACKEND, IMPL-WIP-FRONTEND
 - **Arquivos exclusivos:** `CHANGELOG.md`
 - **Critérios de aceite:** 20 (R5.24–25). Se `[Não lançado]` cita `BEGIN IMMEDIATE`, o aceite 14 já passou. Nenhum bullet contradiz o working tree. Sem bump de versão (R1.2, N6)
 - **Evidência esperada:** grep `[Não lançado]` vs. código; linha de saldo verdadeira **depois** do P1
+- **Evidência:** 17 bullets conferidos bullet-a-bullet vs. tree; BEGIN IMMEDIATE verdadeiro (aceite 14 passa). Sem edição, sem bump.
 
 ## QA-SUITE — Pytest + vitest (prova do ciclo)
 
 - **ID:** QA-SUITE
 - **Fase:** qa-review
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-test-automation-engineer
 - **Dependências:** IMPL-P1-SALDO, IMPL-P2-PUSH-TEST, IMPL-WIP-BACKEND, IMPL-WIP-FRONTEND, IMPL-CHANGELOG
 - **Arquivos exclusivos:** nenhum de produto (execução; não reescrever implementação sob revisão)
 - **Critérios de aceite:** 23, e prova dos 3–11 e 18. Comandos reais: `cd backend && .venv/bin/python -m pytest tests/ -q` e `cd frontend && npm test`. Não usar `opencode-pipeline gate` enquanto `gates.json` estiver `configured=false`
 - **Evidência esperada:** saída real dos dois comandos; falha volta ao owner com reprodução (correction), não “pass” por limite de ciclo
+- **Evidência:** `pytest tests/ -q` → 340 passed, 1 skipped (lembretes fora da janela 1–5); `npm test -- --run` → 86 passed. PASS aceites 3–11, 18, 23.
 
 ## QA-API — Contratos, auth, validação, erros
 
 - **ID:** QA-API
 - **Fase:** qa-review
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-api-tester
 - **Dependências:** QA-SUITE
 - **Arquivos exclusivos:** nenhum de produto (somente leitura; não corrige o código julgado)
 - **Critérios de aceite:** 3–9, 14–19 (contratos R2/R3/R4). Auth/MFA/refresh, path traversal anexo, passkey 404, allowlist push, saldo com lock
 - **Evidência esperada:** parecer com casos reais e resultado; sem gravar `pipeline/reviews/api-review.json` (isso é quality-gates, fora deste backlog)
+- **Evidência:** parecer PASS aceites 3–9, 14–19; 72 + 11 passed direcionados, 24 passed no filtro. Sem JSON gravado.
 
 ## QA-CODE — Revisão independente
 
 - **ID:** QA-CODE
 - **Fase:** qa-review
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-code-reviewer
 - **Dependências:** QA-SUITE
 - **Arquivos exclusivos:** nenhum de produto (somente leitura; não corrige o código julgado)
 - **Critérios de aceite:** 1, 2, 14–17, 20, 21. Baseline 1.2.1 intacta; P1 não é só `isolation_level`; CHANGELOG alinhado; WIP não descartado
 - **Evidência esperada:** parecer independente; sem gravar `pipeline/reviews/code-review.json` neste backlog (quality-gates depois, usuário configura `gates.json`)
+- **Evidência:** parecer PASS aceites 1, 2, 14–17, 20, 21. Sem JSON gravado.
 
 ## GIT-PROPOSE-WIP — Propor commit atômico do produto (sem executar)
 
 - **ID:** GIT-PROPOSE-WIP
 - **Fase:** implementation
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-git-workflow-master
 - **Dependências:** QA-API, QA-CODE
 - **Arquivos exclusivos:** nenhum (somente leitura; não stage/commit/push)
 - **Critérios de aceite:** 21, 22 (R6.26–27). Permanecer em `revisao-pos-1.2.1`; não misturar `pipeline/` com produto; não versionar `pipeline/.task-lock` nem `.opencode/`; **não** declarar commit/push feito
 - **Evidência esperada:** plano de commit(s) atômico(s) com diff/arquivos/mensagem; execução só com confirmação humana por execução (P3). Sem tag, sem push até o dono pedir
+- **Evidência:** plano de 8 commits (auth/MFA → anexos/push/IA → P2 teste → fila → boot/telas → Capacitor → docs produto → pipeline isolado). Nada executado.
 
 ## Notas de preservação
 
