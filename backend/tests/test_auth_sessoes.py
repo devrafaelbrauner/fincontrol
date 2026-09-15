@@ -13,7 +13,7 @@ from app.db import connect
 
 from .conftest import SENHA
 
-NATIVO = {"X-Client": "native"}
+NATIVO = {"X-Client": "native", "Origin": "capacitor://localhost"}
 
 
 def _login(c, **corpo):
@@ -227,6 +227,43 @@ def test_logout_nao_deixa_o_antecessor_em_graca_ressuscitar_a_sessao(cliente):
 
     assert _refresh(cliente, atual).status_code == 401
     assert _refresh(cliente, anterior).status_code == 401, "o antecessor em graça não pode reabrir a sessão"
+
+
+def test_x_client_native_em_origem_web_nao_devolve_refresh(cliente):
+    """Header X-Client é forjável no browser; Origin web não recebe o token no JSON."""
+    r = cliente.post("/api/auth/login", json={"senha": SENHA},
+                     headers={"X-Client": "native", "Origin": "https://fincontrol.exemplo.com"})
+    assert r.status_code == 200, r.text
+    assert "refresh_token" not in r.json()
+
+
+def test_origem_nativa_devolve_refresh(cliente):
+    r = cliente.post("/api/auth/login", json={"senha": SENHA}, headers=NATIVO)
+    assert r.status_code == 200, r.text
+    assert r.json()["refresh_token"]
+
+
+def test_setup_user_bumpa_refresh_version(cliente, monkeypatch):
+    """Redefinir senha via SSH derruba as sessões abertas."""
+    from app import setup_user
+
+    refresh = _login(cliente)
+    db = connect()
+    ver_antes = int(auth.config_get(db, "refresh_version") or "0")
+    db.close()
+
+    senhas = iter(["NovaSenha-1234", "NovaSenha-1234"])
+    monkeypatch.setattr(setup_user.getpass, "getpass", lambda *a, **k: next(senhas))
+    monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
+    setup_user.main()
+
+    db = connect()
+    ver_depois = int(auth.config_get(db, "refresh_version") or "0")
+    restam = db.execute("SELECT COUNT(*) n FROM refresh_tokens").fetchone()["n"]
+    db.close()
+    assert ver_depois == ver_antes + 1
+    assert restam == 0
+    assert _refresh(cliente, refresh).status_code == 401
 
 
 def test_codigo_totp_nao_vale_duas_vezes_mesmo_com_login_intercalado(cliente):

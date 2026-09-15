@@ -52,6 +52,13 @@ class CadastroBody(BaseModel):
 
 class CodigoBody(BaseModel):
     codigo: str
+    senha: str | None = None
+    codigo_totp: str | None = None
+
+
+class MfaProvaBody(BaseModel):
+    senha: str | None = None
+    codigo_totp: str | None = None
 
 
 # Mínimo de 12 por decisão de segurança (era 6 — fraco contra db vazado).
@@ -274,10 +281,16 @@ def _totp_ja_usado(db: sqlite3.Connection, codigo: str) -> bool:
 
 
 def _cliente_nativo(request: Request) -> bool:
-    """App Capacitor (iOS/macOS/Android). Como o WebView roda cross-origin, o
-    cookie de refresh não trafega: o app recebe o refresh token no corpo e o
-    reenvia no header X-Refresh-Token. O web (same-origin) nunca manda X-Client."""
-    return request.headers.get("X-Client") == "native"
+    """App Capacitor/Tauri. O WebView é cross-origin, então o cookie de refresh
+    não trafega: o app recebe o token no JSON e o reenvia em X-Refresh-Token.
+
+    A origem é o que decide — `X-Client: native` é um header forjável no web.
+    Sem Origin nativa, o refresh fica só no cookie httpOnly."""
+    origin = (request.headers.get("origin") or "").strip()
+    if not origin:
+        return False
+    from .main import ORIGENS_NATIVAS
+    return origin in ORIGENS_NATIVAS
 
 
 @router.get("/status")
@@ -488,10 +501,39 @@ def mfa_status(db: sqlite3.Connection = Depends(get_db)):
     return {"ativo": config_get(db, "totp_secret") is not None}
 
 
+def _exigir_fator_vigente(db: sqlite3.Connection, senha: str | None, codigo_totp: str | None) -> None:
+    """Re-enrolment de 2FA exige o TOTP atual (ou a senha) se já houver secret.
+
+    Sem isto, uma sessão roubada troca o autenticador sem o código vigente.
+    """
+    secret = config_get(db, "totp_secret")
+    if not secret:
+        return
+    if codigo_totp and codigo_totp.strip():
+        codigo = codigo_totp.strip()
+        if not pyotp.TOTP(secret).verify(codigo, valid_window=1):
+            raise HTTPException(403, "Confirme com o código atual do autenticador ou com a senha")
+        if _totp_ja_usado(db, codigo):
+            raise HTTPException(403, "Confirme com o código atual do autenticador ou com a senha")
+        return
+    if senha:
+        senha_hash = config_get(db, "senha_hash")
+        if not senha_hash:
+            raise HTTPException(403, "Confirme com o código atual do autenticador ou com a senha")
+        try:
+            ph.verify(senha_hash, senha)
+            return
+        except VerificationError:
+            raise HTTPException(403, "Confirme com o código atual do autenticador ou com a senha")
+    raise HTTPException(403, "Confirme com o código atual do autenticador ou com a senha")
+
+
 @router.post("/mfa/iniciar", dependencies=[Depends(require_auth)])
-def mfa_iniciar(db: sqlite3.Connection = Depends(get_db)):
+def mfa_iniciar(body: MfaProvaBody | None = None, db: sqlite3.Connection = Depends(get_db)):
     """Gera um secret PENDENTE (só vira exigência de login após confirmar um código
     — garante que o autenticador foi cadastrado antes de trancar a porta)."""
+    prova = body or MfaProvaBody()
+    _exigir_fator_vigente(db, prova.senha, prova.codigo_totp)
     secret = pyotp.random_base32()
     _config_set(db, "totp_secret_pendente", secret)
     email = config_get(db, "perfil_email") or "dono"
@@ -501,6 +543,7 @@ def mfa_iniciar(db: sqlite3.Connection = Depends(get_db)):
 
 @router.post("/mfa/confirmar", dependencies=[Depends(require_auth)])
 def mfa_confirmar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
+    _exigir_fator_vigente(db, body.senha, body.codigo_totp)
     secret = config_get(db, "totp_secret_pendente")
     if not secret:
         raise HTTPException(400, "Nenhuma ativação de MFA em andamento")

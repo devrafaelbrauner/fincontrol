@@ -9,7 +9,7 @@ import sys
 import pyotp
 from argon2 import PasswordHasher
 
-from .auth import SENHA_MINIMA, _validar_senha
+from .auth import SENHA_MINIMA, _bump_refresh_version, _validar_senha
 from .db import connect, migrate
 
 
@@ -55,6 +55,9 @@ def main() -> None:
         conn.execute("DELETE FROM config WHERE chave = 'totp_secret'")
         print("2FA desativado.")
 
+    # Senha/2FA novos invalidam sessões abertas — senão redefinir via SSH
+    # deixa o aparelho perdido (ou o ladrão) logado com o refresh antigo.
+    _bump_refresh_version(conn)
     conn.commit()
     conn.close()
     print("\nUsuário configurado.")
