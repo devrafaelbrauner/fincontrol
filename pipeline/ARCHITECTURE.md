@@ -6,20 +6,20 @@ serão consolidados depois do SPEC — sem inventar greenfield.
 
 ## Git (GIT-BOOTSTRAP)
 
-Registrado a partir do diagnóstico do agency-git-workflow-master.
-Nenhuma alteração Git foi executada nesta fase.
+Registrado a partir do diagnóstico do agency-git-workflow-master e atualizado após GIT-COMMIT-PIPELINE-DOCS e GIT-ISOLATE-WIP-BRANCH.
 
-### Estado inspecionado
+### Estado atual
 
-- Branch: `main`
-- HEAD: `d35a2cf9b9050c001a5e43e89567ada5ed87f306`
-- Mensagem: `Versão 1.2.1: correções de segurança (senha, first-claimer, backup cifrado, CI)`
-- Tag em HEAD: `v1.2.1`
-- Tracking: `main` → `origin/main` (refs locais 0 ahead / 0 behind; fetch/pull não rodaram nesta sessão)
+- Branch de trabalho: `revisao-pos-1.2.1` (sem upstream) — permanecer nela enquanto o WIP estiver uncommitted
+- HEAD: `4c462d6a2dd2659c95ad08f3db8e94c3e52e1ad3` (`Registra o bootstrap do pipeline local e o diagnóstico de prontidão (blocked)`)
+- Ref `main`: o mesmo `4c462d6` (1 ahead de `origin/main` nas refs locais)
+- Tag `v1.2.1`: `d35a2cf9b9050c001a5e43e89567ada5ed87f306`
+- Tracking: `main` → `origin/main`; fetch/pull não rodaram nesta sessão
 - Remoto existente (não inventar outro): `origin` = `https://github.com/devrafaelbrauner/fincontrol.git`
-- Working tree: sujo; staged vazio
+- Working tree: sujo (WIP de produto); staged vazio
 - Push em `main` dispara `.github/workflows/security.yml`
 - Tags `v*` / `workflow_dispatch` disparam `.github/workflows/release.yml`
+- Push **não** autorizado até o dono pedir; não criar tag
 
 ### Convenção observada (manter)
 
@@ -30,13 +30,13 @@ Nenhuma alteração Git foi executada nesta fase.
 - Vincular commits aos IDs de `TASKS.md`.
 - Um tema por commit; não misturar produto e fontes canônicas do pipeline.
 
-### Isolamento do WIP (proposta; não executar sem o dono)
+### Isolamento do WIP (executado)
 
-Working tree em `main` contém WIP de code review pós-1.2.1 (32 arquivos unstaged +
-`backend/tests/test_anexos.py` e `backend/tests/test_ia_versao.py`).
-Não fazer checkout de outra branch agora sem plano: as mudanças seguiriam o working tree.
-Quando o dono autorizar: criar branch curta a partir de `main` (ex. `revisao-pos-1.2.1`)
-e deixar `main` = v1.2.1. Commit/push só com confirmação humana por execução; não criar tag.
+Branch `revisao-pos-1.2.1` criada a partir de `4c462d6` (pipeline bootstrap).
+WIP pós-1.2.1 permanece **uncommitted** (32 modified + `backend/tests/test_anexos.py` e
+`backend/tests/test_ia_versao.py`). Checkout de `main` arrasta esse working tree;
+não voltar a `main` sem stash/commit do WIP. Commit/push do WIP só com confirmação
+humana; não criar tag.
 
 ### Não versionar
 
