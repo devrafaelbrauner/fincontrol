@@ -195,9 +195,14 @@ export function ehConflito(e: unknown): boolean {
   return (e as { status?: number } | null)?.status === 409;
 }
 
+const ID_OTIMISTA = /\/-\d+(?:\/|$|\?)/;
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const metodo = (options.method ?? "GET").toUpperCase();
   if (metodo === "GET") return buscarComCache<T>(path, options);
+  if (["PATCH", "PUT", "DELETE"].includes(metodo) && ID_OTIMISTA.test(path)) {
+    throw new Error("Este lançamento ainda não foi salvo no servidor.");
+  }
 
   try {
     return await executarMutacao<T>(path, options);
@@ -325,8 +330,8 @@ export async function abrirAnexo(anexoId: number): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export async function logout(): Promise<void> {
-  await fetch(getApiBase() + "/api/auth/logout", {
+export async function logout(todos = false): Promise<void> {
+  await fetch(getApiBase() + "/api/auth/logout" + (todos ? "?todos=1" : ""), {
     method: "POST",
     credentials: "include",
     // `true` manda o X-Refresh-Token. Sem ele, o app nativo — onde o cookie não

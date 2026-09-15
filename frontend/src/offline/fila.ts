@@ -7,7 +7,7 @@ import { armazem, LOJA_FILA } from "./banco";
  * antes, o servidor devolve 409 e o item vira `conflito` em vez de sobrescrever
  * em silêncio. Um item em conflito NÃO derruba os demais — o replay segue. */
 
-export type StatusItem = "pendente" | "conflito" | "erro";
+export type StatusItem = "pendente" | "conflito" | "erro" | "permanente";
 
 export interface ItemFila {
   id: number;
@@ -59,7 +59,7 @@ export async function pendentes(): Promise<ItemFila[]> {
 /** Tudo que ainda deve ser reenviado: pendentes E erros (5xx, retry). Conflitos
  *  ficam de fora — esperam a escolha do dono entre local e servidor. */
 export async function aProcessar(): Promise<ItemFila[]> {
-  return (await listarFila()).filter((i) => i.status !== "conflito");
+  return (await listarFila()).filter((i) => i.status === "pendente" || i.status === "erro");
 }
 
 export async function conflitos(): Promise<ItemFila[]> {
@@ -84,6 +84,11 @@ export async function marcarConflito(id: number, erro: string): Promise<void> {
 /** Erro transitório (5xx/servidor fora): volta a tentar num próximo drain. */
 export async function marcarErro(id: number, erro: string): Promise<void> {
   await atualizarItem(id, { status: "erro", erro });
+}
+
+/** Payload inválido (400/422): não retenta. */
+export async function marcarPermanente(id: number, erro: string): Promise<void> {
+  await atualizarItem(id, { status: "permanente", erro });
 }
 
 /** Descarta um item em conflito — "manter minha edição" desiste da do servidor. */

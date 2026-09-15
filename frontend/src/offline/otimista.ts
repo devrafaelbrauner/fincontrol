@@ -40,6 +40,10 @@ export interface Alvo {
   ehGrupo: boolean;
 }
 
+export function ehIdOtimista(id: unknown): boolean {
+  return typeof id === "number" && Number.isInteger(id) && id < 0;
+}
+
 export function localizarRecurso(path: string): Alvo | null {
   for (const recurso of RECURSOS) {
     if (path !== recurso.prefixo && !path.startsWith(`${recurso.prefixo}/`)) continue;
@@ -98,6 +102,10 @@ export function aplicarEmSnapshot(
 
   const metodo = item.method.toUpperCase();
   let novos: Record<string, unknown>[];
+
+  if ((metodo === "PATCH" || metodo === "PUT" || metodo === "DELETE") && ehIdOtimista(alvo.id)) {
+    return dados;
+  }
 
   if (metodo === "POST") {
     if (!alvo.recurso.aceitaPost || alvo.id !== null || !corpo) return dados;
