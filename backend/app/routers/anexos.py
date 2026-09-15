@@ -40,6 +40,14 @@ EXTENSAO_PARA_CONTENT_TYPE = {ext: content_type for content_type, (_, ext) in TI
 router = APIRouter(prefix="/anexos", tags=["anexos"])
 
 
+def _caminho_confinado(relativo: str) -> Path:
+    base = UPLOADS_DIR.resolve()
+    caminho = (base / relativo).resolve()
+    if not caminho.is_relative_to(base):
+        raise HTTPException(400, "Caminho de anexo inválido")
+    return caminho
+
+
 @router.post("", status_code=201)
 @limiter.limit("10/minute")
 def enviar(request: Request, arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
@@ -79,7 +87,7 @@ def baixar(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
-    caminho = UPLOADS_DIR / row["caminho_arquivo"]
+    caminho = _caminho_confinado(row["caminho_arquivo"])
     if not caminho.exists():
         raise HTTPException(404, "Arquivo não encontrado no disco")
     extensao = Path(row["caminho_arquivo"]).suffix
@@ -105,6 +113,9 @@ def excluir(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
         "SELECT 1 FROM anexos WHERE caminho_arquivo = ?", (row["caminho_arquivo"],)
     ).fetchone()
     if not outros_usos:
-        caminho = UPLOADS_DIR / row["caminho_arquivo"]
+        try:
+            caminho = _caminho_confinado(row["caminho_arquivo"])
+        except HTTPException:
+            return {"ok": True}
         caminho.unlink(missing_ok=True)
     return {"ok": True}

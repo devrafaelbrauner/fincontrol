@@ -9,10 +9,11 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .. import openrouter
+from ..auth import limiter
 from ..cripto import criptografar
 from ..db import get_db
 from ..openrouter import OpenRouterError
@@ -173,7 +174,8 @@ def remover_chave(db: sqlite3.Connection = Depends(get_db)):
 # ---------- extração de anexo ----------
 
 @router.post("/extrair/{anexo_id}")
-def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def extrair(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
@@ -192,7 +194,8 @@ def extrair(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/extrair-itens/{anexo_id}")
-def extrair_itens(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def extrair_itens(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Extração itemizada: lê os lançamentos individuais do documento (fatura, extrato)."""
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
@@ -231,7 +234,8 @@ def insights_cache(competencia: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/insights/{competencia}")
-def insights(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def insights(request: Request, competencia: str, db: sqlite3.Connection = Depends(get_db)):
     try:
         validar_competencia(competencia)
     except ValueError as e:
@@ -285,7 +289,11 @@ def categorizar_lote(db: sqlite3.Connection = Depends(get_db)):
     for lanc_id, nome in mapa.items():
         cid = nome_para_id.get(nome)
         if cid is not None:
-            db.execute("UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (cid, lanc_id))
+            db.execute(
+                "UPDATE lancamentos_variaveis SET categoria_id = ?, atualizado_em = CURRENT_TIMESTAMP, "
+                "versao = versao + 1 WHERE id = ?",
+                (cid, lanc_id),
+            )
             aplicados += 1
     return {"categorizados": aplicados, "total": len(sem_cat)}
 
@@ -316,7 +324,10 @@ def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
         texto = openrouter.estrategia_meta(db, meta, _contexto_financeiro(db, comp, meta_id))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    db.execute("UPDATE metas SET estrategia_texto = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?", (texto, meta_id))
+    db.execute(
+        "UPDATE metas SET estrategia_texto = ?, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 WHERE id = ?",
+        (texto, meta_id),
+    )
     return {"estrategia": texto}
 
 
@@ -460,7 +471,8 @@ def limpar_conversa(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/perguntar")
-def perguntar(body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
+@limiter.limit("10/minute")
+def perguntar(request: Request, body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
     pergunta = body.pergunta.strip()
     if not pergunta:
         raise HTTPException(422, "Pergunta vazia")
@@ -545,8 +557,10 @@ def orientacao_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends
             db, comp, _contexto_financeiro(db, f"{h.year:04d}-{h.month:02d}"))
     except OpenRouterError as e:
         raise HTTPException(502, str(e))
-    db.execute("UPDATE compromissos SET orientacao_texto = ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
-               (texto, compromisso_id))
+    db.execute(
+        "UPDATE compromissos SET orientacao_texto = ?, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 WHERE id = ?",
+        (texto, compromisso_id),
+    )
     return {"orientacao": texto}
 
 
