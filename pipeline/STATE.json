@@ -1,5 +1,5 @@
 {
-  "phase": "discovery",
+  "phase": "architecture",
   "cycle": 0,
   "blockers": [
     "P1: POST /contas-bancarias/{id}/saldos ainda tem race (isolation_level IMMEDIATE sem BEGIN IMMEDIATE)",

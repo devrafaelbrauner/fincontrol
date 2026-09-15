@@ -1,7 +1,7 @@
 # Backlog
 
-Ciclo atual: commit das docs de discovery, depois architecture (`ARCH-STACK`).
-Uma task ativa por vez. Branch de trabalho: `revisao-pos-1.2.1`.
+Ciclo atual: commit + push das docs de architecture, depois `IMPL-P1-SALDO`.
+Uma task ativa por vez. Branch de trabalho: `revisao-pos-1.2.1` @ `34b7c6969cf330742bbc73d41985cca2e6df7b70`.
 SPEC: `pipeline/SPEC.md` (R1–R6, aceite 1–24).
 
 ## GIT-BOOTSTRAP — Git bootstrap / reconciliação
@@ -68,22 +68,41 @@ SPEC: `pipeline/SPEC.md` (R1–R6, aceite 1–24).
 
 - **ID:** GIT-COMMIT-DISC-DOCS
 - **Fase:** discovery
-- **Status:** in_progress
+- **Status:** done
 - **Owner:** agency-git-workflow-master
 - **Dependências:** DISC-SPEC, DISC-BACKLOG
 - **Arquivos exclusivos:** `pipeline/SPEC.md`, `pipeline/TASKS.md`, `pipeline/STATE.json`, `pipeline/ARCHITECTURE.md`
-- **Critério:** commit atômico só desses caminhos na branch `revisao-pos-1.2.1`. Sem produto. Sem push. Sem tag.
+- **Evidência:** commit `34b7c6969cf330742bbc73d41985cca2e6df7b70` em `revisao-pos-1.2.1`. Sem push. Sem tag. WIP de produto fora.
 
 ## ARCH-STACK — Consolidar stack e contratos existentes
 
 - **ID:** ARCH-STACK
 - **Fase:** architecture
-- **Status:** pending
+- **Status:** done
 - **Owner:** agency-backend-architect
 - **Dependências:** DISC-BACKLOG, GIT-COMMIT-DISC-DOCS
-- **Arquivos exclusivos:** proposta de texto para `pipeline/ARCHITECTURE.md` (coordenador consolida; não editar SPEC/TASKS/STATE)
-- **Critérios de aceite:** documentar a stack vigente (FastAPI+SQLite WAL, React/Vite PWA, Capacitor/Tauri, VPS+Caddy, auth senha+TOTP+JWT+passkeys) **sem** cloud nova; contrato mensurável de `POST /api/contas-bancarias/{id}/saldos` (SQL `BEGIN IMMEDIATE` explícito **antes** de reler o último saldo; aceite 14–17); contrato de `POST /push/subscribe` / `_endpoint_push_ok` (aceite 18–19, R4.23); sem telas novas; VERSION permanece 1.2.1 (aceite 1–2)
-- **Evidência esperada:** proposta com stack, auth, dados e os dois contratos; zero greenfield; zero hospedagem cloud
+- **Arquivos exclusivos:** proposta de texto para `pipeline/ARCHITECTURE.md` (coordenador consolidou)
+- **Evidência:** `pipeline/ARCHITECTURE.md` com Git, stack VPS/Caddy, dados, auth, contratos P1/P2, UX existente, ADR-001–013. Sem cloud. Sem telas novas. P1/P2 ainda abertos no código.
+
+## GIT-COMMIT-ARCH-DOCS — Commit local da architecture consolidada
+
+- **ID:** GIT-COMMIT-ARCH-DOCS
+- **Fase:** architecture
+- **Status:** in_progress
+- **Owner:** agency-git-workflow-master
+- **Dependências:** ARCH-STACK
+- **Arquivos exclusivos:** `pipeline/ARCHITECTURE.md`, `pipeline/TASKS.md`, `pipeline/STATE.json`
+- **Critério:** commit atômico só desses caminhos em `revisao-pos-1.2.1`. Sem produto. Sem tag.
+
+## GIT-PUSH-BRANCH — Push de `revisao-pos-1.2.1`
+
+- **ID:** GIT-PUSH-BRANCH
+- **Fase:** architecture
+- **Status:** pending
+- **Owner:** agency-git-workflow-master
+- **Dependências:** GIT-COMMIT-ARCH-DOCS
+- **Arquivos exclusivos:** nenhum (só `git push`)
+- **Critério:** push da branch `revisao-pos-1.2.1` para `origin`. **Não** push de `main`. **Não** criar tag. Push não é deploy. `security.yml` dispara em push de `main`/PR; `release.yml` em tag `v*`.
 
 ## IMPL-P1-SALDO — Race de saldo (P1)
 
