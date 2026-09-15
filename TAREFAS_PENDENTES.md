@@ -84,3 +84,23 @@ anexos/IA/passkeys.
 - **Nativo (Tauri/Capacitor)**: `cargo`/Xcode não rodaram nesta sessão — os
   caminhos Rust/plugin precisam de `npm run macos` e `cap sync` num aparelho.
 - AASA/`assetlinks` seguem placeholder (como em 1.1.0).
+
+# TAREFAS — correções do code review (pós-1.2.1)
+
+- [x] **Auth/MFA** — re-enrolment exige TOTP/senha; `setup_user` bumpa refresh;
+  `refresh_token` no JSON só com Origin nativa.
+- [x] **IA / If-Match / rate limit / anexos / push / saldos / passkey 404**.
+- [x] **Frontend** — boot try/catch, ErrorBoundary, fila 404/422 vs 409, id
+  otimista, race de competência, PDF no iOS, `path=*`, notificationclick,
+  logout `?todos=1`, Info.plist, `allowBackup=false`.
+- [x] **`npx cap sync`** — `@aparajita/capacitor-biometric-auth` e
+  `capacitor-secure-storage` em `capacitor.plugins.json` (Android) e
+  `Package.swift` (iOS).
+
+# TAREFAS — verificação da entrega do code review (pós-1.2.1)
+
+Trabalho **não commitado** (instrução da sessão). `/verificar` 2026-09-14.
+
+- [ ] **P1 — POST `/contas-bancarias/{id}/saldos` ainda tem race** — `isolation_level = "IMMEDIATE"` não abre transação no SELECT (Python 3.14: `in_transaction=False` após a leitura). Dois POSTs com `delta_cents` no mesmo segundo leem o mesmo saldo e ambos inserem. Correção: `BEGIN IMMEDIATE` explícito e reler o último saldo *depois* do lock. Encaminhar: `/corrigir`.
+- [ ] **P2 — Sem teste do allowlist de push** — `_endpoint_push_ok` recusa HTTP/SSRF, mas não há teste (http, IP interno, host fora da lista). Encaminhar: `/corrigir`.
+- [ ] **P3 — Commit + push** — 32 arquivos modificados + 2 testes novos, `main` = `origin/main` em `d35a2cf`. Só versionar quando o dono pedir.

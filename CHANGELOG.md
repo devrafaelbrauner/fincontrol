@@ -7,6 +7,31 @@ descrito em [`README.md`](README.md#versionamento).
 
 ## [Não lançado]
 
+Correções do code review (auth, If-Match da IA, offline, nativo).
+
+### Segurança
+
+- Re-enrolment de MFA exige TOTP vigente ou senha se já houver `totp_secret`.
+- `setup_user` bumpa `refresh_version` e apaga `refresh_tokens` após gravar senha/2FA.
+- `refresh_token` no JSON só sai se a Origin estiver em `ORIGENS_NATIVAS` (`X-Client` sozinho não basta).
+- Rate limit (10/min) em `POST /ia/perguntar`, `/extrair`, `/extrair-itens` e `/insights`.
+- Subscribe de push recusa endpoint que não seja HTTPS de host conhecido (SSRF).
+- Download de anexo confina o path com `resolve`/`is_relative_to`.
+- POST de saldo usa `BEGIN IMMEDIATE` e relê o último saldo na transação.
+- PATCH/DELETE de passkey inexistente devolve 404.
+
+### Corrigido
+
+- If-Match: `categorizar-lote`, `estrategia_texto` e `orientacao_texto` incrementam `versao`.
+- Boot nativo: falha do cofre mostra tela de erro em vez de `#root` vazio; ErrorBoundary nas rotas.
+- Fila offline: 409 = conflito; 404 em DELETE = descarta; 400/422 = erro permanente.
+- Mutação em id otimista (negativo) recusada; edição/exclusão escondidas em pendentes.
+- Dashboard/Variáveis/Entradas ignoram resposta antiga ao trocar competência.
+- `AnexoCampo` sem `capture="environment"` (picker nativo aceita PDF no iOS).
+- Rota desconhecida redireciona para `/`; clique em notificação navega para `data.url`.
+- Configurações: “Sair de todos os aparelhos” chama `POST /api/auth/logout?todos=1`.
+- iOS: `NSFaceIDUsageDescription` e `NSCameraUsageDescription`; Android: `allowBackup=false`.
+
 ## [1.2.1] — 2026-09-15
 
 Correções de segurança: senha, first-claimer, backup cifrado e CI.
