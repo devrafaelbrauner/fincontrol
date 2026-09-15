@@ -7,6 +7,27 @@ descrito em [`README.md`](README.md#versionamento).
 
 ## [Não lançado]
 
+## [1.2.1] — 2026-09-15
+
+Correções de segurança: senha, first-claimer, backup cifrado e CI.
+
+### Segurança
+
+- **Senha mínima 6 → 12** (`backend/app/auth.py`, espelho em `Login.tsx`).
+- **`POST /api/auth/cadastro` bloqueado em produção (403)** — a conta nasce
+  só via `python -m app.setup_user`; fim da janela first-claimer em VPS
+  nova/restaurada. Aviso de boot e `deploy/README` atualizados.
+- **Backup com criptografia age opcional** (`FINCONTROL_BACKUP_PUBKEY`): com
+  ela, o offsite recebe só `.age`; sem ela, aviso de backup em claro.
+  Permissões 700/600 no destino; `preflight.sh check` exige `FERNET_KEY`
+  válida (não só não-vazia).
+- **Rate limit em `POST /api/anexos`** (10/min por IP) e feed `.ics` com
+  `Cache-Control: private, no-store`.
+- **CI de segurança** (`security.yml`): pip-audit + semgrep + npm audit +
+  gitleaks; `release.yml` serializado por ref, chave de assinatura Tauri
+  escopada ao job de build.
+- **Dependência**: nanoid ≥ 3.3.18 (GHSA-2v37-7h3g-55p8); `npm audit` limpo.
+
 ## [1.2.0] — 2026-09-12
 
 Confiabilidade dos dados: edição concorrente reconciliável, offline real com

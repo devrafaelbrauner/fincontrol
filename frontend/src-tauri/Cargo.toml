@@ -2,7 +2,7 @@
 name = "fincontrol"
 # Espelho do VERSION da raiz (como frontend/package.json): quem sobe a versao
 # roda ./scripts/versao.sh, que sincroniza os dois. Nao editar a mao.
-version = "1.2.0"
+version = "1.2.1"
 description = "FinControl — controle financeiro pessoal (cliente Tauri)"
 edition = "2021"
 
