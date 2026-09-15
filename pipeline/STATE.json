@@ -1,0 +1,12 @@
+{
+  "phase": "bootstrap",
+  "cycle": 0,
+  "blockers": [
+    "Discovery não começou: SPEC/TASKS/ARCHITECTURE ainda sem requisitos de aceite deste ciclo",
+    "Working tree sujo em main (HEAD d35a2cf / tag v1.2.1): WIP pós-1.2.1 não descartar e não misturar com pipeline",
+    "P1: POST /contas-bancarias/{id}/saldos ainda tem race (isolation_level IMMEDIATE sem BEGIN IMMEDIATE)",
+    "P2: _endpoint_push_ok sem teste de allowlist",
+    "gates.json configured=false e checks npm genéricos incompatíveis com FastAPI/pytest + Vite/vitest; sem fingerprint/reviews/evidence"
+  ],
+  "next": "agency-product-manager"
+}

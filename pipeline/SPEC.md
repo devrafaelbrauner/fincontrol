@@ -1,0 +1,3 @@
+# Especificação
+
+Pendente de discovery.

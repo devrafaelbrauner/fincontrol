@@ -1,0 +1,93 @@
+{
+  "reviewer": "agency-project-readiness-reviewer",
+  "status": "blocked",
+  "at": "2026-09-14",
+  "fingerprint": null,
+  "gateAt": null,
+  "tasksHash": null,
+  "blockers": [
+    "Discovery não começou: pipeline/SPEC.md, TASKS.md e ARCHITECTURE.md são placeholders ('Pendente de discovery.'); não há critérios de aceite nem backlog do pipeline.",
+    "Sem fingerprint/gates/reviews/evidence: gates.json configured=false; checks npm genéricos incompatíveis com FastAPI/pytest + Vite/vitest; pipeline/reviews e pipeline/evidence inexistentes.",
+    "Working tree sujo em main (HEAD d35a2cf / tag v1.2.1): 32 arquivos unstaged + 2 testes untracked + placeholders de pipeline; estratégia Git não registrada em ARCHITECTURE; pendências não versionadas impedem ready.",
+    "P1 aberto e reproduzível na árvore atual: POST /contas-bancarias/{id}/saldos usa isolation_level='IMMEDIATE' sem BEGIN IMMEDIATE; CHANGELOG [Não lançado] afirma o contrário.",
+    "P2 aberto: _endpoint_push_ok existe sem teste. P3: commit/push só com confirmação do dono.",
+    "Não está em quality-gates nem readiness de implantação; DevOps/deploy desta versão de trabalho não está autorizado."
+  ],
+  "checks": {
+    "scope": {
+      "status": "fail",
+      "evidence": "Produto em produção 1.2.1 (README, VERSION, tag v1.2.1) mas o ciclo do pipeline não tem SPEC: 'Pendente de discovery.' Aceite numerado inexistente. CHANGELOG [Não lançado] lista correções do WIP inclusive BEGIN IMMEDIATE; TAREFAS_PENDENTES P1 ainda aberto. MELHORIAS.md não é compromisso. Escopo deste ciclo (baseline 1.2.1 vs WIP vs P1/P2) não foi decidido."
+    },
+    "tasks": {
+      "status": "fail",
+      "evidence": "pipeline/TASKS.md = 'Pendente de discovery.' Sem IDs, owners, dependências ou evidência. STATE.json cycle 0, next ainda agency-git-workflow-master, blockers []. Backlog de produto em TAREFAS_PENDENTES.md: etapas 1.1.0 e 1.2.0 marcadas feitas; code review pós-1.2.1 marcado feito; verificação 2026-09-14 deixa P1/P2/P3 abertos. Duas fontes de verdade (pipeline vs TAREFAS) e nenhuma canônica do pipeline."
+    },
+    "architecture": {
+      "status": "fail",
+      "evidence": "pipeline/ARCHITECTURE.md placeholder; estratégia de branches/commits do Git bootstrap não está lá. Implementação real: FastAPI+SQLite (backend/), React+TS+Vite PWA (frontend/), Capacitor iOS/Android + Tauri 2, VERSION 1.2.1, auth JWT+refresh/TOTP/passkeys, deploy VPS/Caddy em deploy/README.md. PLANO.md desatualizado em relação a nativos já entregues. Decisões de arquitetura existem no produto, não no contrato do pipeline."
+    },
+    "quality": {
+      "status": "fail",
+      "evidence": "gates.json configured=false, argv npm run lint/typecheck/test/build na raiz — não há package.json na raiz nem script lint no frontend. Testes reais documentados: backend pytest (requirements-dev.txt) e frontend vitest/tsc. Esta sessão não executou testes (somente leitura). P1: race de saldo sem BEGIN IMMEDIATE. P2: sem teste de allowlist de push. test_anexos.py e test_ia_versao.py untracked. Sem pipeline/reviews/*.json. Nunca declarar gates passando."
+    },
+    "operations": {
+      "status": "fail",
+      "evidence": "deploy/README.md descreve VPS+Caddy+systemd+SQLite para o produto já publicado. Ausência de pipeline/DEPLOY.md não é blocker circular. Riscos sem tratamento: P1 (integridade de saldo) no WIP; main suja; push em main dispara security.yml; tag v* dispara release.yml (binários assinados). Ressalvas 1.2.0: RELEASES_PAT/VITE_API_BASE e ciclo real Mac/updater não confirmados. Isolamento do WIP e correção P1 não decididos. Não chamar DevOps."
+    },
+    "evidence": {
+      "status": "fail",
+      "evidence": "Sem fingerprint, gateAt, tasksHash, reviews ou evidence/. Prova positiva: código de saldos e push lidos; VERSION 1.2.1; pipeline placeholders lidos. Prova negativa: CHANGELOG alega BEGIN IMMEDIATE; grep só acha isolation_level no .py. Handoff Git (branch main, HEAD d35a2cf, dirty, 0 ahead/0 behind) veio do Git Workflow Master; gates não certificam histórico. Fingerprint/gateAt/tasksHash = null conforme instrução."
+    }
+  },
+  "nextSteps": [
+    {
+      "priority": "P1",
+      "owner": "coordenador",
+      "action": "Registrar este parecer como blocked. Atualizar STATE (phase continua bootstrap até discovery ser aberta; next = agency-product-manager após Git reconciliar o WIP). Não implementar, não DevOps, não gates, não done-local.",
+      "evidence": "STATE.json ainda aponta next=agency-git-workflow-master e blockers=[]. SPEC/TASKS/ARCHITECTURE vazios.",
+      "doneWhen": "STATE e TASKS refletem blockers deste diagnóstico e o próximo owner é discovery, sem declaração de prontidão."
+    },
+    {
+      "priority": "P1",
+      "owner": "agency-git-workflow-master",
+      "action": "Preservar WIP: NÃO reset/clean/discard. Reconciliar árvore suja em main: isolar o WIP de code review (32 arquivos + test_anexos.py + test_ia_versao.py) em branch de trabalho, deixar main = v1.2.1. Não misturar placeholders de pipeline com código de produto no mesmo commit. Não versionar pipeline/.task-lock nem .opencode/. Commit/push só com confirmação humana; não push automático em main; não criar tag.",
+      "evidence": "HEAD d35a2cf = origin/main = tag v1.2.1; staged vazio; working tree dirty. security.yml em push main; release.yml em tag v*.",
+      "doneWhen": "Branch/HEAD e lista de pendências registrados em TASKS/ARCHITECTURE; WIP preservado; nenhum push/tag sem o dono pedir."
+    },
+    {
+      "priority": "P1",
+      "owner": "agency-product-manager",
+      "action": "Discovery do produto EXISTENTE + WIP: baseline = 1.2.1 em produção; incluir no SPEC o WIP pós-1.2.1, P1 (BEGIN IMMEDIATE explícito + reler saldo após lock) e P2 (teste do allowlist de push) como aceite. Não tratar MELHORIAS.md como escopo. Não inventar app novo.",
+      "evidence": "SPEC.md placeholder. TAREFAS_PENDENTES P1/P2 abertos. Código de saldos/push confirma. CHANGELOG [Não lançado] desalinhado do P1.",
+      "doneWhen": "pipeline/SPEC.md com requisitos, não-objetivos e critérios de aceite numerados cobrindo baseline 1.2.1, WIP e P1/P2."
+    },
+    {
+      "priority": "P1",
+      "owner": "agency-sprint-prioritizer",
+      "action": "Após SPEC: backlog pequeno com dependências (Git/WIP → P1 saldo → P2 teste push → resto do WIP → docs CHANGELOG alinhado). Uma task ativa por vez.",
+      "evidence": "TASKS.md placeholder; TAREFAS_PENDENTES não é o backlog canônico do pipeline.",
+      "doneWhen": "pipeline/TASKS.md com IDs, owners, arquivos exclusivos, dependências e status."
+    },
+    {
+      "priority": "P2",
+      "owner": "agency-backend-architect",
+      "action": "Na fase architecture: consolidar stack real (FastAPI/SQLite, React/Vite PWA, Capacitor, Tauri), contratos, auth, migrações e estratégia Git já inspecionada. Não escolher cloud por padrão (já é VPS/Caddy).",
+      "evidence": "ARCHITECTURE.md placeholder; README/PLANO/deploy descrevem a stack; PLANO.md parcialmente obsoleto.",
+      "doneWhen": "pipeline/ARCHITECTURE.md descreve o sistema existente + ADRs, sem inventar greenfield."
+    },
+    {
+      "priority": "P2",
+      "owner": "coordenador",
+      "action": "Só depois de architecture: usuário revisa gates.json para pytest backend + vitest/tsc frontend. Não editar gates automaticamente agora. Não executar opencode-pipeline gate nesta fase.",
+      "evidence": "gates.json configured=false com npm genérico.",
+      "doneWhen": "gates.json revisado pelo usuário para esta stack, ainda sem fingir que já passou."
+    },
+    {
+      "priority": "P3",
+      "owner": "coordenador",
+      "action": "Não chamar agency-devops-automator. Não tratar deploy/README existente como prontidão deste ciclo. Commit do WIP só quando o dono pedir (P3 de TAREFAS_PENDENTES).",
+      "evidence": "Fase bootstrap; fingerprint/gateAt/tasksHash null; contrato: DevOps só após gate válido e prontidão favorável na mesma versão.",
+      "doneWhen": "Nenhum plano de deploy deste ciclo até ready real; P3 permanece pendência humana."
+    }
+  ]
+}
