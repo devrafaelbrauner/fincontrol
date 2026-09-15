@@ -60,10 +60,10 @@ sudo -u fincontrol .venv/bin/pip install -r requirements.txt
 # gravaria num banco diferente do que o serviço usa (FINCONTROL_DATA).
 #
 # ESTE PASSO VEM ANTES DO 6 E DO 7, e a ordem é de segurança, não de estilo:
-# com o banco sem conta, /api/auth/cadastro fica aberto e o primeiro que
-# alcançar o domínio vira o dono da instância. Com a conta criada, o cadastro
-# responde 409 para sempre. Mesmo cuidado ao restaurar backup ou trocar
-# FINCONTROL_DATA: banco vazio no ar = cadastro aberto. Confira com
+# sem conta, ninguém consegue entrar: o /api/auth/cadastro web é bloqueado em
+# produção (403) e a conta só nasce via setup_user. Mesmo cuidado ao restaurar
+# backup ou trocar FINCONTROL_DATA: banco vazio no ar = instância sem dono.
+# Confira com
 #   curl -s https://SEU-DOMINIO/api/auth/status   → {"configurado":true}
 sudo -u fincontrol bash -c 'set -a; . ./.env; set +a; .venv/bin/python -m app.setup_user'
 

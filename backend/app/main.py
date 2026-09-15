@@ -56,9 +56,10 @@ migrate()
 
 
 def _avisar_se_sem_conta() -> None:
-    """Banco sem conta em produção = /api/auth/cadastro aberto para quem chegar
-    primeiro. É o estado normal antes do setup_user, mas também o estado de um
-    backup restaurado vazio — e aí passa despercebido. Ver deploy/README.md."""
+    """Banco sem conta em produção = instância sem dono: crie via setup_user.
+
+    O /api/auth/cadastro web está bloqueado em produção (403) — sem a conta, o
+    app sobe mas ninguém consegue entrar até o setup via SSH. Ver deploy/README.md."""
     if not IS_PROD:
         return
     db = connect()
@@ -68,8 +69,8 @@ def _avisar_se_sem_conta() -> None:
         db.close()
     if not tem_conta:
         _log.warning(
-            "NENHUMA CONTA CONFIGURADA: /api/auth/cadastro está aberto e o primeiro "
-            "visitante vira o dono. Rode 'python -m app.setup_user' ou cadastre-se agora."
+            "NENHUMA CONTA CONFIGURADA: crie via 'python -m app.setup_user' — "
+            "o /api/auth/cadastro web está bloqueado em produção (403)."
         )
 
 

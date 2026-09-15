@@ -54,22 +54,19 @@ class CodigoBody(BaseModel):
     codigo: str
 
 
-# Mínimo de 6 por decisão explícita do dono do app (era 12).
+# Mínimo de 12 por decisão de segurança (era 6 — fraco contra db vazado).
 #
-# O que isso NÃO é: mitigado. O rate limit do login não alcança um atacante com o
-# arquivo do banco na mão, e o TOTP é opcional nos dois caminhos de criação de
-# conta (a tela oferece "Pular por enquanto", o setup_user aceita 'n'), então uma
-# conta de 6 caracteres sem segundo fator é um estado alcançável. Contra
-# `fincontrol.db` vazado — e ele é copiado para fora da VPS todo dia pelo backup —
-# 6 caracteres caem em segundos, por mais símbolos que tenham. O que segura o risco
-# aqui é o banco não vazar, não o comprimento da senha.
+# O rate limit do login não alcança um atacante com o arquivo do banco na mão,
+# e o TOTP é opcional nos dois caminhos de criação de conta, então a senha é a
+# última barreira contra `fincontrol.db` vazado — copiado para fora da VPS todo
+# dia pelo backup. 12 caracteres com variedade é o piso aceitável.
 #
 # Espelhado em frontend/src/pages/Login.tsx (REGRAS) — mexeu aqui, mexa lá.
-SENHA_MINIMA = 6
+SENHA_MINIMA = 12
 
 
 def _validar_senha(senha: str) -> str | None:
-    """Política: mínimo de 6 caracteres, com letra, número e caractere especial."""
+    """Política: mínimo de 12 caracteres, com letra, número e caractere especial."""
     if len(senha) < SENHA_MINIMA:
         return f"A senha precisa de pelo menos {SENHA_MINIMA} caracteres"
     if not re.search(r"[A-Za-z]", senha):
@@ -293,7 +290,13 @@ def status(db: sqlite3.Connection = Depends(get_db)):
 @limiter.limit("5/minute")
 def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlite3.Connection = Depends(get_db)):
     """Cria a conta única no primeiro uso. Com conta existente, retorna 409 —
-    nunca sobrescreve (redefinição de senha é pelo terminal: python -m app.setup_user)."""
+    nunca sobrescreve (redefinição de senha é pelo terminal: python -m app.setup_user).
+
+    Em produção a rota é bloqueada (403): a conta deve ser criada via SSH
+    (`python -m app.setup_user`). Banco vazio no ar = janela first-claimer para
+    quem alcançar o domínio primeiro — ver deploy/README.md passo 5."""
+    if IS_PROD:
+        raise HTTPException(403, "Cadastro via web desabilitado em produção — use: python -m app.setup_user")
     if config_get(db, "senha_hash"):
         raise HTTPException(409, "Conta já configurada — use a tela de login")
     nome = body.nome.strip()
