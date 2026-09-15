@@ -48,6 +48,10 @@ validar() {
 	fi
 	if [ -z "$fernet" ]; then
 		echo "   FALTA: FINCONTROL_FERNET_KEY (obrigatória em produção). Rode: $0 gen" >&2; erros=$((erros+1))
+	elif ! "$RAIZ/backend/.venv/bin/python" -c "import cryptography.fernet" 2>/dev/null && ! python3 -c "import cryptography.fernet" 2>/dev/null; then
+		echo "   AVISO: biblioteca 'cryptography' não encontrada — pulando a validação do formato da FERNET_KEY." >&2
+	elif ! FINCONTROL_FERNET_KEY="$fernet" python3 -c "from cryptography.fernet import Fernet; import os; Fernet(os.environ['FINCONTROL_FERNET_KEY'])" 2>/dev/null; then
+		echo "   FALTA: FINCONTROL_FERNET_KEY inválida (precisa ser Fernet válida: 32 bytes em base64 url-safe). Rode: $0 gen" >&2; erros=$((erros+1))
 	fi
 	if [ "$secure" != "1" ]; then
 		echo "   AVISO: FINCONTROL_COOKIE_SECURE não é 1 (será forçado como Secure em produção)." >&2
