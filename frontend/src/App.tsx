@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, Fragment, type ReactNode, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getToken, logout } from "./api";
 import AddTransacaoModal from "./components/AddTransacaoModal";
@@ -54,6 +54,26 @@ const TITULOS: Record<string, string> = {
   "/recursos": "Recursos",
   "/config": "Configurações",
 };
+
+class LimiteErro extends Component<{ children: ReactNode }, { erro: Error | null; tentativa: number }> {
+  state = { erro: null as Error | null, tentativa: 0 };
+  static getDerivedStateFromError(erro: Error) { return { erro }; }
+  render() {
+    if (this.state.erro) {
+      return (
+        <div className="ficha" style={{ padding: "1.5rem", maxWidth: 480 }}>
+          <p className="erro">Esta tela encontrou um erro.</p>
+          <p className="sub">{this.state.erro.message}</p>
+          <button className="btn btn-primario" type="button"
+            onClick={() => this.setState((s) => ({ erro: null, tentativa: s.tentativa + 1 }))}>
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return <Fragment key={this.state.tentativa}>{this.props.children}</Fragment>;
+  }
+}
 
 function passoCompetencia(c: string, delta: number): string {
   const d = new Date(Number(c.slice(0, 4)), Number(c.slice(5, 7)) - 1 + delta, 1);
@@ -127,7 +147,7 @@ export default function App() {
             aria-label={tema === "dark" ? "Tema claro" : "Tema escuro"}>
             {tema === "dark" ? <IcSol /> : <IcLua />}
           </button>
-          <button className="btn btn-icone btn-perigo" onClick={logout} aria-label="Sair"><IcSair /></button>
+          <button className="btn btn-icone btn-perigo" onClick={() => void logout()} aria-label="Sair"><IcSair /></button>
           <button className="btn btn-primario" onClick={() => setAddAberto(true)}>
             <IcMais /><span className="btn-adicionar-texto">Transação</span>
           </button>
@@ -137,6 +157,7 @@ export default function App() {
       <main className="pagina">
         <BannerVersao />
         <OfflineBar />
+        <LimiteErro>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/analises" element={<Analises />} />
@@ -150,8 +171,9 @@ export default function App() {
           <Route path="/recursos" element={<Recursos />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/config" element={<Config />} />
-          <Route path="*" element={<Dashboard />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </LimiteErro>
       </main>
 
       <button className="fab fab-hub" onClick={() => setAddAberto(true)} aria-label="Adicionar transação"><IcMais /></button>

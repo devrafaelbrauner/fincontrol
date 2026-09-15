@@ -1,0 +1,39 @@
+{
+  "configured": false,
+  "checks": [
+    {
+      "name": "lint",
+      "argv": [
+        "npm",
+        "run",
+        "lint"
+      ]
+    },
+    {
+      "name": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ]
+    },
+    {
+      "name": "test",
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "--run"
+      ]
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ]
+    }
+  ],
+  "timeout_seconds": 300
+}

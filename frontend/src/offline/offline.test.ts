@@ -62,6 +62,30 @@ describe("replay da fila", () => {
     expect(await lerGet("/variaveis")).toBeNull();
   });
 
+  it("404 em DELETE descarta o item — o recurso já não existe", async () => {
+    await enfileirar({ method: "DELETE", path: "/variaveis/9", ifMatch: "1" });
+    await enfileirar({ method: "PATCH", path: "/variaveis/2", ifMatch: "1" });
+
+    const executor = vi.fn(async (item) =>
+      item.method === "DELETE" ? { status: 404, detail: "não encontrado" } : { status: 200 });
+
+    const r = await drenarFila(executor);
+    expect(r).toMatchObject({ aplicados: 2, conflitos: 0, erros: 0 });
+    expect(await listarFila()).toHaveLength(0);
+  });
+
+  it("422 vira erro permanente e NÃO é tratado como conflito", async () => {
+    await enfileirar({ method: "POST", path: "/variaveis", body: "{}" });
+    const executor = vi.fn(async (): Promise<RespostaFila> => ({ status: 422, detail: "inválido" }));
+    const r = await drenarFila(executor);
+    expect(r).toMatchObject({ aplicados: 0, conflitos: 0, erros: 1 });
+    expect(await conflitos()).toHaveLength(0);
+    const fila = await listarFila();
+    expect(fila).toHaveLength(1);
+    expect(fila[0].status).toBe("permanente");
+    expect(await aProcessar()).toHaveLength(0);
+  });
+
   it("409 vira conflito e NÃO derruba os próximos itens", async () => {
     await enfileirar({ method: "PATCH", path: "/variaveis/1", ifMatch: "1" });
     await enfileirar({ method: "PATCH", path: "/variaveis/2", ifMatch: "1" });

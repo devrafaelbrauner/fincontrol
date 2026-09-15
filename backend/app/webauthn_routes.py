@@ -286,7 +286,9 @@ def renomear_credencial(cred_id: str, body: RenomearBody, db: sqlite3.Connection
     from .auth import require_auth
 
     require_auth(authorization)
-    db.execute("UPDATE webauthn_credenciais SET nome = ? WHERE id = ?", (body.nome.strip() or None, cred_id))
+    cur = db.execute("UPDATE webauthn_credenciais SET nome = ? WHERE id = ?", (body.nome.strip() or None, cred_id))
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Passkey não encontrada")
     return {"ok": True}
 
 
@@ -296,5 +298,7 @@ def remover_credencial(cred_id: str, db: sqlite3.Connection = Depends(get_db),
     from .auth import require_auth
 
     require_auth(authorization)
-    db.execute("DELETE FROM webauthn_credenciais WHERE id = ?", (cred_id,))
+    cur = db.execute("DELETE FROM webauthn_credenciais WHERE id = ?", (cred_id,))
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Passkey não encontrada")
     return {"ok": True}

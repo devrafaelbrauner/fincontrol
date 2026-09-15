@@ -289,6 +289,11 @@ def _ultimo_saldo(db: sqlite3.Connection, conta_id: int) -> sqlite3.Row | None:
 
 @router.post("/{conta_id}/saldos", status_code=201)
 def atualizar_saldo(conta_id: int, body: SaldoIn, db: sqlite3.Connection = Depends(get_db)):
+    # BEGIN IMMEDIATE (SQL) pega o lock de escrita ANTES de reler o último saldo.
+    # isolation_level = "IMMEDIATE" sozinho NÃO inicia transação no SELECT
+    # (Python 3.14: in_transaction=False). Dois POSTs no mesmo segundo não
+    # aplicam delta em cima da mesma leitura.
+    db.execute("BEGIN IMMEDIATE")
     if not db.execute("SELECT 1 FROM contas_bancarias WHERE id = ?", (conta_id,)).fetchone():
         raise HTTPException(404, "Conta não encontrada")
     ultimo = _ultimo_saldo(db, conta_id)

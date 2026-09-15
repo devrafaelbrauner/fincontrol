@@ -39,7 +39,7 @@ export async function atualizarContadores(): Promise<void> {
   definir({
     // "Pendentes" inclui os que voltaram com erro 5xx: para quem olha a tela,
     // ambos são escrita que ainda não chegou ao servidor.
-    pendentes: itens.filter((i) => i.status !== "conflito").length,
+    pendentes: itens.filter((i) => i.status === "pendente" || i.status === "erro").length,
     conflitos: itens.filter((i) => i.status === "conflito").length,
   });
 }

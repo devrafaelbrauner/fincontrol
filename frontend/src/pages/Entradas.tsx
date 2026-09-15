@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, brl, ehConflito } from "../api";
 import { IcEntradas, IcFechar } from "../components/icones";
 import { useToast } from "../components/Toast";
@@ -17,14 +17,16 @@ export default function Entradas() {
   const [total, setTotal] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const requisicao = useRef(0);
 
   const carregar = useCallback(() => {
+    const id = ++requisicao.current;
     setCarregando(true);
     const ate = `${competencia}-${String(ultimoDia(competencia)).padStart(2, "0")}`;
     api<{ itens: Entrada[]; total_cents: number }>(`/entradas?de=${competencia}-01&ate=${ate}`)
-      .then((r) => { setItens(r.itens); setTotal(r.total_cents); })
-      .catch((e) => setErro(e.message))
-      .finally(() => setCarregando(false));
+      .then((r) => { if (id !== requisicao.current) return; setItens(r.itens); setTotal(r.total_cents); })
+      .catch((e) => { if (id === requisicao.current) setErro(e.message); })
+      .finally(() => { if (id === requisicao.current) setCarregando(false); });
   }, [competencia]);
 
   useEffect(carregar, [carregar, versao]);
@@ -71,7 +73,9 @@ export default function Entradas() {
                     </span>
                   </td>
                   <td className="num positivo">{brl(i.valor_cents)}</td>
-                  <td><button className="btn btn-icone btn-perigo" onClick={() => excluir(i)} aria-label="Excluir"><IcFechar /></button></td>
+                  <td>{i.id < 0 ? <span className="chip">pendente</span> : (
+                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)} aria-label="Excluir"><IcFechar /></button>
+                  )}</td>
                 </tr>
               ))}
             </tbody>

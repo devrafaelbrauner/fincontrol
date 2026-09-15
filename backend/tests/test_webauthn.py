@@ -294,3 +294,8 @@ def test_producao_exige_rpid_e_origin(cliente, monkeypatch):
     token = _login_token(cliente)
     r = cliente.post("/api/auth/webauthn/register/begin", json={}, headers=_auth(token))
     assert r.status_code == 500, r.text
+
+
+def test_patch_delete_passkey_inexistente_e_404(autenticado):
+    assert autenticado.patch("/api/auth/webauthn/credenciais/nao-existe", json={"nome": "x"}).status_code == 404
+    assert autenticado.delete("/api/auth/webauthn/credenciais/nao-existe").status_code == 404

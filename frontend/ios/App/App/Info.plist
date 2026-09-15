@@ -54,5 +54,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>O FinControl usa o Face ID para desbloquear o aplicativo neste aparelho.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>O FinControl usa a câmera para fotografar comprovantes e boletos.</string>
 </dict>
 </plist>

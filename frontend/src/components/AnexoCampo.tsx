@@ -45,7 +45,6 @@ export default function AnexoCampo({ anexoId, onChange }: Props) {
           <input
             type="file"
             accept="application/pdf,image/*"
-            capture="environment"
             onChange={selecionar}
             disabled={enviando}
             hidden

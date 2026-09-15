@@ -40,6 +40,34 @@ def test_login_completo_com_codigo_valido(cliente):
     assert r.json()["token"]
 
 
+def test_mfa_reenrolment_recusado_sem_fator_vigente(autenticado):
+    """Sessão logada não troca o 2FA sem o código atual (ou a senha)."""
+    _com_mfa()
+    r = autenticado.post("/api/auth/mfa/iniciar", json={})
+    assert r.status_code == 403
+    r = autenticado.post("/api/auth/mfa/confirmar", json={"codigo": "000000"})
+    assert r.status_code == 403
+
+
+def test_mfa_reenrolment_aceita_totp_atual(autenticado):
+    totp = _com_mfa()
+    r = autenticado.post("/api/auth/mfa/iniciar", json={"codigo_totp": totp.now()})
+    assert r.status_code == 200, r.text
+    assert r.json()["secret"]
+    novo = pyotp.TOTP(r.json()["secret"])
+    r = autenticado.post("/api/auth/mfa/confirmar", json={"codigo": novo.now(), "senha": SENHA})
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is True
+
+
+def test_mfa_primeira_ativacao_nao_pede_fator(autenticado):
+    r = autenticado.post("/api/auth/mfa/iniciar", json={})
+    assert r.status_code == 200, r.text
+    novo = pyotp.TOTP(r.json()["secret"])
+    r = autenticado.post("/api/auth/mfa/confirmar", json={"codigo": novo.now()})
+    assert r.status_code == 200, r.text
+
+
 def test_cookie_de_sessao_quando_lembrar_e_falso(cliente):
     """lembrar=False → cookie sem Max-Age, que morre ao fechar o navegador."""
     r = cliente.post("/api/auth/login", json={"senha": SENHA, "lembrar": False})

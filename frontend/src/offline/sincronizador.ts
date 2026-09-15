@@ -1,6 +1,6 @@
 import { limparCache } from "./cache";
 import { atualizarContadores, definirOffline } from "./estadoOffline";
-import { aProcessar, type ItemFila, marcarConflito, marcarErro, removerItem } from "./fila";
+import { aProcessar, type ItemFila, marcarConflito, marcarErro, marcarPermanente, removerItem } from "./fila";
 
 /** Replay da fila de escritas, em ordem, com conflito por item.
  *
@@ -9,6 +9,8 @@ import { aProcessar, type ItemFila, marcarConflito, marcarErro, removerItem } fr
  * - 401/403: tenta renovar a sessão UMA vez e repete o item; se continuar sem
  *   sessão, para tudo e deixa o fluxo normal levar ao login (a fila fica).
  * - 409: conflito — espera a escolha do dono; NÃO bloqueia os próximos itens.
+ * - 404 em DELETE: o recurso já não existe — descarta a escrita.
+ * - 400/422: erro permanente (payload inválido); não retenta.
  * - 5xx: erro transitório — volta como `erro` para o próximo drain (retry).
  * - falha de REDE: para o replay inteiro (o servidor está fora; insistir só
  *   queima os itens restantes). */
@@ -65,12 +67,21 @@ export async function drenarFila(executor: Executor, renovar?: Renovador): Promi
     if (resposta.status >= 200 && resposta.status < 300) {
       await removerItem(item.id);
       aplicados += 1;
+    } else if (resposta.status === 409) {
+      await marcarConflito(item.id, resposta.detail ?? `HTTP ${resposta.status}`);
+      conflitos += 1;
+    } else if (resposta.status === 404 && item.method.toUpperCase() === "DELETE") {
+      await removerItem(item.id);
+      aplicados += 1;
     } else if (resposta.status >= 500) {
       await marcarErro(item.id, resposta.detail ?? `HTTP ${resposta.status}`);
       erros += 1;
+    } else if (resposta.status === 400 || resposta.status === 422 || (resposta.status >= 400 && resposta.status < 500)) {
+      await marcarPermanente(item.id, resposta.detail ?? `HTTP ${resposta.status}`);
+      erros += 1;
     } else {
-      await marcarConflito(item.id, resposta.detail ?? `HTTP ${resposta.status}`);
-      conflitos += 1;
+      await marcarPermanente(item.id, resposta.detail ?? `HTTP ${resposta.status}`);
+      erros += 1;
     }
   }
 

@@ -27,3 +27,8 @@ delas é compromisso de entrega.
 - [x] **Offline + sync** — 1.2.0: cache IndexedDB das leituras e fila de
   escritas financeiras com reconciliação por `versao` de linha (`If-Match`); 409
   vira conflito visível por item, sem last-write-wins silencioso.
+- [ ] **UI para erro permanente da fila** (400/422): hoje o item fica em
+  `permanente` e não retenta, mas a barra só lista conflitos. Um “Descartar”
+  explícito evitaria escrita inválida presa no IndexedDB. 429 também cai em
+  `permanente` (não retenta).
+- [ ] **ErrorBoundary** mostra `erro.message` cru ao usuário — filtrar/genericizar.

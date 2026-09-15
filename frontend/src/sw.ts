@@ -43,16 +43,19 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Clique na notificação abre/foca o app na URL indicada.
+// Clique na notificação navega para a URL do payload — focus sozinho deixava
+// o app na tela em que já estava.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url ?? "/";
-  event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((clientes) => {
-      for (const c of clientes) {
-        if ("focus" in c) return c.focus();
-      }
-      return self.clients.openWindow(url);
-    })
-  );
+  event.waitUntil((async () => {
+    const clientes = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const alvo = clientes[0];
+    if (alvo && "navigate" in alvo) {
+      const nav = await alvo.navigate(url);
+      await (nav ?? alvo).focus();
+      return;
+    }
+    await self.clients.openWindow(url);
+  })());
 });

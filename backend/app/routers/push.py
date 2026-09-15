@@ -11,6 +11,7 @@ Gere um par com:  python -m app.gerar_vapid
 import json
 import os
 import sqlite3
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -32,6 +33,35 @@ class ChavesIn(BaseModel):
 class InscricaoIn(BaseModel):
     endpoint: str
     keys: ChavesIn
+
+
+# Hosts de Web Push conhecidos. Qualquer outro endpoint (http, IP interno,
+# metadata, webhook arbitrário) seria SSRF autenticado: o servidor chama
+# `webpush()` contra o URL que o cliente mandou.
+_HOSTS_PUSH = {
+    "fcm.googleapis.com",
+    "android.googleapis.com",
+    "updates.push.services.mozilla.com",
+    "web.push.apple.com",
+}
+_SUFIXOS_PUSH = (
+    ".notify.windows.com",
+    ".push.apple.com",
+    ".fcm.googleapis.com",
+)
+
+
+def _endpoint_push_ok(endpoint: str) -> bool:
+    try:
+        u = urlparse(endpoint)
+    except ValueError:
+        return False
+    if u.scheme != "https" or not u.hostname or u.username or u.password:
+        return False
+    host = u.hostname.lower().rstrip(".")
+    if host in _HOSTS_PUSH:
+        return True
+    return any(host.endswith(s) for s in _SUFIXOS_PUSH)
 
 
 def habilitado() -> bool:
@@ -86,6 +116,8 @@ def config(db: sqlite3.Connection = Depends(get_db)):
 def subscribe(body: InscricaoIn, db: sqlite3.Connection = Depends(get_db)):
     if not habilitado():
         raise HTTPException(503, "Push não configurado no servidor")
+    if not _endpoint_push_ok(body.endpoint):
+        raise HTTPException(400, "Endpoint de push inválido")
     db.execute(
         """INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (?, ?, ?)
            ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth""",
