@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, brl, ehConflito } from "../api";
 import AnexoCampo from "../components/AnexoCampo";
 import { IcBusca, IcExcluirSerie, IcExportar, IcExtrair, IcFechar, IcVariaveis } from "../components/icones";
@@ -35,14 +35,16 @@ export default function Variaveis() {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [categorizando, setCategorizando] = useState(false);
+  const requisicao = useRef(0);
 
   const carregar = useCallback(() => {
+    const id = ++requisicao.current;
     setCarregando(true);
     const ate = `${competencia}-${String(ultimoDia(competencia)).padStart(2, "0")}`;
     api<{ itens: Variavel[]; total_cents: number }>(`/variaveis?de=${competencia}-01&ate=${ate}`)
-      .then((r) => { setItens(r.itens); setTotal(r.total_cents); })
-      .catch((e) => setErro(e.message))
-      .finally(() => setCarregando(false));
+      .then((r) => { if (id !== requisicao.current) return; setItens(r.itens); setTotal(r.total_cents); })
+      .catch((e) => { if (id === requisicao.current) setErro(e.message); })
+      .finally(() => { if (id === requisicao.current) setCarregando(false); });
     api<Categoria[]>("/categorias").then((cs) => setCategorias(cs.filter((c) => c.tipo === "variavel"))).catch(() => {});
   }, [competencia]);
 
@@ -179,7 +181,9 @@ export default function Variaveis() {
           <table>
             <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th>Valor</th><th>Comprovante</th><th></th></tr></thead>
             <tbody>
-              {filtrados.map((i) => (
+              {filtrados.map((i) => {
+                const pendente = i.id < 0;
+                return (
                 <tr key={i.id}>
                   <td>{new Date(i.data + "T00:00").toLocaleDateString("pt-BR")}</td>
                   <td>
@@ -188,29 +192,33 @@ export default function Variaveis() {
                       {i.parcela_num != null && (
                         <span className="chip" title={`Parcela ${i.parcela_num} de ${i.parcelas_total}`}>{i.parcela_num}/{i.parcelas_total}</span>
                       )}
+                      {pendente && <span className="chip">pendente</span>}
                     </span>
                   </td>
                   <td>
                     <select value={i.categoria_id ?? ""} onChange={(e) => definirCategoria(i, e.target.value ? Number(e.target.value) : null)}
-                      aria-label={`Categoria de ${i.descricao}`} style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}>
+                      aria-label={`Categoria de ${i.descricao}`} style={{ padding: "0.3rem 0.5rem", fontSize: "0.82rem" }}
+                      disabled={pendente}>
                       <option value="">—</option>
                       {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
                   </td>
                   <td>{i.forma_pagamento && <span className="chip">{i.forma_pagamento}</span>}</td>
                   <td className="num negativo">{brl(i.valor_cents)}</td>
-                  <td><AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a, i.versao)} /></td>
+                  <td>{pendente ? null : <AnexoCampo anexoId={i.anexo_id} onChange={(a) => definirAnexo(i.id, a, i.versao)} />}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)}
-                      aria-label={i.parcelamento_id != null ? "Excluir esta parcela" : "Excluir"}
-                      title={i.parcelamento_id != null ? "Excluir só esta parcela" : "Excluir"}><IcFechar /></button>
-                    {i.parcelamento_id != null && (
+                    {!pendente && (
+                      <button className="btn btn-icone btn-perigo" onClick={() => excluir(i)}
+                        aria-label={i.parcelamento_id != null ? "Excluir esta parcela" : "Excluir"}
+                        title={i.parcelamento_id != null ? "Excluir só esta parcela" : "Excluir"}><IcFechar /></button>
+                    )}
+                    {!pendente && i.parcelamento_id != null && (
                       <button className="btn btn-icone btn-perigo" onClick={() => excluirParcelamento(i)}
                         aria-label="Excluir a compra parcelada inteira" title="Excluir a compra parcelada inteira (todas as parcelas)"><IcExcluirSerie /></button>
                     )}
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>

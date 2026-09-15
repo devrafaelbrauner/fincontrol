@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import QRCode from "qrcode";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api } from "../api";
+import { api, logout } from "../api";
 import { instalarAtualizacao, type ResultadoAtualizacao, verificarAtualizacao } from "../atualizacao";
 import { isNativo, isTauri } from "../plataforma";
 import { cadastrarPasskey } from "../passkeys";
@@ -333,6 +333,17 @@ export default function Config() {
           <button className="btn btn-primario" type="submit">Cadastrar passkey aqui</button>
         </form>
         {passkeyMsg && <p style={{ marginTop: "0.5rem" }}>{passkeyMsg}</p>}
+      </section>
+
+      <section className="surgir secao" style={{ maxWidth: 560 }}>
+        <h3 className="secao-titulo">Sessões</h3>
+        <p className="sub">Encerra o login neste e em todos os outros aparelhos — use se perdeu o celular.</p>
+        <button className="btn btn-perigo" type="button" onClick={() => {
+          if (!confirm("Sair de todos os aparelhos? Você vai precisar entrar de novo em cada um.")) return;
+          void logout(true);
+        }}>
+          Sair de todos os aparelhos
+        </button>
       </section>
 
       {isNativo() && (

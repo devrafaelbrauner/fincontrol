@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { api, brl } from "../api";
 import AnimatedNumber from "../components/AnimatedNumber";
@@ -118,13 +118,16 @@ export default function Dashboard() {
   const [geradoEm, setGeradoEm] = useState<string | null>(null);
   const [iaCarregando, setIaCarregando] = useState(false);
   const [iaErro, setIaErro] = useState<string | null>(null);
+  const requisicao = useRef(0);
 
   const carregar = useCallback(async () => {
+    const id = ++requisicao.current;
     setCarregando(true);
     setErro(null);
     try {
       const comps = ultimasCompetencias(competencia, 6);
       const dados = await Promise.all(comps.map((c) => api<Dash>(`/dashboard/${c}`)));
+      if (id !== requisicao.current) return;
       setMeses(dados);
 
       const [ano, mes] = competencia.split("-");
@@ -137,6 +140,7 @@ export default function Dashboard() {
         api<MetaResumo[]>("/metas").catch(() => [] as MetaResumo[]),
         api<Orcamento[]>(`/orcamentos?competencia=${competencia}`).catch(() => [] as Orcamento[]),
       ]);
+      if (id !== requisicao.current) return;
       setMetas(listaMetas);
       setOrcamentos(orcs);
       const nomes = new Map(cats.map((c) => [c.id, c] as const));
@@ -163,12 +167,13 @@ export default function Dashboard() {
 
       // Insights: carrega do cache (instantâneo, sem re-cobrar).
       const cache = await api<{ insights: Insights | null; gerado_em?: string }>(`/ia/insights/${competencia}`);
+      if (id !== requisicao.current) return;
       setInsights(cache.insights);
       setGeradoEm(cache.gerado_em ?? null);
     } catch (e) {
-      setErro((e as Error).message);
+      if (id === requisicao.current) setErro((e as Error).message);
     } finally {
-      setCarregando(false);
+      if (id === requisicao.current) setCarregando(false);
     }
   }, [competencia, versao]);
 

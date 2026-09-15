@@ -107,4 +107,21 @@ async function iniciar() {
   );
 }
 
-iniciar();
+function telaDeErro(erro: unknown) {
+  const root = document.getElementById("root");
+  if (!root) return;
+  const msg = erro instanceof Error ? erro.message : "Falha ao iniciar.";
+  try {
+    ReactDOM.createRoot(root).render(
+      <div style={{ padding: 24, fontFamily: "system-ui, sans-serif", maxWidth: 420 }}>
+        <h1 style={{ fontSize: 20, margin: "0 0 8px" }}>FinControl não abriu</h1>
+        <p style={{ margin: "0 0 16px", opacity: 0.75 }}>{msg}</p>
+        <button type="button" onClick={() => window.location.reload()}>Recarregar</button>
+      </div>
+    );
+  } catch {
+    root.textContent = "FinControl não abriu. Recarregue a página.";
+  }
+}
+
+iniciar().catch(telaDeErro);
