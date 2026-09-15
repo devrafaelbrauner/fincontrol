@@ -12,15 +12,18 @@ on:
 permissions:
   contents: read
 
+# Dois pushes de tag simultâneos disputariam o latest.json — serializa por ref.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   RELEASES_REPO: devrafaelbrauner/fincontrol-releases
   # Mesmo domínio de produção usado pelo deploy. Vem de secret: o default
   # bakeado no pacote tem de ser o servidor real do dono, não um placeholder.
+  # Pode ser vazio de propósito (o app pede o servidor na 1ª abertura) —
+  # o que não pode é um default quebrado; ver scripts/checar-api-base.mjs.
   VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
-  # A chave privada de assinatura do updater vive SÓ aqui (GitHub Secrets).
-  # A pubkey correspondente está no tauri.conf.json.
-  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   build:
@@ -38,6 +41,12 @@ jobs:
             target: x86_64-pc-windows-msvc
             bundles: msi
     runs-on: ${{ matrix.os }}
+    # A chave privada de assinatura do updater vive SÓ aqui (GitHub Secrets) e
+    # SÓ neste job de build — o job `release` (que publica) nunca a vê.
+    # A pubkey correspondente está no tauri.conf.json (minisign, válida).
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     defaults:
       run:
         working-directory: frontend
@@ -108,6 +117,9 @@ jobs:
             --dir ../artefatos
 
       - name: Publicar no repositório público de releases
+        # RELEASES_PAT: PAT clássico/fine-grained com acesso de escrita SOMENTE
+        # ao repo fincontrol-releases (contents:write). Nunca reutilize um token
+        # com acesso ao repo privado — este workflow publica artefatos públicos.
         uses: softprops/action-gh-release@v2
         with:
           repository: ${{ env.RELEASES_REPO }}
