@@ -1,5 +1,18 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { abreviarBRL, cadastrar, competenciaAtual, contaConfigurada, hojeISO, isNativo, mensagemDeErro, paraCents } from "./api";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { abreviarBRL, abrirAnexo, api, cadastrar, competenciaAtual, contaConfigurada, hojeISO, isNativo, mensagemDeErro, paraCents, sincronizar } from "./api";
+import { _definirBackendParaTeste } from "./backendLocal";
+import { _definirCofreParaTeste } from "./nativo/cofre";
+import { _definirArmazemParaTeste, armazemMemoria } from "./offline/banco";
+import { listarFila } from "./offline/fila";
+import { getToken, guardarToken } from "./sessao";
+
+// Só o `invoke` é trocado; o `isTauri` real lê o global, que os testes do
+// desktop ligam com `vi.stubGlobal("isTauri", true)`.
+vi.mock("@tauri-apps/api/core", async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  invoke: vi.fn(),
+}));
 
 describe("paraCents", () => {
   it("converte formatos brasileiros para centavos", () => {
@@ -175,5 +188,146 @@ describe("isNativo", () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(false);
     expect(isNativo()).toBe(false);
     vi.restoreAllMocks();
+  });
+});
+
+describe("desktop: backend local", () => {
+  const TOKEN_A = "a".repeat(64);
+  const TOKEN_B = "b".repeat(64);
+  const JWT = "jwt-da-sessao";
+
+  const cofreMemoria = () => {
+    const mapa = new Map<string, string>();
+    return {
+      ler: async (k: string) => mapa.get(k) ?? null,
+      gravar: async (k: string, v: string) => { mapa.set(k, v); },
+      apagar: async (k: string) => { mapa.delete(k); },
+    };
+  };
+
+  const json = (corpo: unknown, status = 200) =>
+    new Response(JSON.stringify(corpo), { status, headers: { "Content-Type": "application/json" } });
+
+  /** Cabeçalhos e opções de cada fetch, como o navegador os receberia. */
+  const chamadas = (fetchMock: Mock) =>
+    (fetchMock.mock.calls as [string, RequestInit][]).map(([url, init]) => ({
+      url,
+      credentials: init.credentials,
+      token: new Headers(init.headers).get("X-FinControl-Token"),
+      auth: new Headers(init.headers).get("Authorization"),
+    }));
+
+  beforeEach(async () => {
+    vi.stubGlobal("isTauri", true);
+    _definirCofreParaTeste(cofreMemoria());
+    _definirArmazemParaTeste(armazemMemoria());
+    await guardarToken(JWT);
+    _definirBackendParaTeste({ base: "http://127.0.0.1:5123", token: TOKEN_A });
+  });
+
+  afterEach(async () => {
+    await guardarToken(null);
+    vi.unstubAllGlobals();
+    vi.mocked(invoke).mockReset();
+    _definirBackendParaTeste(null);
+    _definirCofreParaTeste(null);
+    _definirArmazemParaTeste(null);
+  });
+
+  it("manda o token local, sem cookies, para a base local", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ ok: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api("/dashboard");
+    await cadastrar({ nome: "R", telefone: "", email: "a@b.c", senha: "Abc12@" }).catch(() => {});
+
+    expect(chamadas(fetchMock)).toEqual([
+      { url: "http://127.0.0.1:5123/api/dashboard", credentials: "omit", token: TOKEN_A, auth: `Bearer ${JWT}` },
+      { url: "http://127.0.0.1:5123/api/auth/cadastro", credentials: "omit", token: TOKEN_A, auth: null },
+    ]);
+  });
+
+  it("sem backend pronto a requisição nem sai, e falha como falta de rede", async () => {
+    _definirBackendParaTeste(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const erro = await cadastrar({ nome: "R", telefone: "", email: "a@b.c", senha: "Abc12@" })
+      .then(() => null, (e: unknown) => e);
+    // GET sem cache: o caminho offline de sempre assume.
+    const offline = await api("/dashboard").then(() => null, (e: Error) => e.message);
+
+    expect(erro).toBeInstanceOf(TypeError);
+    expect(offline).toBe("Sem conexão e sem dados salvos para esta tela.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("escrita enfileirável sem backend pronto vai para a fila sem fetch, e o replay também espera", async () => {
+    _definirBackendParaTeste(null);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const corpo = JSON.stringify({ nome: "Mercado", valor_cents: 1234 });
+
+    const resposta = await api<{ id: number }>("/variaveis", { method: "POST", body: corpo });
+    await sincronizar();
+
+    const fila = await listarFila();
+    expect(fila).toHaveLength(1);
+    expect(fila[0]).toMatchObject({ method: "POST", path: "/variaveis", body: corpo, status: "pendente" });
+    expect(resposta).toEqual({ id: -fila[0].id });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("401 `token_local` relê o backend_info e repete uma vez, sem refresh e sem deslogar", async () => {
+    vi.mocked(invoke).mockResolvedValue({ base: "http://127.0.0.1:6000", token: TOKEN_B });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ detail: "token_local" }, 401))
+      .mockResolvedValueOnce(json({ saldo: 10 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await api("/dashboard")).toEqual({ saldo: 10 });
+
+    expect(vi.mocked(invoke).mock.calls).toEqual([["backend_info"]]);
+    expect(chamadas(fetchMock)).toEqual([
+      { url: "http://127.0.0.1:5123/api/dashboard", credentials: "omit", token: TOKEN_A, auth: `Bearer ${JWT}` },
+      { url: "http://127.0.0.1:6000/api/dashboard", credentials: "omit", token: TOKEN_B, auth: `Bearer ${JWT}` },
+    ]);
+    expect(getToken()).toBe(JWT);
+  });
+
+  it("dois 401 `token_local` seguidos viram falta de rede (TypeError), sem refresh e sem deslogar", async () => {
+    vi.mocked(invoke).mockResolvedValue({ base: "http://127.0.0.1:6000", token: TOKEN_B });
+    const fetchMock = vi.fn().mockImplementation(async () => json({ detail: "token_local" }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const erro = await api("/ia/config", { method: "PUT", body: "{}" }).then(() => null, (e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(TypeError);
+    expect(chamadas(fetchMock).map((c) => c.url)).toEqual([
+      "http://127.0.0.1:5123/api/ia/config",
+      "http://127.0.0.1:6000/api/ia/config",
+    ]);
+    expect(getToken()).toBe(JWT);
+  });
+
+  it("abre o anexo pelo POST /abrir e aceita o 204 sem corpo", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await abrirAnexo(7);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:5123/api/anexos/7/abrir");
+    expect(init.method).toBe("POST");
+  });
+
+  it("no web segue igual: cookies incluídos e nenhum token local", async () => {
+    vi.stubGlobal("isTauri", false);
+    const fetchMock = vi.fn().mockResolvedValue(json({ configurado: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await contaConfigurada();
+
+    expect(fetchMock.mock.calls).toEqual([["/api/auth/status", { credentials: "include" }]]);
   });
 });

@@ -84,12 +84,32 @@ delas é compromisso de entrega.
 - [x] **API URL em runtime (nativo)** — 1.2.0: `getApiBase()` resolve
   cofre > `VITE_API_BASE` > same-origin; campo "Servidor" em Configurações e
   tela de primeiro aviso quando não há default bakeado.
-- [ ] **Frontend desktop (etapa 4) sem `credentials: "include"`** — o CORS do modo
+- [x] **Frontend desktop (etapa 4) sem `credentials: "include"`** — feito no branch
+  `desktop-f3b-frontend` (run `fincontrol-r7-f3b`). O CORS do modo
   desktop é `allow_credentials=False`. Um `fetch` com `credentials: "include"` para
   `127.0.0.1` falha no preflight/resposta (o navegador exige
   `Access-Control-Allow-Credentials: true`). No desktop, usar `"omit"` e mandar
   `X-FinControl-Token` + `X-Refresh-Token`. O 401 `token_local` deve reler
   `backend_info`, e não chamar o `/auth/refresh` nem deslogar.
+- [ ] **Mensagem do `checar-api-base` engana no desktop** — sem `VITE_API_BASE`, o
+  script diz que "o app vai pedir o endereço do servidor na primeira abertura", mas o
+  app desktop usa o backend embutido e nunca pede servidor (e ignora a variável se
+  ela vier). Fica em `frontend/scripts/` e `package.json` (`macos`/`windows`), fora do
+  raio da etapa 4: trocar o texto ou tirar o cheque desses dois scripts.
+- [ ] **`OfflineBar` engana no desktop** — durante o reinício do backend local a barra
+  diz "Sem conexão — mostrando dados salvos." e, no conflito, fala em "o que está no
+  servidor". No desktop não há rede nem servidor: o texto devia falar do FinControl
+  reiniciando e dos dados deste computador. `components/OfflineBar.tsx` ficou fora do
+  raio da etapa 4 (run `fincontrol-r7-f3b`, DECISIONS 9).
+- [ ] **Motivo cru do Rust na tela de falha do desktop** — o `motivo` do evento
+  `falhou` vem do `sidecar.rs` com caminho `\\?\…` e termos como "sidecar". A
+  `TelaBackend` mostra como chega; o texto devia sair legível do Rust (ou ser
+  traduzido por código de erro).
+- [ ] **Testes de render do modo desktop** — Config, Login e Calendário com
+  `isTauri()` verdadeiro e falso (sem passkey/push/.ics/servidor só no desktop), e o
+  boot do `main.tsx` (nada de API antes do `pronto`, reinício = barra offline, `falhou`
+  = tela cheia). Hoje isso só está coberto pela evidência visual da etapa 4; cada um
+  seria um arquivo de teste novo, acima do teto da run.
 - [ ] **Rate limit do desktop é global** — todo pedido vem de `127.0.0.1`, então os
   tetos por IP (`slowapi`) valem para o app inteiro. Hoje isso é aceitável (um só
   usuário, token obrigatório); rever se algum teto atrapalhar o uso normal.

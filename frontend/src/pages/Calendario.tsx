@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAtualizacao } from "../estado";
 import { api, brl } from "../api";
 import { IcExpandir, IcRecolher } from "../components/icones";
+import { isDesktopLocal } from "../plataforma";
 
 type Lancamento = { id: number; nome: string; valor_cents: number; vencimento: string; status: "pago" | "pendente" | "atrasado" };
 type FeedInfo = { token: string; caminho: string; url: string; webcal: string };
@@ -152,25 +153,29 @@ export default function Calendario() {
         )}
       </section>
 
-      <section className="secao">
-        <button className="btn" onClick={abrirAssinatura} aria-expanded={assinaturaAberta}>
-          {assinaturaAberta ? "Ocultar" : "Assinar em outro app (.ics)"}
-        </button>
-        {assinaturaAberta && feed && (
-          <div className="ficha surgir" style={{ marginTop: "0.75rem", maxWidth: 640 }}>
-            <p className="sub">Assine no iPhone/Mac ou Google Calendar para receber os mesmos vencimentos com lembrete automático.</p>
-            <div className="cal-url">
-              <code>{feed.url}</code>
-              <button className="btn" onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</button>
+      {/* Desktop local: o backend embutido não publica o feed .ics (precisaria
+          de uma URL pública para o outro app assinar). */}
+      {!isDesktopLocal() && (
+        <section className="secao">
+          <button className="btn" onClick={abrirAssinatura} aria-expanded={assinaturaAberta}>
+            {assinaturaAberta ? "Ocultar" : "Assinar em outro app (.ics)"}
+          </button>
+          {assinaturaAberta && feed && (
+            <div className="ficha surgir" style={{ marginTop: "0.75rem", maxWidth: 640 }}>
+              <p className="sub">Assine no iPhone/Mac ou Google Calendar para receber os mesmos vencimentos com lembrete automático.</p>
+              <div className="cal-url">
+                <code>{feed.url}</code>
+                <button className="btn" onClick={copiar}>{copiado ? "Copiado!" : "Copiar"}</button>
+              </div>
+              <div className="linha-form">
+                <a href={feed.webcal} className="btn btn-primario">Assinar no Apple Calendar</a>
+                <button onClick={regenerar} className="btn btn-perigo">Gerar nova URL</button>
+              </div>
+              <p className="cal-aviso">⚠️ Esta URL dá acesso de leitura aos seus vencimentos — trate como senha.</p>
             </div>
-            <div className="linha-form">
-              <a href={feed.webcal} className="btn btn-primario">Assinar no Apple Calendar</a>
-              <button onClick={regenerar} className="btn btn-perigo">Gerar nova URL</button>
-            </div>
-            <p className="cal-aviso">⚠️ Esta URL dá acesso de leitura aos seus vencimentos — trate como senha.</p>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      )}
     </>
   );
 }

@@ -4,6 +4,7 @@ import { api, cadastrar, contaConfigurada, login } from "../api";
 import Logo from "../components/Logo";
 import { IcOk } from "../components/icones";
 import { entrarComPasskey, cadastrarPasskey, temPasskey } from "../passkeys";
+import { isDesktopLocal } from "../plataforma";
 
 type Modo = "carregando" | "login" | "login-mfa" | "login-senha" | "cadastro" | "mfa-qr";
 
@@ -109,7 +110,9 @@ export default function Login() {
   const [secret, setSecret] = useState("");
 
   // passkey: o botão entra primeiro quando há credencial; a senha fica em "Outra forma".
-  const [comPasskey, setComPasskey] = useState<boolean | null>(null);
+  // No desktop não há passkey (o backend local não tem WebAuthn): sempre senha.
+  const desktop = isDesktopLocal();
+  const [comPasskey, setComPasskey] = useState<boolean | null>(desktop ? false : null);
   // Convite pós-cadastro: mensagem do resultado (não erro fatal — o MFA segue).
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
 
@@ -120,7 +123,7 @@ export default function Login() {
       // conta à vista, que é o motivo de o helper distinguir os dois casos.
       setJaTemConta(tem === true);
       setModo(tem === false ? "cadastro" : "login");
-      if (tem !== false) temPasskey().then(setComPasskey).catch(() => setComPasskey(false));
+      if (tem !== false && !desktop) temPasskey().then(setComPasskey).catch(() => setComPasskey(false));
       else setComPasskey(false);
     });
   }, []);
@@ -312,7 +315,9 @@ export default function Login() {
           </div>
           {dicaSenha && (
             <p className="sub" style={{ fontSize: "0.78rem" }}>
-              App pessoal, sem recuperação por e-mail: redefina no servidor com <code>python -m app.setup_user</code>.
+              {desktop
+                ? "App pessoal e local, sem recuperação por e-mail: guarde bem a senha."
+                : <>App pessoal, sem recuperação por e-mail: redefina no servidor com <code>python -m app.setup_user</code>.</>}
             </p>
           )}
         </div>
@@ -334,12 +339,20 @@ export default function Login() {
         <form onSubmit={confirmarAdesaoMfa} style={{ display: "contents" }}>
           <div className="campo" style={{ gap: "0.35rem" }}>
             <h2>Proteja sua conta</h2>
-            <p className="sub">Dois caminhos, nesta ordem: a passkey deste aparelho primeiro (um toque, sem senha), o MFA depois (código do autenticador).</p>
+            <p className="sub">
+              {desktop
+                ? "Ative o MFA: além da senha, o login vai pedir o código do app autenticador."
+                : "Dois caminhos, nesta ordem: a passkey deste aparelho primeiro (um toque, sem senha), o MFA depois (código do autenticador)."}
+            </p>
           </div>
-          <button className="auth-entrar" type="button" onClick={oferecerPasskeyPosCadastro} disabled={ocupado}>
-            Cadastrar passkey neste aparelho
-          </button>
-          {passkeyMsg && <p className="sub">{passkeyMsg}</p>}
+          {!desktop && (
+            <>
+              <button className="auth-entrar" type="button" onClick={oferecerPasskeyPosCadastro} disabled={ocupado}>
+                Cadastrar passkey neste aparelho
+              </button>
+              {passkeyMsg && <p className="sub">{passkeyMsg}</p>}
+            </>
+          )}
           {qr && <img className="auth-qr" src={qr} alt="QR code do autenticador" />}
           <p className="sub" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>Sem câmera? Chave manual: <code>{secret}</code></p>
           <input className="codigo-mfa" inputMode="numeric" placeholder="000000" maxLength={6} required
@@ -363,7 +376,9 @@ export default function Login() {
         <form onSubmit={criarConta} style={{ display: "contents" }}>
           <div className="campo" style={{ gap: "0.35rem" }}>
             <h2>Criar sua conta</h2>
-            <p className="sub">Primeiro acesso: os dados ficam só no seu servidor.</p>
+            <p className="sub">
+              {desktop ? "Primeiro acesso: os dados ficam só neste computador." : "Primeiro acesso: os dados ficam só no seu servidor."}
+            </p>
           </div>
           <div className="campo">
             <label htmlFor="c-nome">Nome</label>

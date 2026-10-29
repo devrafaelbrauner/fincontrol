@@ -8,7 +8,7 @@ const versaoApp = JSON.parse(
   readFileSync(new URL("./package.json", import.meta.url), "utf8"),
 ).version as string;
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: { __APP_VERSION__: JSON.stringify(versaoApp) },
   plugins: [
     tailwindcss(),
@@ -53,9 +53,17 @@ export default defineConfig({
           { name: "Assistente", url: "/assistente" },
         ],
       },
+      // `--mode desktop` (app Tauri): o app já está no disco e não precisa de
+      // service worker nem manifest. Mas builds antigos registraram um sw.js no
+      // perfil do WebView2, que serve o index.html velho e impede o app novo de
+      // rodar (evidencia/sw-antigo.log). Sem sw.js no dist a atualização dele
+      // falha e ele fica para sempre; com este sw.js autodestrutivo, a checagem
+      // de atualização baixa um SW que se desregistra, apaga os caches e
+      // recarrega a janela. Mesmo nome (sw.js), sem registro novo.
+      ...(mode === "desktop" ? { selfDestroying: true, injectRegister: false, manifest: false } as const : {}),
     }),
   ],
   server: {
     proxy: { "/api": "http://localhost:8000" },
   },
-});
+}));
