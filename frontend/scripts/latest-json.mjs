@@ -1,19 +1,22 @@
 /** Gera o `latest.json` do updater do Tauri 2 a partir dos pacotes buildados.
  *
  * O tauri-action sabe fazer isso, mas publica no MESMO repositório do workflow —
- * aqui o código é privado e os binários vão para um repo público. Então o
- * manifesto é montado à mão, apontando para os assets do repo de releases.
+ * o código fica em `fincontrol` e os binários vão para o repo de releases
+ * (`fincontrol-releases`). Então o manifesto é montado à mão, apontando para os
+ * assets do repo de releases.
  *
  * Uso:
  *   node scripts/latest-json.mjs --versao 1.2.0 --tag v1.2.0 \
  *     --repo devrafaelbrauner/fincontrol-releases --dir ./artefatos [--notas "..."]
  *
- * Para cada pacote de atualização (`*.app.tar.gz`, `*.msi.zip`, `*.nsis.zip`)
- * com o `.sig` ao lado, monta a plataforma correspondente. O que não casa vira
- * aviso — melhor falhar alto do que publicar um manifesto sem a plataforma. */
+ * Pacotes de atualização do Tauri 2 (`createUpdaterArtifacts: true`), cada um com
+ * o `.sig` ao lado: `*.app.tar.gz` de aarch64 → `darwin-aarch64`; `*.msi` →
+ * `windows-x86_64` (ou o `*-setup.exe` do NSIS, só se não houver `.msi`). Sem
+ * assinatura vira aviso; faltar `windows-x86_64` ou `darwin-aarch64` encerra com
+ * erro — melhor falhar alto do que publicar um manifesto sem a plataforma. */
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 function argumento(nome) {
   const i = process.argv.indexOf(`--${nome}`);
@@ -45,12 +48,14 @@ function arquivos(base) {
 const todos = arquivos(dir);
 const assets = todos.filter((f) => !f.endsWith(".sig"));
 
+const temMsi = assets.some((f) => f.toLowerCase().endsWith(".msi"));
+
 function plataforma(arquivo) {
   const nome = arquivo.toLowerCase();
-  const ehUpdater = nome.endsWith(".app.tar.gz") || nome.endsWith(".msi.zip") || nome.endsWith(".nsis.zip");
-  if (!ehUpdater) return null;
-  if (nome.endsWith(".app.tar.gz")) return nome.includes("aarch64") ? "darwin-aarch64" : "darwin-x86_64";
-  return "windows-x86_64";
+  if (nome.endsWith(".app.tar.gz")) return nome.includes("aarch64") ? "darwin-aarch64" : null;
+  if (nome.endsWith(".msi")) return "windows-x86_64";
+  if (nome.endsWith("-setup.exe") && !temMsi) return "windows-x86_64";
+  return null;
 }
 
 const plataformas = {};
@@ -62,15 +67,16 @@ for (const arquivo of assets) {
     console.error(`AVISO: ${arquivo} sem assinatura (${sig}); a plataforma ${chave} ficou de fora.`);
     continue;
   }
-  const nome = arquivo.split("/").pop();
+  const nome = basename(arquivo);
   plataformas[chave] = {
     signature: readFileSync(sig, "utf8").trim(),
     url: `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(nome)}`,
   };
 }
 
-if (Object.keys(plataformas).length === 0) {
-  console.error("nenhum pacote de atualização assinado encontrado — latest.json não publicado.");
+const faltando = ["windows-x86_64", "darwin-aarch64"].filter((p) => !plataformas[p]);
+if (faltando.length > 0) {
+  console.error(`plataforma(s) sem pacote de atualização assinado: ${faltando.join(", ")} — latest.json não publicado.`);
   process.exit(1);
 }
 

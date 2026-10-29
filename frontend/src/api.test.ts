@@ -157,8 +157,8 @@ describe("abreviarBRL", () => {
 });
 
 describe("isNativo", () => {
-  // Este arquivo roda em node (sem DOM): `window` não existe aqui. Os casos de
-  // __TAURI__ ficam para teste de browser; aqui vale o ramo Capacitor.
+  // Este arquivo roda em node (sem DOM). O ramo Tauri (global `isTauri`) é
+  // coberto em plataforma.test.ts; aqui vale o ramo Capacitor.
   afterEach(() => vi.unstubAllGlobals());
 
   it("Capacitor nativo dispara o caminho nativo (etapa 1 do plano)", async () => {
