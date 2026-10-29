@@ -66,6 +66,15 @@ delas é compromisso de entrega.
     próximo `Popen` (macOS/Linux);
   - em `test_desktop_modo.py`, o cadastro 201 depende da ordem do módulo (com `-k` dá 409),
     e a ordem import → limpar env → `uvicorn.run` é conferida por `inspect.getsource`.
+- [ ] **Achados não bloqueantes do reinício sem dois backends** (`fincontrol-r6-reinicio/review-code.md`):
+  - um pânico entre `reservar` e guardar o filho deixaria a vaga presa (cada tentativa
+    esperaria 5 s e falharia); um guard que libera no `Drop` fecha isso;
+  - a porta é escolhida antes da espera de até 5 s; reservar antes de `porta_livre`
+    diminui a chance de outro processo pegá-la;
+  - os testes `processo_unico_*` não medem que a espera de fato aconteceu, e `parar` →
+    `liberar` e a ordem dentro de `tentativa` só têm a prova de ponta a ponta.
+  - se `try_wait`/`wait` derem erro no `parar`, a vaga é liberada sem confirmar que o
+    processo saiu (já era assim; no Windows o Job Object cobre). AppSec S3 do r6.
 
 ## Segurança / acesso
 

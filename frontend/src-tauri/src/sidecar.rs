@@ -13,7 +13,7 @@ use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -33,6 +33,8 @@ const PRONTIDAO_INTERVALO: Duration = Duration::from_millis(100);
 const VIGIA_INTERVALO: Duration = Duration::from_millis(250);
 /// Tempo que o sidecar tem para sair sozinho depois do EOF antes do kill.
 const ENCERRAR_LIMITE: Duration = Duration::from_secs(3);
+/// Quanto uma tentativa nova espera o processo anterior ser recolhido.
+const TROCA_LIMITE: Duration = Duration::from_secs(ENCERRAR_LIMITE.as_secs() + 2);
 const LOG_LIMITE: u64 = 5 * 1024 * 1024;
 const CHAVE_SECRET: &str = "backend_secret_key";
 const CHAVE_FERNET: &str = "backend_fernet_key";
@@ -70,12 +72,16 @@ struct Interno {
     geracao: u64,
     reinicios: u32,
     encerrando: bool,
+    /// Um filho foi iniciado e ainda não foi recolhido (vivo ou sendo parado).
+    processo_ativo: bool,
     /// Lidos do cofre uma vez por execução do app (só em memória).
     segredos: Option<(String, String)>,
 }
 
 pub struct Sidecar {
     interno: Mutex<Interno>,
+    /// Avisa quem espera a vaga de `processo_ativo` (par de `interno`).
+    livre: Condvar,
     #[cfg(windows)]
     job: Option<job::Job>,
 }
@@ -98,8 +104,10 @@ impl Sidecar {
                 geracao: 0,
                 reinicios: 0,
                 encerrando: false,
+                processo_ativo: false,
                 segredos: None,
             }),
+            livre: Condvar::new(),
             #[cfg(windows)]
             job: job::Job::novo().ok(),
         }
@@ -131,8 +139,9 @@ impl Sidecar {
             g.sessao = None;
             g.filho.take()
         };
+        self.livre.notify_all();
         if let Some(f) = filho {
-            parar(f);
+            parar(self, f);
         }
     }
 
@@ -148,6 +157,7 @@ impl Sidecar {
         }
         g.sessao = None;
         g.estado = Estado::Iniciando;
+        self.livre.notify_all();
         Some((g.geracao, g.filho.take()))
     }
 
@@ -161,6 +171,40 @@ impl Sidecar {
         g.sessao = sessao;
         true
     }
+
+    /// Reserva a vaga do único processo do backend para `geracao`, esperando até
+    /// `limite` o anterior ser recolhido. Geração obsoleta nunca reserva.
+    fn reservar(&self, geracao: u64, limite: Duration) -> Result<(), Falha> {
+        let prazo = Instant::now() + limite;
+        let mut g = self.travar();
+        loop {
+            if g.geracao != geracao || g.encerrando {
+                return Err(Falha::Obsoleta);
+            }
+            if !g.processo_ativo {
+                g.processo_ativo = true;
+                return Ok(());
+            }
+            let agora = Instant::now();
+            if agora >= prazo {
+                return Err(Falha::Tentativa(format!(
+                    "o backend anterior não encerrou em {} s",
+                    limite.as_secs()
+                )));
+            }
+            g = self
+                .livre
+                .wait_timeout(g, prazo - agora)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+    }
+
+    /// Solta a vaga (processo recolhido ou que nem subiu) e acorda quem espera.
+    fn liberar(&self) {
+        self.travar().processo_ativo = false;
+        self.livre.notify_all();
+    }
 }
 
 /// Sobe o sidecar numa thread própria (a janela abre sem esperar).
@@ -169,7 +213,8 @@ pub fn iniciar(app: AppHandle) {
 }
 
 /// `backend_reiniciar`: para o atual e começa um ciclo novo, com a cota de
-/// reinícios automáticos zerada. Não bloqueia o comando (a parada leva até 3 s).
+/// reinícios automáticos zerada. Não bloqueia o comando (a parada leva até 3 s);
+/// o processo novo só sobe depois de o anterior ser recolhido.
 pub fn reiniciar(app: AppHandle) {
     disparar(app, true);
 }
@@ -181,7 +226,7 @@ fn disparar(app: AppHandle, zerar_reinicios: bool) {
     emitir(&app, &Estado::Iniciando);
     thread::spawn(move || {
         if let Some(f) = antigo {
-            parar(f);
+            parar(&app.state::<Sidecar>(), f);
         }
         ciclo(&app, geracao);
     });
@@ -218,7 +263,7 @@ fn ciclo(app: &AppHandle, geracao: u64) {
             (g.filho.take(), esgotou)
         };
         if let Some(f) = filho {
-            parar(f);
+            parar(&sidecar, f);
         }
         registrar(app, &format!("tentativa falhou: {motivo}"));
         if esgotou {
@@ -263,9 +308,16 @@ fn tentativa(app: &AppHandle, sidecar: &Sidecar, geracao: u64) -> Falha {
         Err(e) => return Falha::Fatal(e),
     };
 
+    // Um processo por vez: espera o anterior ser recolhido (e desiste se obsoleta).
+    if let Err(falha) = sidecar.reservar(geracao, TROCA_LIMITE) {
+        return falha;
+    }
     let mut processo = match spawn(&caminhos, porta) {
         Ok(p) => p,
-        Err(e) => return Falha::Tentativa(format!("falha ao iniciar o backend: {e}")),
+        Err(e) => {
+            sidecar.liberar();
+            return Falha::Tentativa(format!("falha ao iniciar o backend: {e}"));
+        }
     };
     #[cfg(windows)]
     if let Some(job) = &sidecar.job {
@@ -295,7 +347,7 @@ fn tentativa(app: &AppHandle, sidecar: &Sidecar, geracao: u64) -> Falha {
         let mut g = sidecar.travar();
         if g.geracao != geracao || g.encerrando {
             drop(g);
-            parar(Filho { processo, stdin });
+            parar(sidecar, Filho { processo, stdin });
             return Falha::Obsoleta;
         }
         g.filho = Some(Filho { processo, stdin });
@@ -368,19 +420,23 @@ fn saiu(sidecar: &Sidecar, geracao: u64) -> Vigia {
     }
 }
 
-/// EOF no stdin, até `ENCERRAR_LIMITE` para sair sozinho, depois kill.
-fn parar(mut filho: Filho) {
+/// EOF no stdin, até `ENCERRAR_LIMITE` para sair sozinho, depois kill; recolhido
+/// o processo, libera a vaga para o próximo.
+fn parar(sidecar: &Sidecar, mut filho: Filho) {
     drop(filho.stdin.take());
     let limite = Instant::now() + ENCERRAR_LIMITE;
     loop {
         match filho.processo.try_wait() {
-            Ok(Some(_)) => return,
+            Ok(Some(_)) => break,
             Ok(None) if Instant::now() < limite => thread::sleep(Duration::from_millis(50)),
-            _ => break,
+            _ => {
+                let _ = filho.processo.kill();
+                let _ = filho.processo.wait();
+                break;
+            }
         }
     }
-    let _ = filho.processo.kill();
-    let _ = filho.processo.wait();
+    sidecar.liberar();
 }
 
 struct Caminhos {
@@ -696,6 +752,7 @@ mod job {
 #[cfg(test)]
 mod testes {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const NONCE: &str = "00112233445566778899aabbccddeeff";
@@ -721,5 +778,76 @@ mod testes {
         let sem_ok = format!(r#"{{"ok": false, "prova": "{PROVA}"}}"#);
         assert!(!resposta_valida(&sem_ok, TOKEN, NONCE));
         assert!(!resposta_valida(r#"{"ok": true}"#, TOKEN, NONCE));
+    }
+
+    #[test]
+    fn processo_unico_espera_o_processo_anterior() {
+        let sidecar = Sidecar::novo();
+        let (g1, _) = sidecar.nova_geracao(false).unwrap();
+        assert!(sidecar.reservar(g1, Duration::ZERO).is_ok());
+        let (g2, _) = sidecar.nova_geracao(true).unwrap();
+        let liberado = AtomicBool::new(false);
+        thread::scope(|t| {
+            let espera = t.spawn(|| {
+                let reservou = matches!(sidecar.reservar(g2, Duration::from_secs(5)), Ok(()));
+                reservou && liberado.load(Ordering::SeqCst)
+            });
+            thread::sleep(Duration::from_millis(200));
+            liberado.store(true, Ordering::SeqCst);
+            sidecar.liberar();
+            // Só vale se reservou depois de o processo anterior ser recolhido.
+            assert!(espera.join().unwrap());
+        });
+    }
+
+    #[test]
+    fn processo_unico_geracao_obsoleta_nao_reserva() {
+        let sidecar = Sidecar::novo();
+        let (g1, _) = sidecar.nova_geracao(false).unwrap();
+        let (g2, _) = sidecar.nova_geracao(true).unwrap();
+        // Vaga livre, mas a geração já é outra: não sobe processo.
+        assert!(matches!(
+            sidecar.reservar(g1, Duration::from_secs(5)),
+            Err(Falha::Obsoleta)
+        ));
+        assert!(sidecar.reservar(g2, Duration::ZERO).is_ok());
+
+        // Quem espera a vaga desiste na hora com a troca de geração e com `encerrar`.
+        for trocar in [
+            (|s: &Sidecar| {
+                let _ = s.nova_geracao(true);
+            }) as fn(&Sidecar),
+            |s: &Sidecar| s.encerrar(),
+        ] {
+            let (g, _) = sidecar.nova_geracao(true).unwrap();
+            thread::scope(|t| {
+                let espera = t.spawn(|| {
+                    let inicio = Instant::now();
+                    let obsoleta = matches!(
+                        sidecar.reservar(g, Duration::from_secs(5)),
+                        Err(Falha::Obsoleta)
+                    );
+                    (obsoleta, inicio.elapsed())
+                });
+                thread::sleep(Duration::from_millis(100));
+                trocar(&sidecar);
+                let (obsoleta, tempo) = espera.join().unwrap();
+                assert!(obsoleta);
+                assert!(tempo < Duration::from_secs(2), "esperou {tempo:?}");
+            });
+        }
+    }
+
+    #[test]
+    fn processo_unico_espera_tem_limite() {
+        let sidecar = Sidecar::novo();
+        let (g, _) = sidecar.nova_geracao(false).unwrap();
+        assert!(sidecar.reservar(g, Duration::ZERO).is_ok());
+        let inicio = Instant::now();
+        assert!(matches!(
+            sidecar.reservar(g, Duration::from_millis(150)),
+            Err(Falha::Tentativa(_))
+        ));
+        assert!(inicio.elapsed() >= Duration::from_millis(150));
     }
 }

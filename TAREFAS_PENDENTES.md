@@ -118,11 +118,10 @@ antes da 5, H6 na 6.
   `prerelease` em tag com `-`, `http://tauri.localhost` em `ORIGENS_NATIVAS`,
   `isTauri()` sem depender de `window.__TAURI__`. *Mesclado no PR #69 (run
   `fincontrol-r2-f1`; build local Windows gera `.msi`/`-setup.exe` + `.sig`).
-  Falta provar o `.dmg` num Mac (`npm run macos`).* **[SEG] Não criar tag `v*` a
-  partir da `main` entre o merge da etapa 2 e o da 3a**: o sidecar ainda aceita
-  qualquer processo local, sem token. Publicar o cliente da VPS = `versao.sh patch` +
-  tag `v1.2.2` + H1, mas só depois da 3a. *Esta trava cai com o merge do PR do
-  branch `desktop-f3a-guard` (run `fincontrol-r5-f3a`).*
+  Falta provar o `.dmg` num Mac (`npm run macos`).* A trava "sem tag `v*` entre as
+  etapas 2 e 3a" caiu com o merge do PR #72. Publicar o cliente da VPS =
+  `versao.sh patch` + tag `v1.2.2` + H1; uma tag hoje leva um instalador desktop
+  cuja interface só usa o backend local depois da etapa 4.
 - [ ] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
   `TAURI_SIGNING_PRIVATE_KEY` está no `env` do job `build` inteiro e chega aos
   scripts do `npm ci`, às actions de terceiros e aos `build.rs` das crates.
@@ -130,8 +129,8 @@ antes da 5, H6 na 6.
   onedir em `bundle.resources`, `lib.rs`/`sidecar.rs` (porta, token, cofre,
   Job Object, instância única), CSP `127.0.0.1`, `.gitattributes` (hash da CSP).
   *Mesclado no PR #71 (run `fincontrol-r4-f2`).*
-- [ ] **[SEG] 3 — Modo desktop no backend** — *Em andamento no branch
-  `desktop-f3a-guard` (run `fincontrol-r5-f3a`).*
+- [x] **[SEG] 3 — Modo desktop no backend** — *Mesclado no PR #72 (run
+  `fincontrol-r5-f3a`).*
   - [x] `desktop_guard.py` (Host 400, Origin 403, token 401 com `hmac.compare_digest`);
   - [x] CORS só Tauri, sem credenciais e sem cookie; cadastro só com banco vazio
     (409) e atrás do token; passkey/push/calendário/.ics em 404;
@@ -153,9 +152,9 @@ antes da 5, H6 na 6.
 - [ ] **Antes de publicar o modo local** — rodar cada migration numa transação
   (`db.py` grava comando a comando: fechar o app no meio de uma migração deixa o
   banco quebrado); `windows_subsystem = "windows"` no `src-tauri/src/main.rs`
-  (hoje o app abre uma janela de console junto no Windows); `backend_reiniciar`
-  sem dois backends ao mesmo tempo num reinício rápido (`sidecar.rs`), antes da
-  etapa 4.
+  (hoje o app abre uma janela de console junto no Windows); ~~`backend_reiniciar`
+  sem dois backends ao mesmo tempo num reinício rápido (`sidecar.rs`)~~ feito no
+  branch `desktop-reinicio-unico` (run `fincontrol-r6-reinicio`), antes da etapa 4.
 - [ ] **4 — Modo desktop no frontend** — `TelaBackend`, token no `api.ts`, sem
   servidor/passkey/push/.ics, PWA desligada no build desktop.
 - [ ] **5 — Backup no app** — exportar zip, importar zip ou par da VPS, com
