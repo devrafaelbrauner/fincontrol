@@ -19,6 +19,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Download de anexo confina o path com `resolve`/`is_relative_to`.
 - POST de saldo usa `BEGIN IMMEDIATE` e relê o último saldo na transação.
 - PATCH/DELETE de passkey inexistente devolve 404.
+- Dependências atualizadas pelos alertas GHSA que o `npm audit` da CI apontou: `@capacitor/android` e `@capacitor/ios` 8.4.3 (com `capacitor-swift-pm` 8.4.3 no iOS), `vite` 7.3.7 e `source-map-js` 1.2.2.
 
 ### Corrigido
 
