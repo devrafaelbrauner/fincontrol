@@ -1,0 +1,3 @@
+# O hash do script inline na CSP do app desktop é calculado sobre o index.html em LF;
+# um checkout com CRLF (core.autocrlf no Windows) muda o hash e a CSP bloqueia o script.
+frontend/index.html text eol=lf

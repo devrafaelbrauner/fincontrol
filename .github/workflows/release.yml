@@ -67,6 +67,53 @@ jobs:
 
       - run: npm ci
 
+      # Backend embutido (sidecar): PyInstaller onedir em src-tauri/sidecar-dist/, que o
+      # tauri.conf.json leva em bundle.resources. Precisa existir antes do `tauri build`.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-desktop.txt
+
+      - name: Build do backend (PyInstaller)
+        working-directory: .
+        shell: bash
+        run: |
+          python -m pip install -r backend/requirements-desktop.txt
+          pyinstaller backend/desktop.spec --noconfirm --distpath frontend/src-tauri/sidecar-dist --workpath backend/build/pyinstaller
+
+      # Smoke do executável congelado: sobe com segredos descartáveis (gerados aqui, nunca
+      # um secret do repo), espera o /api/health e fecha o stdin, que deve encerrá-lo.
+      - name: Smoke do backend (/api/health)
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe=frontend/src-tauri/sidecar-dist/fincontrol-backend/fincontrol-backend
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          porta=$(python -c "import socket; s = socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1])")
+          dados=$(mktemp -d)
+          command -v cygpath > /dev/null && dados=$(cygpath -m "$dados")  # Windows: caminho nativo para o .exe
+          linha=$(python -c "import base64, json, os, secrets; print(json.dumps({'secret_key': secrets.token_hex(32), 'fernet_key': base64.urlsafe_b64encode(os.urandom(32)).decode(), 'token': secrets.token_hex(32)}))")
+          # O stdin é um pipe que fica aberto até existir "$dados/fim" (sem FIFO: vale no Git Bash).
+          trap 'touch "$dados/fim"' EXIT
+          { echo "$linha"; while [ ! -f "$dados/fim" ]; do sleep 0.1; done; } \
+            | { set +e; FINCONTROL_DATA="$dados/app-data" FINCONTROL_PORTA="$porta" FINCONTROL_AGENDADOR=0 FINCONTROL_MODO=desktop "$exe"; echo "$?" > "$dados/saiu"; } &
+          inicio=$SECONDS
+          until curl -fs "http://127.0.0.1:$porta/api/health" > "$dados/health"; do
+            [ -f "$dados/saiu" ] && { echo "o backend saiu antes de ficar pronto"; exit 1; }
+            [ $((SECONDS - inicio)) -ge 30 ] && { echo "/api/health não respondeu em 30 s"; exit 1; }
+            sleep 0.2
+          done
+          grep -q '"ok":true' "$dados/health"
+          echo "pronto em ~$((SECONDS - inicio)) s"
+          touch "$dados/fim"  # fecha o stdin: o backend tem de sair em até 3 s
+          for _ in $(seq 1 40); do [ -f "$dados/saiu" ] && break; sleep 0.1; done
+          [ -f "$dados/saiu" ] || { echo "o backend não saiu com o EOF do stdin"; exit 1; }
+          echo "sidecar ok: /api/health 200 e saída $(cat "$dados/saiu") com o EOF"
+
       # macOS: `.dmg` para instalar + `*.app.tar.gz` (fonte do updater).
       - name: Build (macOS)
         if: runner.os == 'macOS'

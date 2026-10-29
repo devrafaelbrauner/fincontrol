@@ -35,6 +35,30 @@ delas é compromisso de entrega.
 - [ ] **`useHttpsScheme: true` no Windows (etapa 2)** — tiraria a origin
   `http://tauri.localhost` do CORS; muda a origin e perde o `localStorage`, então
   só vale antes de haver instalação real.
+- [ ] **`@capacitor/core` e `@capacitor/cli` em 8.4.3** — o r3 subiu só
+  `@capacitor/android`/`ios` (e o `capacitor-swift-pm`) para 8.4.3; alinhar o
+  core/cli evita mistura de versões no `cap sync`.
+- [ ] **3 alertas `deepmerge` (baixos, só dev)** — o `npm audit fix` só resolve com
+  `--force` (sobe major de quem depende dele); revisar quando o pacote pai atualizar.
+- [ ] **Comentário obsoleto em `frontend/src-tauri/src/main.rs`** — ainda diz "sem
+  sidecar, sem Python"; desde a etapa 2 o app sobe o backend embutido.
+- [ ] **`index.html` em LF nos checkouts Windows já existentes** — o `.gitattributes`
+  vale para checkouts novos; uma cópia de trabalho antiga segue em CRLF até
+  `git add --renormalize .` ou um novo checkout do arquivo.
+- [ ] **Chave do updater fora do `pip install` da CI** — o `pip install` e o
+  PyInstaller do sidecar rodam no job `build`, que tem `TAURI_SIGNING_PRIVATE_KEY`
+  no `env`; mesma correção do item [SEG] do `TAREFAS_PENDENTES.md` (env só no passo
+  do `tauri build`).
+- [ ] **Sidecar menor** — o onedir tem ~53 MB (768 arquivos); excluir módulos não
+  usados (ex.: `uvloop`/`watchfiles` do `uvicorn[standard]`) reduziria o instalador.
+- [ ] **Achados não bloqueantes da revisão da etapa 2** (`fincontrol-r4-f2/review-code.md`):
+  - `actions/setup-python` fixado por SHA e `pip install --require-hashes` no sidecar;
+  - evento `backend-estado` pode chegar fora de ordem num reinício;
+  - duas threads podem gerar os segredos ao mesmo tempo na 1ª execução;
+  - erro ao podar backups antigos derruba o backend (sem teste);
+  - o teste de porta fora do loopback depende da ordem dos testes;
+  - o smoke da CI não confere o código de saída 0;
+  - a descrição do `Cargo.toml` ainda diz que o app não sobe Python.
 
 ## Segurança / acesso
 

@@ -113,23 +113,41 @@ os dados em app-data. Web/PWA e mobile seguem na VPS. Sem assinatura de código.
 Ordem: 1 → 2 → 3 → 4 → 5 → 6, uma etapa por run. Humanos: H1 antes da 1, H3
 antes da 5, H6 na 6.
 
-- [ ] **1 — CI de release verde** — `src-tauri/build.rs`, `[lib] fincontrol_lib`,
+- [x] **1 — CI de release verde** — `src-tauri/build.rs`, `[lib] fincontrol_lib`,
   `latest-json.mjs` no formato v2 (`.msi`/`-setup.exe` + `.sig`), Mac só arm64,
   `prerelease` em tag com `-`, `http://tauri.localhost` em `ORIGENS_NATIVAS`,
-  `isTauri()` sem depender de `window.__TAURI__`. *Código pronto no branch
-  `desktop-f1-release-ci` (run `fincontrol-r2-f1`; build local Windows gera
-  `.msi`/`-setup.exe` + `.sig`). Falta: provar o `.dmg` num Mac (`npm run macos`)
-  e decidir a publicação — tag `-rc` não serve (`versao.sh` e o MSI só aceitam
-  X.Y.Z); publicar = `versao.sh patch` + tag `v1.2.2` + H1.*
+  `isTauri()` sem depender de `window.__TAURI__`. *Mesclado no PR #69 (run
+  `fincontrol-r2-f1`; build local Windows gera `.msi`/`-setup.exe` + `.sig`).
+  Falta provar o `.dmg` num Mac (`npm run macos`).* **[SEG] Não criar tag `v*` a
+  partir da `main` entre o merge da etapa 2 e o da 3a**: o sidecar ainda aceita
+  qualquer processo local, sem token. Publicar o cliente da VPS = `versao.sh patch` +
+  tag `v1.2.2` + H1, mas só antes do merge da 2 ou depois da 3a.
 - [ ] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
   `TAURI_SIGNING_PRIVATE_KEY` está no `env` do job `build` inteiro e chega aos
   scripts do `npm ci`, às actions de terceiros e aos `build.rs` das crates.
 - [ ] **2 — Sidecar + casca Rust** — `backend/app/desktop.py`, spec PyInstaller
   onedir em `bundle.resources`, `lib.rs`/`sidecar.rs` (porta, token, cofre,
   Job Object, instância única), CSP `127.0.0.1`, `.gitattributes` (hash da CSP).
-- [ ] **3 — Modo desktop no backend** — `desktop_guard.py` (Host/token/Origin),
+  *Em andamento no branch `desktop-f2-sidecar` (run `fincontrol-r4-f2`).*
+- [ ] **[SEG] 3 — Modo desktop no backend** — `desktop_guard.py` (Host/token/Origin),
   CORS sem credenciais, cadastro com banco vazio, passkey/push/.ics em 404,
-  `POST /api/anexos/{id}/abrir`.
+  `POST /api/anexos/{id}/abrir`. A AppSec do r4 acrescenta (`security-report.md`):
+  - guard também no `/api/health`; sem token configurado, não sobe;
+  - `/docs` e OpenAPI desligados;
+  - `proxy_headers=False` no `uvicorn.run`, para o `X-Forwarded-For` não furar o
+    rate limit;
+  - tirar os segredos do `os.environ` depois de lidos, ou abrir arquivo com
+    ambiente limpo;
+  - prontidão que confirme quem responde na porta (nonce/HMAC, ou o sidecar
+    escolhe a porta);
+  - smoke da CI e `test_desktop_boot` com token (200) e sem token (401);
+  - apagar o app-data das instalações de teste da etapa 2.
+- [ ] **Antes de publicar o modo local** — rodar cada migration numa transação
+  (`db.py` grava comando a comando: fechar o app no meio de uma migração deixa o
+  banco quebrado); `windows_subsystem = "windows"` no `src-tauri/src/main.rs`
+  (hoje o app abre uma janela de console junto no Windows); `backend_reiniciar`
+  sem dois backends ao mesmo tempo num reinício rápido (`sidecar.rs`), antes da
+  etapa 4.
 - [ ] **4 — Modo desktop no frontend** — `TelaBackend`, token no `api.ts`, sem
   servidor/passkey/push/.ics, PWA desligada no build desktop.
 - [ ] **5 — Backup no app** — exportar zip, importar zip ou par da VPS, com

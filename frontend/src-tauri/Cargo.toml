@@ -10,9 +10,9 @@ edition = "2021"
 [lib]
 name = "fincontrol_lib"
 
-# Todo o Rust deste crate eh o main minimo do Tauri: a regra de negocio mora no
-# frontend (React) e no backend (FastAPI, remoto via VITE_API_BASE). Este app eh
-# so cliente — nao sobe Python, nao abre banco local.
+# O Rust deste crate eh a casca do Tauri: janela, cofre e o backend embutido
+# (sidecar FastAPI empacotado pelo PyInstaller em bundle.resources, ver
+# src/sidecar.rs). A regra de negocio continua no React e no FastAPI.
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -32,6 +32,19 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Instância única: um segundo clique foca a janela aberta em vez de subir outro
+# sidecar no mesmo banco. 2.4.x é a última linha que aceita tauri 2.11 (a 2.5
+# exige tauri ^2.12, e o CLI npm está fixo em 2.11).
+tauri-plugin-single-instance = "=2.4.5"
+# Token de sessão e segredos do sidecar (gerados no aparelho, guardados no cofre).
+getrandom = "0.3"
+# Chave Fernet = 32 bytes em base64 urlsafe com padding.
+base64 = "0.22"
+
+# Job Object com KILL_ON_JOB_CLOSE: se o app morrer (até `taskkill /F`), o
+# Windows mata o sidecar junto. CREATE_NO_WINDOW vem de System_Threading.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 [features]
 default = ["custom-protocol"]

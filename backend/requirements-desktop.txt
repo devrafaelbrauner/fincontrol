@@ -1,0 +1,5 @@
+# Build do backend embutido no app desktop (sidecar do Tauri) — não instalar na VPS.
+#   .venv/bin/pip install -r requirements-desktop.txt
+#   pyinstaller backend/desktop.spec --noconfirm --distpath frontend/src-tauri/sidecar-dist --workpath backend/build/pyinstaller
+-r requirements.txt
+pyinstaller>=6,<7
