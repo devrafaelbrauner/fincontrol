@@ -49,6 +49,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - CORS: `http://tauri.localhost` (origin do Tauri 2 no Windows) em `ORIGENS_NATIVAS`.
 - `latest.json`: usa os pacotes do updater v2 (`.app.tar.gz`, `.msi`/`-setup.exe` + `.sig`) e falha se faltar Windows ou Mac arm64.
 - `release.yml`: Mac só arm64 (`--bundles app,dmg`); tag com `-` publica como pré-release; publica `-setup.exe` em vez dos `.zip`.
+- Desktop: reiniciar o backend duas vezes seguidas não deixa mais dois processos no mesmo banco; a geração nova espera o processo anterior sair (limite de 5 s) e geração obsoleta não sobe processo (`sidecar.rs`).
 
 ## [1.2.1] — 2026-09-15
 
