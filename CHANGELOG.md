@@ -9,6 +9,12 @@ descrito em [`README.md`](README.md#versionamento).
 
 Correções do code review (auth, If-Match da IA, offline, nativo).
 
+### Adicionado
+
+- Desktop (etapa 2): backend embutido como executável local (`backend/app/desktop.py`, PyInstaller onedir sem UPX via `backend/desktop.spec`). Recebe os segredos e o token numa linha JSON no stdin (nunca no env, argv ou log), escuta só em `127.0.0.1`, sai quando o stdin fecha e copia o banco para `backups/pre-migracao-<versão>-<carimbo>.db` (guarda 5) antes de migração pendente.
+- `release.yml`: Python 3.12 + PyInstaller geram o backend antes do `tauri build`, com smoke do `/api/health` e da saída no EOF do stdin.
+- `.gitattributes`: `frontend/index.html` sempre em LF, para o hash do script inline da CSP valer em checkout Windows.
+
 ### Segurança
 
 - Re-enrolment de MFA exige TOTP vigente ou senha se já houver `totp_secret`.

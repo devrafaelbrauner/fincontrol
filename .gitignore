@@ -16,3 +16,7 @@ macos/FinControl.xcodeproj/
 # Tauri (gerados — recriar com `npm run macos`)
 frontend/src-tauri/target/
 frontend/src-tauri/gen/
+
+# Backend do app desktop (PyInstaller — recriar com backend/desktop.spec)
+frontend/src-tauri/sidecar-dist/
+backend/build/
