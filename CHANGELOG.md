@@ -32,6 +32,11 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Rota desconhecida redireciona para `/`; clique em notificação navega para `data.url`.
 - Configurações: “Sair de todos os aparelhos” chama `POST /api/auth/logout?todos=1`.
 - iOS: `NSFaceIDUsageDescription` e `NSCameraUsageDescription`; Android: `allowBackup=false`.
+- Release desktop: `src-tauri/build.rs` (sem ele o build falhava com `OUT_DIR env var is not set`), `[lib] fincontrol_lib` no `Cargo.toml` e `Cargo.lock` atualizado.
+- Desktop: `isTauri()` usa a detecção oficial do Tauri 2 (`window.__TAURI__` só existe com `withGlobalTauri`).
+- CORS: `http://tauri.localhost` (origin do Tauri 2 no Windows) em `ORIGENS_NATIVAS`.
+- `latest.json`: usa os pacotes do updater v2 (`.app.tar.gz`, `.msi`/`-setup.exe` + `.sig`) e falha se faltar Windows ou Mac arm64.
+- `release.yml`: Mac só arm64 (`--bundles app,dmg`); tag com `-` publica como pré-release; publica `-setup.exe` em vez dos `.zip`.
 
 ## [1.2.1] — 2026-09-15
 

@@ -104,3 +104,39 @@ Trabalho **não commitado** (instrução da sessão). `/verificar` 2026-09-14.
 - [ ] **P1 — POST `/contas-bancarias/{id}/saldos` ainda tem race** — `isolation_level = "IMMEDIATE"` não abre transação no SELECT (Python 3.14: `in_transaction=False` após a leitura). Dois POSTs com `delta_cents` no mesmo segundo leem o mesmo saldo e ambos inserem. Correção: `BEGIN IMMEDIATE` explícito e reler o último saldo *depois* do lock. Encaminhar: `/corrigir`.
 - [ ] **P2 — Sem teste do allowlist de push** — `_endpoint_push_ok` recusa HTTP/SSRF, mas não há teste (http, IP interno, host fora da lista). Encaminhar: `/corrigir`.
 - [ ] **P3 — Commit + push** — 32 arquivos modificados + 2 testes novos, `main` = `origin/main` em `d35a2cf`. Só versionar quando o dono pedir.
+
+# TAREFAS — desktop local (Windows + macOS, sem servidor)
+
+Plano do run NEXUS `fincontrol-r1-desktop` (2026-10-29), perfil `standard`.
+O app desktop passa a levar o backend FastAPI dentro (sidecar PyInstaller), com
+os dados em app-data. Web/PWA e mobile seguem na VPS. Sem assinatura de código.
+Ordem: 1 → 2 → 3 → 4 → 5 → 6, uma etapa por run. Humanos: H1 antes da 1, H3
+antes da 5, H6 na 6.
+
+- [ ] **1 — CI de release verde** — `src-tauri/build.rs`, `[lib] fincontrol_lib`,
+  `latest-json.mjs` no formato v2 (`.msi`/`-setup.exe` + `.sig`), Mac só arm64,
+  `prerelease` em tag com `-`, `http://tauri.localhost` em `ORIGENS_NATIVAS`,
+  `isTauri()` sem depender de `window.__TAURI__`. *Código pronto no branch
+  `desktop-f1-release-ci` (run `fincontrol-r2-f1`; build local Windows gera
+  `.msi`/`-setup.exe` + `.sig`). Falta: provar o `.dmg` num Mac (`npm run macos`)
+  e decidir a publicação — tag `-rc` não serve (`versao.sh` e o MSI só aceitam
+  X.Y.Z); publicar = `versao.sh patch` + tag `v1.2.2` + H1.*
+- [ ] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
+  `TAURI_SIGNING_PRIVATE_KEY` está no `env` do job `build` inteiro e chega aos
+  scripts do `npm ci`, às actions de terceiros e aos `build.rs` das crates.
+- [ ] **2 — Sidecar + casca Rust** — `backend/app/desktop.py`, spec PyInstaller
+  onedir em `bundle.resources`, `lib.rs`/`sidecar.rs` (porta, token, cofre,
+  Job Object, instância única), CSP `127.0.0.1`, `.gitattributes` (hash da CSP).
+- [ ] **3 — Modo desktop no backend** — `desktop_guard.py` (Host/token/Origin),
+  CORS sem credenciais, cadastro com banco vazio, passkey/push/.ics em 404,
+  `POST /api/anexos/{id}/abrir`.
+- [ ] **4 — Modo desktop no frontend** — `TelaBackend`, token no `api.ts`, sem
+  servidor/passkey/push/.ics, PWA desligada no build desktop.
+- [ ] **5 — Backup no app** — exportar zip, importar zip ou par da VPS, com
+  `integrity_check`, cópia antes e teste de restauração local.
+- [ ] **6 — Docs + smoke** — README/CHANGELOG, Windows 11 e Mac arm64 limpos,
+  atualização vN→vN+1 sem perda.
+- [ ] **H1** secret `RELEASES_PAT` (só `contents:write` em `fincontrol-releases`).
+- [ ] **H3** baixar o backup atual da VPS (decifrar `.age` fora do app).
+- [ ] **H5** confirmar as metas N1–N7 do plano.
+- [ ] **H6** smoke em Windows 11 x64 e macOS arm64 limpos.

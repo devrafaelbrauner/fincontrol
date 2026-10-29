@@ -209,6 +209,9 @@ ORIGENS_NATIVAS = (
     # se o preflight do Mac falhar, é aqui que se ajusta (ver etapa 2 do plano).
     "tauri://localhost",      # Tauri production (custom scheme)
     "https://tauri.localhost",  # Tauri production HTTPS fallback
+    # Tauri 2 no Windows (WebView2): `useHttpsScheme` é false por padrão, então
+    # o app é servido em http://tauri.localhost.
+    "http://tauri.localhost",
 )
 
 

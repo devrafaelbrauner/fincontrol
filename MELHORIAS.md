@@ -12,6 +12,29 @@ delas é compromisso de entrega.
   de versão + link do release (sem live-update).
 - [ ] **UI nativa Swift/Kotlin** — se o WebView virar gargalo (scroll, teclado,
   câmera), avaliar telas nativas para login + dashboard, mantendo o resto no web.
+- [ ] **Mac Intel no desktop local** — fora da 1ª versão (só arm64). O GitHub
+  ainda tem `macos-15-intel`, mas é a última imagem Intel (sai em ago/2027).
+- [ ] **Assinatura de código** — Developer ID + notarização (Mac, US$ 99/ano) e
+  Azure Trusted Signing (Windows) tiram os avisos do Gatekeeper/SmartScreen.
+- [ ] **Lembretes como notificação nativa no desktop local** — sem servidor não
+  há push; com o app aberto daria para usar `tauri-plugin-notification`.
+- [ ] **Importar backup `.age` dentro do app** — hoje o plano é decifrar fora.
+- [ ] **`--locked` no `tauri build` da CI** — garante que o `Cargo.lock`
+  versionado é o que vai para o pacote (hoje um lock velho é regerado em silêncio).
+- [ ] **Guardar o job `release` com `if: startsWith(github.ref, 'refs/tags/v')`** —
+  um `workflow_dispatch` num branch publicaria um release com o nome do branch.
+- [ ] **`latest-json.mjs`: falhar quando a plataforma repetir** — dois `.msi` (ex.:
+  cache velho da CI) hoje fazem o último vencer sem aviso. A arquitetura do Mac sai
+  do caminho `aarch64-apple-darwin/`, não do nome do arquivo.
+- [ ] **CI conferir tag × versão** — uma `v1.2.2` sem atualizar `VERSION`/`Cargo.toml`
+  deixaria o app em 1.2.1 e o updater ofereceria a mesma atualização em loop.
+- [ ] **Fixar as actions do workflow por SHA** (16 tags mutáveis, achado do semgrep)
+  e restringir `VITE_API_BASE` ao passo de build.
+- [ ] **`min-release-age` no `frontend/.npmrc`** — esperar alguns dias antes de
+  resolver versões novas de pacotes.
+- [ ] **`useHttpsScheme: true` no Windows (etapa 2)** — tiraria a origin
+  `http://tauri.localhost` do CORS; muda a origin e perde o `localStorage`, então
+  só vale antes de haver instalação real.
 
 ## Segurança / acesso
 

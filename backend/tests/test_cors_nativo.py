@@ -47,6 +47,7 @@ def test_ios_e_android_tem_origens_diferentes():
     assert "https://localhost" in ORIGENS_NATIVAS      # Android
     assert "tauri://localhost" in ORIGENS_NATIVAS
     assert "https://tauri.localhost" in ORIGENS_NATIVAS
+    assert "http://tauri.localhost" in ORIGENS_NATIVAS  # Tauri 2 no Windows (WebView2)
 
 
 # ---------- composição da lista ----------
