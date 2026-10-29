@@ -8,8 +8,9 @@ O app desktop (casca Rust) lança este processo com:
 
 Os segredos vêm pelo stdin, e não pelo env do spawn, porque o ambiente de um processo é
 legível por outros processos do mesmo usuário. Aqui eles vão para `os.environ` ANTES de
-importar `app.main` (`auth.py` e `cripto.py` leem as variáveis na importação/uso) e nunca
-são impressos nem logados.
+importar `app.main` (`auth.py`, `cripto.py` e a guarda do modo desktop os leem na
+importação) e saem do `os.environ` logo depois, para nenhum processo filho (ex.: o
+`os.startfile` do `/api/anexos/{id}/abrir`) herdá-los. Nunca são impressos nem logados.
 
 Antes de o `app.main` rodar `migrate()`, um banco existente com migração pendente é
 copiado (API de backup do SQLite) para `<data>/backups/pre-migracao-<versão>-<carimbo>.db`;
@@ -35,6 +36,7 @@ HOST = "127.0.0.1"
 MANTER_BACKUPS = 5
 TAMANHO_MAX_LINHA = 4096
 CHAVES = frozenset({"secret_key", "fernet_key", "token"})
+SEGREDOS_ENV = ("FINCONTROL_SECRET_KEY", "FINCONTROL_FERNET_KEY", "FINCONTROL_DESKTOP_TOKEN")
 _HEX64 = re.compile(r"[0-9a-fA-F]{64}")
 _FERNET = re.compile(r"[A-Za-z0-9_-]{43}=")
 
@@ -123,6 +125,12 @@ def podar_backups(pasta: Path, manter: int = MANTER_BACKUPS) -> None:
         antiga.unlink(missing_ok=True)
 
 
+def remover_segredos_do_ambiente(env=os.environ) -> None:
+    """Tira os segredos do ambiente depois que o app já os leu (import de `app.main`)."""
+    for chave in SEGREDOS_ENV:
+        env.pop(chave, None)
+
+
 def _vigiar_stdin(fd: int) -> None:
     """EOF no stdin = o app desktop fechou (ou morreu): sai na hora, sem esperar o uvicorn."""
     try:
@@ -183,9 +191,13 @@ def main() -> None:
 
     import uvicorn
 
-    from app.main import app  # roda migrate() na importação
+    from app.main import app  # roda migrate() na importação e lê os segredos
 
-    uvicorn.run(app, host=HOST, port=porta, workers=1, access_log=False, log_level="warning")
+    remover_segredos_do_ambiente()
+    # Sem proxy na frente: X-Forwarded-For/Proto de um cliente local não valem nada
+    # (furariam o rate limit por IP).
+    uvicorn.run(app, host=HOST, port=porta, workers=1, access_log=False, log_level="warning",
+                proxy_headers=False)
 
 
 if __name__ == "__main__":

@@ -59,6 +59,13 @@ delas é compromisso de entrega.
   - o teste de porta fora do loopback depende da ordem dos testes;
   - o smoke da CI não confere o código de saída 0;
   - a descrição do `Cargo.toml` ainda diz que o app não sobe Python.
+- [ ] **Achados não bloqueantes da revisão da etapa 3a** (`fincontrol-r5-f3a/review-code.md`):
+  - o probe do `sidecar.rs` recusa resposta com corpo `chunked` (falha fechado; hoje o
+    guard sempre manda `content-length`);
+  - o `Popen` do `open`/`xdg-open` no `/abrir` não recebe `wait` e fica zumbi até o
+    próximo `Popen` (macOS/Linux);
+  - em `test_desktop_modo.py`, o cadastro 201 depende da ordem do módulo (com `-k` dá 409),
+    e a ordem import → limpar env → `uvicorn.run` é conferida por `inspect.getsource`.
 
 ## Segurança / acesso
 
@@ -68,6 +75,25 @@ delas é compromisso de entrega.
 - [x] **API URL em runtime (nativo)** — 1.2.0: `getApiBase()` resolve
   cofre > `VITE_API_BASE` > same-origin; campo "Servidor" em Configurações e
   tela de primeiro aviso quando não há default bakeado.
+- [ ] **Frontend desktop (etapa 4) sem `credentials: "include"`** — o CORS do modo
+  desktop é `allow_credentials=False`. Um `fetch` com `credentials: "include"` para
+  `127.0.0.1` falha no preflight/resposta (o navegador exige
+  `Access-Control-Allow-Credentials: true`). No desktop, usar `"omit"` e mandar
+  `X-FinControl-Token` + `X-Refresh-Token`. O 401 `token_local` deve reler
+  `backend_info`, e não chamar o `/auth/refresh` nem deslogar.
+- [ ] **Rate limit do desktop é global** — todo pedido vem de `127.0.0.1`, então os
+  tetos por IP (`slowapi`) valem para o app inteiro. Hoje isso é aceitável (um só
+  usuário, token obrigatório); rever se algum teto atrapalhar o uso normal.
+- [ ] **`/abrir` com ambiente explícito no macOS/Linux** — o `Popen` herda o
+  `os.environ` já sem os segredos. Passar um `env` mínimo deixaria isso independente
+  da ordem do `desktop.py`.
+- [ ] **Achados não bloqueantes da AppSec da etapa 3a** (`fincontrol-r5-f3a/security-report.md`):
+  - no Windows o socket do `uvicorn` não usa `SO_EXCLUSIVEADDRUSE`; um processo do mesmo
+    usuário poderia sequestrar a porta com `SO_REUSEADDR`. Correção: socket já com bind
+    e exclusivo, passado em `Server.run(sockets=[s])`;
+  - a prova HMAC do health não amarra a porta: usar `"{porta}:{nonce}"` como mensagem;
+  - o health sem nonce responde 200 sem token (decisão 3 do r5: só Host e Origin);
+    reavaliar se o health passar a revelar algo além de "vivo".
 
 ## Dados / offline
 

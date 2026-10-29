@@ -20,6 +20,9 @@ from .db import get_db
 # Em produção, main.py exige segredos próprios e recusa subir com os defaults.
 ENV = os.environ.get("FINCONTROL_ENV", "dev").strip().lower()
 IS_PROD = ENV in ("production", "prod")
+# App desktop local (sidecar do Tauri): guarda de token/Host/Origin, sem cookie e
+# sem as rotas de servidor. Ver desktop_guard.py e main.py.
+MODO_DESKTOP = os.environ.get("FINCONTROL_MODO", "").strip().lower() == "desktop"
 
 SECRET_KEY_DEFAULT = "dev-insecure-troque-em-producao"
 SECRET_KEY = os.environ.get("FINCONTROL_SECRET_KEY", SECRET_KEY_DEFAULT)
@@ -245,6 +248,10 @@ def _emitir_refresh(db: sqlite3.Connection, substituir_jti: str | None = None) -
 
 
 def _set_cookie(resp: Response, token: str, persistente: bool = True) -> None:
+    # No desktop o cookie não separa por porta: qualquer servidor em 127.0.0.1 o
+    # receberia. O refresh vai só no JSON (o WebView do Tauri é cliente nativo).
+    if MODO_DESKTOP:
+        return
     resp.set_cookie(
         COOKIE_NOME, token,
         max_age=REFRESH_TTL_SEGUNDOS if persistente else None,  # None = cookie de sessão
@@ -286,11 +293,18 @@ def _cliente_nativo(request: Request) -> bool:
 
     A origem é o que decide — `X-Client: native` é um header forjável no web.
     Sem Origin nativa, o refresh fica só no cookie httpOnly."""
+    if MODO_DESKTOP:
+        return True  # só o WebView do app passa pela guarda (token + Origin)
     origin = (request.headers.get("origin") or "").strip()
     if not origin:
         return False
     from .main import ORIGENS_NATIVAS
     return origin in ORIGENS_NATIVAS
+
+
+def _cookie_refresh(request: Request) -> str | None:
+    """Refresh token do cookie httpOnly (web). No desktop não há cookie."""
+    return None if MODO_DESKTOP else request.cookies.get(COOKIE_NOME)
 
 
 @router.get("/status")
@@ -378,7 +392,7 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
 def refresh(request: Request, response: Response, db: sqlite3.Connection = Depends(get_db),
             x_refresh_token: str | None = Header(default=None)):
     # Web: refresh token no cookie httpOnly. Nativo: no header X-Refresh-Token.
-    cookie = request.cookies.get(COOKIE_NOME) or x_refresh_token
+    cookie = _cookie_refresh(request) or x_refresh_token
     if not cookie:
         raise HTTPException(401, "Sem refresh token")
     try:
@@ -462,7 +476,7 @@ def logout(request: Request, response: Response, todos: bool = False,
     """
     # Só quem apresenta um refresh token válido pode revogar as sessões — sem
     # isso a rota seria um DoS não autenticado (derrubar todas as sessões em loop).
-    token = request.cookies.get(COOKIE_NOME) or x_refresh_token
+    token = _cookie_refresh(request) or x_refresh_token
     if token:
         try:
             dados = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])

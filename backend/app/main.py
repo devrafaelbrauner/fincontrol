@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import re
 
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,15 +14,33 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from .auth import COOKIE_SECURE, IS_PROD, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
+from .auth import COOKIE_SECURE, IS_PROD, MODO_DESKTOP, SECRET_KEY, SECRET_KEY_DEFAULT, limiter, require_auth
 from .auth import router as auth_router
 from .db import connect, migrate
+from .desktop_guard import DesktopGuard, origens_desktop
 from .util import ConflitoDeVersao
 from .versao import VERSAO
 from .webauthn_routes import router as webauthn_router
 from .routers import analises, anexos, busca, calendario, categorias, compromissos, contas_bancarias, contas_fixas, dashboard, entradas, ia, metas, orcamentos, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
+_HEX64 = re.compile(r"[0-9a-fA-F]{64}")
+
+
+def _validar_desktop() -> None:
+    """Modo desktop: sem segredos próprios e token de sessão, não sobe (fail closed)."""
+    problemas = []
+    if SECRET_KEY == SECRET_KEY_DEFAULT or len(SECRET_KEY) < 32:
+        problemas.append("FINCONTROL_SECRET_KEY ausente, curta (<32) ou igual ao default")
+    if not os.environ.get("FINCONTROL_FERNET_KEY"):
+        problemas.append("FINCONTROL_FERNET_KEY ausente")
+    if not _HEX64.fullmatch(os.environ.get("FINCONTROL_DESKTOP_TOKEN", "")):
+        problemas.append("FINCONTROL_DESKTOP_TOKEN ausente ou fora de 64 hex")
+    porta = os.environ.get("FINCONTROL_PORTA", "")
+    if not porta.isdigit() or not 1 <= int(porta) <= 65535:
+        problemas.append("FINCONTROL_PORTA ausente ou fora de 1–65535")
+    if problemas:
+        raise RuntimeError("Configuração do modo desktop inválida: " + "; ".join(problemas))
 
 
 def _validar_ambiente() -> None:
@@ -31,6 +50,8 @@ def _validar_ambiente() -> None:
     permitindo forjar JWTs válidos e burlar senha+2FA. Ver deploy/README.md.
     """
     tem_fernet = bool(os.environ.get("FINCONTROL_FERNET_KEY"))
+    if MODO_DESKTOP:
+        _validar_desktop()
     if IS_PROD:
         problemas = []
         if SECRET_KEY == SECRET_KEY_DEFAULT or len(SECRET_KEY) < 32:
@@ -92,10 +113,10 @@ async def lifespan(_app: FastAPI):
                 await tarefa
 
 
-# Em produção o schema/docs da API não ficam expostos.
+# Em produção e no app desktop o schema/docs da API não ficam expostos.
 app = FastAPI(
     title="FinControl API", version=VERSAO, lifespan=lifespan,
-    **({"docs_url": None, "redoc_url": None, "openapi_url": None} if IS_PROD else {}),
+    **({"docs_url": None, "redoc_url": None, "openapi_url": None} if IS_PROD or MODO_DESKTOP else {}),
 )
 
 # Rate limiting (slowapi) — protege o login de brute force.
@@ -225,21 +246,54 @@ def origens_cors(extras: str = "", producao: bool = True) -> list[str]:
     return [*ORIGENS_NATIVAS, *dev, *(o.strip() for o in extras.split(",") if o.strip())]
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origens_cors(os.environ.get("FINCONTROL_CORS_ORIGINS", ""), IS_PROD),
-    allow_credentials=True,  # necessário para o cookie httpOnly de refresh
-    allow_methods=["*"],
-    allow_headers=["*"],
+# Headers que o WebView do app desktop manda (CORS sem curinga nem credenciais).
+HEADERS_DESKTOP = (
+    "X-FinControl-Token", "X-FinControl-Nonce", "X-Refresh-Token", "X-Client",
+    "If-Match", "Authorization", "Content-Type",
 )
 
+if MODO_DESKTOP:
+    # Guarda (Host, Origin, token) POR DENTRO do CORS: o preflight não leva headers
+    # customizados e é respondido pelo CORS; o pedido real passa pela guarda. Token e
+    # porta são lidos aqui, no import: o desktop.py apaga o token do ambiente depois.
+    _desktop_dev = os.environ.get("FINCONTROL_DESKTOP_DEV") == "1"
+    app.add_middleware(
+        DesktopGuard,
+        token=os.environ["FINCONTROL_DESKTOP_TOKEN"],
+        porta=int(os.environ["FINCONTROL_PORTA"]),
+        dev=_desktop_dev,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origens_desktop(_desktop_dev),
+        allow_credentials=False,  # sem cookie no desktop: o refresh vai no X-Refresh-Token
+        allow_methods=["*"],
+        allow_headers=list(HEADERS_DESKTOP),
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origens_cors(os.environ.get("FINCONTROL_CORS_ORIGINS", ""), IS_PROD),
+        allow_credentials=True,  # necessário para o cookie httpOnly de refresh
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# Rotas de servidor ficam fora do app desktop (404): passkey (rpId do domínio), push
+# (VAPID) e calendário (feed .ics público, autenticado só pelo token na URL).
+ROTAS_SO_SERVIDOR = (calendario.router, push.router)
+
 app.include_router(auth_router, prefix="/api")
-app.include_router(webauthn_router, prefix="/api")
+if not MODO_DESKTOP:
+    app.include_router(webauthn_router, prefix="/api")
 for r in (categorias.router, contas_fixas.router, contas_bancarias.router, variaveis.router, entradas.router, metas.router, compromissos.router, dashboard.router, analises.router, busca.router, orcamentos.router, anexos.router, calendario.router, ia.router, push.router):
+    if MODO_DESKTOP and r in ROTAS_SO_SERVIDOR:
+        continue
     app.include_router(r, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Feed .ics é público (autenticado só pelo token secreto na URL) — fora do require_auth e do /api.
-app.include_router(calendario.feed_router)
+if not MODO_DESKTOP:
+    app.include_router(calendario.feed_router)
 
 
 @app.get("/api/health")
@@ -258,10 +312,11 @@ def versao():
 # Serve o frontend buildado quando frontend/dist existe (app nativo macOS e teste
 # local sem Caddy; em produção o Caddy serve o dist diretamente — deploy/Caddyfile).
 # Registrado por último: o feed .ics e o /api têm precedência por ordem de registro.
+# No app desktop quem serve o frontend é a casca Tauri: o backend só responde a API.
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 # Guard em dist/assets (não só dist/): um build interrompido deixaria o dist
 # parcial e o StaticFiles levantaria RuntimeError no boot (restart loop).
-if (DIST / "assets").is_dir():
+if not MODO_DESKTOP and (DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
     # Shell do PWA nunca deve ser cacheado (aponta para os bundles com hash, esses

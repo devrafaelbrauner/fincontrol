@@ -17,6 +17,12 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 
 ### Segurança
 
+- Desktop (etapa 3a, `FINCONTROL_MODO=desktop`): guarda ASGI (`backend/app/desktop_guard.py`) em toda requisição — `Host` diferente de `127.0.0.1:<porta>` dá 400 `host_invalido`, `Origin` fora de `tauri://localhost`/`http://tauri.localhost` dá 403 `origem_invalida` (`http://localhost:1420` só com `FINCONTROL_DESKTOP_DEV=1`), e `X-FinControl-Token` ausente ou errado dá 401 `token_local` (`hmac.compare_digest`). Sem token de 64 hex, Fernet e `SECRET_KEY` ≥ 32, o backend desktop não sobe.
+- Desktop: prova de prontidão sem entregar o token. `GET /api/health` com `X-FinControl-Nonce` (32 hex) devolve `HMAC-SHA256(token, nonce)`, e a casca só marca `pronto` se a prova confere; o health deixa de receber o token.
+- Desktop: CORS só das origens Tauri, sem credenciais e com headers explícitos; sem cookie de refresh; `/docs`, `/redoc` e OpenAPI desligados; passkey, push, calendário e feed `.ics` não montados (404); o backend não serve o `frontend/dist`.
+- Desktop: segredos saem do `os.environ` logo depois de o app importar (`cripto.py` resolve a chave Fernet uma vez, no import) e o `uvicorn` sobe com `proxy_headers=False` (`X-Forwarded-For` não fura mais o rate limit).
+- Desktop: `POST /api/anexos/{id}/abrir` abre o anexo no app padrão do sistema, só com login, só dentro de `uploads/` e só com extensão aceita (204). A rota não existe fora do desktop.
+- `release.yml`: o smoke do backend congelado confere a prova HMAC do health, 401 sem token e 200 com token.
 - Re-enrolment de MFA exige TOTP vigente ou senha se já houver `totp_secret`.
 - `setup_user` bumpa `refresh_version` e apaga `refresh_tokens` após gravar senha/2FA.
 - `refresh_token` no JSON só sai se a Origin estiver em `ORIGENS_NATIVAS` (`X-Client` sozinho não basta).

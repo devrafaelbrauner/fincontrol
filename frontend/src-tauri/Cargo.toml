@@ -40,6 +40,10 @@ tauri-plugin-single-instance = "=2.4.5"
 getrandom = "0.3"
 # Chave Fernet = 32 bytes em base64 urlsafe com padding.
 base64 = "0.22"
+# Prova de prontidão do sidecar: HMAC-SHA256(token, nonce) devolvido pelo
+# /api/health, sem o token trafegar no pedido.
+hmac = "0.12"
+sha2 = "0.10"
 
 # Job Object com KILL_ON_JOB_CLOSE: se o app morrer (até `taskkill /F`), o
 # Windows mata o sidecar junto. CREATE_NO_WINDOW vem de System_Threading.
