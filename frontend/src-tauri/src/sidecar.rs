@@ -18,7 +18,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
+use hmac::{Hmac, Mac};
 use serde::Serialize;
+use sha2::Sha256;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::SERVICO;
@@ -435,6 +437,11 @@ fn spawn(caminhos: &Caminhos, porta: u16) -> std::io::Result<Child> {
         .env("FINCONTROL_MODO", "desktop")
         .current_dir(&caminhos.dados)
         .stdin(Stdio::piped());
+    // Build de debug: o webview vem do Vite (`http://localhost:1420`), origem
+    // que o guard do backend só aceita com esta flag.
+    if cfg!(debug_assertions) {
+        cmd.env("FINCONTROL_DESKTOP_DEV", "1");
+    }
 
     match caminhos.log.as_deref().and_then(|p| abrir_log(p, porta).ok()) {
         Some(saida) => {
@@ -485,8 +492,15 @@ fn porta_livre() -> std::io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-/// GET simples em `/api/health`: 200 com `{"ok": true}`.
+/// `GET /api/health` com um nonce novo: pronto só com 200, `ok == true` e
+/// `prova` == HMAC-SHA256(token, nonce). O token nunca vai no pedido: quem
+/// ocupasse a porta não o aprende, e sem ele não forja a prova.
 fn saudavel(porta: u16, token: &str) -> bool {
+    let mut aleatorio = [0u8; 16];
+    if getrandom::fill(&mut aleatorio).is_err() {
+        return false;
+    }
+    let nonce = hex(&aleatorio);
     let endereco = SocketAddr::from((Ipv4Addr::LOCALHOST, porta));
     // Porta fechada no Windows demora ~1 s para recusar: timeout curto.
     let Ok(mut conexao) = TcpStream::connect_timeout(&endereco, Duration::from_millis(150)) else {
@@ -494,9 +508,8 @@ fn saudavel(porta: u16, token: &str) -> bool {
     };
     let _ = conexao.set_read_timeout(Some(Duration::from_secs(2)));
     let _ = conexao.set_write_timeout(Some(Duration::from_secs(2)));
-    // O token já vai no header: a etapa 3a passa a exigi-lo em toda rota.
     let pedido = format!(
-        "GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:{porta}\r\nX-FinControl-Token: {token}\r\nConnection: close\r\n\r\n"
+        "GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:{porta}\r\nX-FinControl-Nonce: {nonce}\r\nConnection: close\r\n\r\n"
     );
     if conexao.write_all(pedido.as_bytes()).is_err() {
         return false;
@@ -513,8 +526,19 @@ fn saudavel(porta: u16, token: &str) -> bool {
         .lines()
         .next()
         .is_some_and(|l| l.split_whitespace().nth(1) == Some("200"));
-    let corpo: String = corpo.chars().filter(|c| !c.is_whitespace()).collect();
-    status_ok && corpo.contains("\"ok\":true")
+    status_ok && resposta_valida(corpo, token, &nonce)
+}
+
+/// Corpo `{"ok": true, "prova": "<hex>"}` com a prova certa para `nonce`.
+fn resposta_valida(corpo: &str, token: &str, nonce: &str) -> bool {
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(corpo.trim()) else {
+        return false;
+    };
+    json.get("ok") == Some(&serde_json::Value::Bool(true))
+        && json
+            .get("prova")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|prova| prova_valida(token, nonce, prova))
 }
 
 /// SECRET_KEY e FERNET_KEY do cofre. Gera e grava só quando a entrada não existe
@@ -558,11 +582,49 @@ fn segredo_do_cofre(
 fn aleatorio_hex() -> Result<String, String> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|e| format!("gerador aleatório: {e}"))?;
-    Ok(bytes.iter().fold(String::with_capacity(64), |mut s, b| {
-        use std::fmt::Write as _;
-        let _ = write!(s, "{b:02x}");
-        s
-    }))
+    Ok(hex(&bytes))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+            use std::fmt::Write as _;
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+}
+
+/// Hex minúsculo -> bytes; `None` para tamanho ímpar ou caractere fora de `[0-9a-f]`.
+fn de_hex(texto: &str) -> Option<Vec<u8>> {
+    fn nibble(c: u8) -> Option<u8> {
+        match c {
+            b'0'..=b'9' => Some(c - b'0'),
+            b'a'..=b'f' => Some(c - b'a' + 10),
+            _ => None,
+        }
+    }
+    let (pares, resto) = texto.as_bytes().as_chunks::<2>();
+    if !resto.is_empty() {
+        return None;
+    }
+    pares
+        .iter()
+        .map(|[alto, baixo]| Some(nibble(*alto)? << 4 | nibble(*baixo)?))
+        .collect()
+}
+
+/// `prova` == HMAC-SHA256(chave = token, msg = nonce) em hex minúsculo,
+/// comparada em tempo constante (`verify_slice`).
+fn prova_valida(token: &str, nonce: &str, prova: &str) -> bool {
+    let Some(recebida) = de_hex(prova) else {
+        return false;
+    };
+    let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(token.as_bytes()) else {
+        return false;
+    };
+    mac.update(nonce.as_bytes());
+    mac.verify_slice(&recebida).is_ok()
 }
 
 #[cfg(windows)]
@@ -628,5 +690,36 @@ mod job {
                 CloseHandle(self.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod testes {
+    use super::*;
+
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const NONCE: &str = "00112233445566778899aabbccddeeff";
+    // hmac.new(TOKEN.encode(), NONCE.encode(), "sha256").hexdigest() no Python.
+    const PROVA: &str = "030ffc11ec49be148af4e692ad06ac01633f5fcae141bab99873e78ab06db975";
+
+    #[test]
+    fn prova_confere_com_hmac_do_python() {
+        assert!(prova_valida(TOKEN, NONCE, PROVA));
+        let corpo = format!(r#"{{"ok": true, "prova": "{PROVA}"}}"#);
+        assert!(resposta_valida(&corpo, TOKEN, NONCE));
+    }
+
+    #[test]
+    fn prova_errada_e_recusada() {
+        let trocada = format!("{}0", &PROVA[..63]);
+        assert!(!prova_valida(TOKEN, NONCE, &trocada));
+        assert!(!prova_valida(TOKEN, NONCE, &PROVA.to_uppercase()));
+        assert!(!prova_valida(TOKEN, NONCE, &PROVA[..62]));
+        assert!(!prova_valida(TOKEN, NONCE, ""));
+        assert!(!prova_valida(TOKEN, "ffeeddccbbaa99887766554433221100", PROVA));
+        assert!(!prova_valida(&TOKEN.replace('0', "1"), NONCE, PROVA));
+        let sem_ok = format!(r#"{{"ok": false, "prova": "{PROVA}"}}"#);
+        assert!(!resposta_valida(&sem_ok, TOKEN, NONCE));
+        assert!(!resposta_valida(r#"{"ok": true}"#, TOKEN, NONCE));
     }
 }

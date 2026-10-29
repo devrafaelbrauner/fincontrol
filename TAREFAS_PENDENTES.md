@@ -121,27 +121,35 @@ antes da 5, H6 na 6.
   Falta provar o `.dmg` num Mac (`npm run macos`).* **[SEG] Não criar tag `v*` a
   partir da `main` entre o merge da etapa 2 e o da 3a**: o sidecar ainda aceita
   qualquer processo local, sem token. Publicar o cliente da VPS = `versao.sh patch` +
-  tag `v1.2.2` + H1, mas só antes do merge da 2 ou depois da 3a.
+  tag `v1.2.2` + H1, mas só depois da 3a. *Esta trava cai com o merge do PR do
+  branch `desktop-f3a-guard` (run `fincontrol-r5-f3a`).*
 - [ ] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
   `TAURI_SIGNING_PRIVATE_KEY` está no `env` do job `build` inteiro e chega aos
   scripts do `npm ci`, às actions de terceiros e aos `build.rs` das crates.
-- [ ] **2 — Sidecar + casca Rust** — `backend/app/desktop.py`, spec PyInstaller
+- [x] **2 — Sidecar + casca Rust** — `backend/app/desktop.py`, spec PyInstaller
   onedir em `bundle.resources`, `lib.rs`/`sidecar.rs` (porta, token, cofre,
   Job Object, instância única), CSP `127.0.0.1`, `.gitattributes` (hash da CSP).
-  *Em andamento no branch `desktop-f2-sidecar` (run `fincontrol-r4-f2`).*
-- [ ] **[SEG] 3 — Modo desktop no backend** — `desktop_guard.py` (Host/token/Origin),
-  CORS sem credenciais, cadastro com banco vazio, passkey/push/.ics em 404,
-  `POST /api/anexos/{id}/abrir`. A AppSec do r4 acrescenta (`security-report.md`):
-  - guard também no `/api/health`; sem token configurado, não sobe;
-  - `/docs` e OpenAPI desligados;
-  - `proxy_headers=False` no `uvicorn.run`, para o `X-Forwarded-For` não furar o
+  *Mesclado no PR #71 (run `fincontrol-r4-f2`).*
+- [ ] **[SEG] 3 — Modo desktop no backend** — *Em andamento no branch
+  `desktop-f3a-guard` (run `fincontrol-r5-f3a`).*
+  - [x] `desktop_guard.py` (Host 400, Origin 403, token 401 com `hmac.compare_digest`);
+  - [x] CORS só Tauri, sem credenciais e sem cookie; cadastro só com banco vazio
+    (409) e atrás do token; passkey/push/calendário/.ics em 404;
+  - [x] `POST /api/anexos/{id}/abrir` (só desktop, só `uploads/`, só tipos aceitos).
+
+  A AppSec do r4 acrescenta (`security-report.md`):
+  - [x] guarda também no `/api/health` (Host e Origin; o token fica de fora para a
+    prova abaixo); sem token de 64 hex, Fernet e `SECRET_KEY` ≥ 32, não sobe;
+  - [x] `/docs`, `/redoc` e OpenAPI desligados;
+  - [x] `proxy_headers=False` no `uvicorn.run`, para o `X-Forwarded-For` não furar o
     rate limit;
-  - tirar os segredos do `os.environ` depois de lidos, ou abrir arquivo com
-    ambiente limpo;
-  - prontidão que confirme quem responde na porta (nonce/HMAC, ou o sidecar
-    escolhe a porta);
-  - smoke da CI e `test_desktop_boot` com token (200) e sem token (401);
-  - apagar o app-data das instalações de teste da etapa 2.
+  - [x] segredos fora do `os.environ` depois do import do app (`cripto.py` lê a
+    chave Fernet uma vez);
+  - [x] prontidão por nonce/HMAC: `/api/health` devolve `HMAC-SHA256(token, nonce)`
+    e a casca (`sidecar.rs`) confere a prova sem mandar o token;
+  - [x] smoke da CI e `test_desktop_boot` com token (200), sem token (401) e prova;
+  - [x] app-data, logs e credenciais `backend_*` dos smokes das etapas 2 e 3a apagados no PC
+    (`%APPDATA%`/`%LOCALAPPDATA%\com.rafaelbrauner.fincontrol`, `cmdkey /delete`).
 - [ ] **Antes de publicar o modo local** — rodar cada migration numa transação
   (`db.py` grava comando a comando: fechar o app no meio de uma migração deixa o
   banco quebrado); `windows_subsystem = "windows"` no `src-tauri/src/main.rs`

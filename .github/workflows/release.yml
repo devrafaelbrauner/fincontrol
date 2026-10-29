@@ -85,8 +85,10 @@ jobs:
           pyinstaller backend/desktop.spec --noconfirm --distpath frontend/src-tauri/sidecar-dist --workpath backend/build/pyinstaller
 
       # Smoke do executável congelado: sobe com segredos descartáveis (gerados aqui, nunca
-      # um secret do repo), espera o /api/health e fecha o stdin, que deve encerrá-lo.
-      - name: Smoke do backend (/api/health)
+      # um secret do repo), espera o /api/health, confere a prova HMAC do nonce (o health
+      # nunca recebe o token), 401 sem o token local e 200 com ele, e fecha o stdin, que
+      # deve encerrá-lo.
+      - name: Smoke do backend (/api/health, prova e token)
         working-directory: .
         shell: bash
         run: |
@@ -109,10 +111,20 @@ jobs:
           done
           grep -q '"ok":true' "$dados/health"
           echo "pronto em ~$((SECONDS - inicio)) s"
+          # `end=''`: no Windows o print sairia com \r\n, e o \r grudaria no valor capturado.
+          token=$(python -c "import json, sys; print(json.loads(sys.argv[1])['token'], end='')" "$linha")
+          nonce=$(python -c "import secrets; print(secrets.token_hex(16), end='')")
+          curl -fs -H "X-FinControl-Nonce: $nonce" "http://127.0.0.1:$porta/api/health" > "$dados/prova"
+          python -c "import hashlib, hmac, json, sys; corpo = json.load(open(sys.argv[3])); esperado = hmac.new(sys.argv[1].encode(), sys.argv[2].encode(), hashlib.sha256).hexdigest(); sys.exit(0 if corpo == {'ok': True, 'prova': esperado} else 'a prova do /api/health não confere')" "$token" "$nonce" "$dados/prova"
+          sem_token=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$porta/api/auth/status")
+          [ "$sem_token" = "401" ] || { echo "/api/auth/status sem token: $sem_token (esperado 401)"; exit 1; }
+          com_token=$(curl -s -o /dev/null -w '%{http_code}' -H "X-FinControl-Token: $token" "http://127.0.0.1:$porta/api/auth/status")
+          [ "$com_token" = "200" ] || { echo "/api/auth/status com token: $com_token (esperado 200)"; exit 1; }
+          echo "guarda ok: prova HMAC confere, 401 sem token e 200 com token"
           touch "$dados/fim"  # fecha o stdin: o backend tem de sair em até 3 s
           for _ in $(seq 1 40); do [ -f "$dados/saiu" ] && break; sleep 0.1; done
           [ -f "$dados/saiu" ] || { echo "o backend não saiu com o EOF do stdin"; exit 1; }
-          echo "sidecar ok: /api/health 200 e saída $(cat "$dados/saiu") com o EOF"
+          echo "sidecar ok: /api/health 200 com prova, token exigido e saída $(cat "$dados/saiu") com o EOF"
 
       # macOS: `.dmg` para instalar + `*.app.tar.gz` (fonte do updater).
       - name: Build (macOS)

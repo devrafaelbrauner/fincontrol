@@ -1,11 +1,14 @@
 import hashlib
+import os
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
-from ..auth import limiter
+from ..auth import MODO_DESKTOP, limiter
 from ..db import DATA_DIR, get_db
 
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -119,3 +122,34 @@ def excluir(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
             return {"ok": True}
         caminho.unlink(missing_ok=True)
     return {"ok": True}
+
+
+def _abrir_no_sistema(caminho: Path) -> None:
+    """Abre o arquivo no app padrão do sistema. Lista de argv, sem shell."""
+    if sys.platform == "win32":
+        os.startfile(caminho)  # type: ignore[attr-defined]  # noqa: S606
+        return
+    comando = "open" if sys.platform == "darwin" else "xdg-open"
+    subprocess.Popen(  # noqa: S603
+        [comando, str(caminho)],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True,
+    )
+
+
+def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db)) -> Response:
+    """App desktop: abre o anexo no visualizador do sistema (só tipos aceitos, só em uploads/)."""
+    row = db.execute("SELECT caminho_arquivo FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Anexo não encontrado")
+    caminho = _caminho_confinado(row["caminho_arquivo"])
+    if caminho.suffix not in EXTENSAO_PARA_CONTENT_TYPE:
+        raise HTTPException(400, "Tipo de anexo não permitido")
+    if not caminho.is_file():
+        raise HTTPException(404, "Arquivo não encontrado no disco")
+    _abrir_no_sistema(caminho)
+    return Response(status_code=204)
+
+
+# Só existe no app desktop: no servidor, "abrir no sistema" abriria na máquina da VPS.
+if MODO_DESKTOP:
+    router.add_api_route("/{anexo_id}/abrir", abrir, methods=["POST"], status_code=204, response_class=Response)

@@ -11,6 +11,7 @@ sys.path.insert(0, str(RAIZ))
 os.environ["FINCONTROL_DATA"] = tempfile.mkdtemp(prefix="fincontrol-testes-")
 os.environ["FINCONTROL_SECRET_KEY"] = "chave-de-teste-" + "0" * 40
 os.environ.pop("FINCONTROL_ENV", None)  # os testes rodam no modo dev
+os.environ.pop("FINCONTROL_MODO", None)  # e fora do modo desktop (test_desktop_modo sobe o seu)
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

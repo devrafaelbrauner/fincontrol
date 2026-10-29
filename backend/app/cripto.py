@@ -4,6 +4,10 @@ A master key vive em variável de ambiente (FINCONTROL_FERNET_KEY), fora do repo
 do banco. Para dev, se não estiver setada, deriva-se de FINCONTROL_SECRET_KEY —
 assim o app roda localmente sem configuração extra, mas produção deve definir uma
 chave própria e estável (trocá-la torna as chaves já salvas ilegíveis).
+
+A chave é resolvida uma vez, na importação: o app desktop apaga as variáveis do
+`os.environ` logo depois de importar o app (desktop.py), para que nenhum processo
+filho (ex.: `os.startfile` do /abrir) herde os segredos.
 """
 
 import base64
@@ -22,8 +26,11 @@ def _master_key() -> bytes:
     return base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
 
 
+_MASTER_KEY = _master_key()
+
+
 def _fernet() -> Fernet:
-    return Fernet(_master_key())
+    return Fernet(_MASTER_KEY)
 
 
 def criptografar(valor: str) -> str:

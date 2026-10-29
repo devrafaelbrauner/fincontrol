@@ -1,11 +1,15 @@
 """Boot do backend embutido no app desktop (`python -m app.desktop`, do código-fonte).
 
 Exercita o contrato com a casca Rust: segredos numa linha JSON no stdin, bind só em
-127.0.0.1, `/api/health` pronto, EOF no stdin encerrando o processo, segredos fora da
-saída e do app-data, e a cópia do banco antes de migração pendente (guarda 5).
+127.0.0.1, `/api/health` pronto (e a prova HMAC do nonce), 401 sem o token local e 200
+com ele, EOF no stdin encerrando o processo, segredos fora da saída e do app-data, e a
+cópia do banco antes de migração pendente (guarda 5).
 O executável congelado (PyInstaller) passa pelo mesmo smoke na CI (release.yml).
 """
 
+import hashlib
+import hmac
+import http.client
 import json
 import os
 import re
@@ -34,6 +38,18 @@ def _porta_livre() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def pedir(porta: int, metodo: str, caminho: str, headers: dict | None = None,
+          corpo: bytes | None = None) -> tuple[int, dict[str, str], bytes]:
+    """Requisição crua com `Host: 127.0.0.1:<porta>` (o que a guarda do desktop exige)."""
+    conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=5)
+    try:
+        conn.request(metodo, caminho, body=corpo, headers={"Host": f"127.0.0.1:{porta}", **(headers or {})})
+        r = conn.getresponse()
+        return r.status, {k.lower(): v for k, v in r.getheaders()}, r.read()
+    finally:
+        conn.close()
 
 
 def _segredos() -> dict[str, str]:
@@ -142,6 +158,24 @@ def test_porta_nao_escuta_fora_do_loopback(no_ar):
         pytest.skip("nenhum IP local fora do loopback nesta máquina")
     with pytest.raises(OSError):
         socket.create_connection((ip, no_ar.porta), timeout=2).close()
+
+
+def test_health_prova_o_token_sem_entrega_lo(no_ar):
+    nonce = secrets.token_hex(16)
+    status, _, corpo = pedir(no_ar.porta, "GET", "/api/health", {"X-FinControl-Nonce": nonce})
+    assert status == 200
+    esperado = hmac.new(no_ar.segredos["token"].encode(), nonce.encode(), hashlib.sha256).hexdigest()
+    assert json.loads(corpo) == {"ok": True, "prova": esperado}
+    assert no_ar.segredos["token"].encode() not in corpo
+
+
+def test_sem_token_401_e_com_token_200(no_ar):
+    status, _, corpo = pedir(no_ar.porta, "GET", "/api/auth/status")
+    assert status == 401
+    assert json.loads(corpo) == {"detail": "token_local"}
+    status, _, corpo = pedir(no_ar.porta, "GET", "/api/auth/status", {"X-FinControl-Token": no_ar.segredos["token"]})
+    assert status == 200
+    assert json.loads(corpo) == {"configurado": False}
 
 
 def test_eof_no_stdin_encerra_em_ate_3s(no_ar):
