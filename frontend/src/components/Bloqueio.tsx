@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { autenticarBiometrico } from "../nativo/biometria";
+import { isTauriMac } from "../plataforma";
 import Logo from "./Logo";
 
 /** Tela de bloqueio: pede a biometria antes de mostrar qualquer dado.
@@ -16,7 +17,8 @@ export default function Bloqueio({ aoDesbloquear, aoFalhar }: {
 
   async function tentar() {
     setTentando(true);
-    const ok = await autenticarBiometrico("desbloquear o FinControl");
+    // O macOS prefixa "FinControl está tentando"; Windows Hello, iOS e Android mostram o motivo sozinho.
+    const ok = await autenticarBiometrico(isTauriMac() ? "desbloquear o FinControl" : "Desbloqueie o FinControl");
     if (!montado.current) return;
     setTentando(false);
     if (ok) aoDesbloquear();

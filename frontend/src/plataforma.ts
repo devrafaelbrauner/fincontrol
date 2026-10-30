@@ -21,6 +21,13 @@ export function isDesktopLocal(): boolean {
   return isTauri();
 }
 
+/** App Tauri no macOS, onde o prompt do Touch ID prefixa "FinControl está
+ *  tentando" ao motivo. Exige o Tauri: o iPadOS em modo desktop também diz
+ *  "Macintosh" no user agent. */
+export function isTauriMac(): boolean {
+  return isTauri() && /Macintosh/.test(navigator.userAgent);
+}
+
 export function isCapacitorNativo(): boolean {
   try {
     return Capacitor.isNativePlatform();

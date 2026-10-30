@@ -55,6 +55,16 @@ describe("gate da carga da página (abertura a frio)", () => {
     expect(bloquearNaCarga(true, 1_000_000 + VALIDADE_LOGIN_POR_SENHA_MS)).toBe(true);
   });
 
+  it("marca no futuro não vale: tranca", () => {
+    marcarLoginPorSenha(1_000_000 + 5000);
+    expect(bloquearNaCarga(true, 1_000_000)).toBe(true);
+  });
+
+  it("valor lixo na marca não vale: tranca", () => {
+    sessionStorage.setItem("fincontrol.login_por_senha", "lixo");
+    expect(bloquearNaCarga(true, 1_000_000)).toBe(true);
+  });
+
   it("a marca não sobrevive ao app fechado e reaberto", () => {
     marcarLoginPorSenha(1_000_000);
     vi.stubGlobal("sessionStorage", sessionStorageFalso());
@@ -65,5 +75,13 @@ describe("gate da carga da página (abertura a frio)", () => {
     marcarLoginPorSenha(1_000_000);
     expect(bloquearNaCarga(false, 1_000_000 + 1000)).toBe(false);
     expect(bloquearNaCarga(true, 1_000_000 + 2000)).toBe(true);
+  });
+
+  it("storage indisponível: gravar não quebra e a carga decide como sem marca", () => {
+    const indisponivel = () => { throw new Error("storage indisponível"); };
+    vi.stubGlobal("sessionStorage", { getItem: indisponivel, setItem: indisponivel, removeItem: indisponivel });
+    expect(() => marcarLoginPorSenha(1_000_000)).not.toThrow();
+    expect(bloquearNaCarga(true, 1_000_000 + 1000)).toBe(true);
+    expect(bloquearNaCarga(false, 1_000_000 + 1000)).toBe(false);
   });
 });

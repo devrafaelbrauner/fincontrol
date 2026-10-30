@@ -58,6 +58,10 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Desktop: a barra offline diz "O FinControl está reiniciando — mostrando dados salvos…" e "… aguardando o FinControl voltar." durante o reinício do backend local, em vez de "Sem conexão"; web e Capacitor sem mudança. Acabamento: o caminho da pasta de dados quebra sem cortar palavra, "Tentar de novo" vira "Tentando de novo…" durante o reinício e o título da falha fica equilibrado em duas linhas.
 - Bloqueio biométrico (desktop e nativo): o login por senha (inclusive cadastro + "Pular por enquanto" e confirmação do MFA) não é mais seguido da tela "FinControl bloqueado", e o "Entrar com senha" do bloqueio deixa de voltar em laço. O login grava uma marca de uso único na `sessionStorage` (vale 30 s) que a carga seguinte consome; abertura a frio de verdade e resume após 5 min continuam trancando (run `fincontrol-r10-mac`).
 - macOS: o prompt do Touch ID lê "FinControl está tentando desbloquear o FinControl." (o motivo ia no imperativo).
+- Fora do macOS, o prompt da biometria volta a ser uma frase completa: "Desbloqueie o FinControl" no Windows Hello, no iOS e no Android, que mostram o motivo sozinho; no Mac segue "FinControl está tentando desbloquear o FinControl." (run `fincontrol-r11-achados`).
+- Bloqueio biométrico: a tela do MFA esquecida no fundo por mais de 5 min depois do cadastro agora pede a biometria ao voltar (antes, "Pular por enquanto" abria o app sem ela); cadastro + "Pular" logo em seguida continua abrindo sem bloqueio.
+- Desktop: o `backend.log` (e o `backend.log.1` da rotação) passa a ficar em `<pasta de dados>/logs/`, a pasta que "Abrir pasta de dados" mostra. Logs antigos ficam no lugar velho (`~/Library/Logs/...`, `%LOCALAPPDATA%\...\logs`). No Windows, a pasta de dados fica no perfil Roaming (`%APPDATA%`).
+- Boot: `sessionStorage` indisponível não derruba mais a abertura; sem storage não há marca de login por senha, e a carga tranca se houver sessão e biometria.
 
 ## [1.2.1] — 2026-09-15
 

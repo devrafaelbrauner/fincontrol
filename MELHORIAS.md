@@ -93,18 +93,18 @@ delas é compromisso de entrega.
   - as frases do desktop na `OfflineBar` não têm teste unitário (só print), e a pasta
     temporária dos testes `limpeza_sw_*` fica para trás se um assert falhar.
 - [ ] **Achados não bloqueantes da run r10 (provas no Mac)** (`fincontrol-r10-mac/qa/*.md`):
-  - logs em `app_log_dir` (`~/Library/Logs/...`, `%LOCALAPPDATA%`) e não na pasta que
-    "Abrir pasta" mostra (`backendLocal.ts:128`, `sidecar.rs:466`) — dono: casca Rust +
-    frontend;
-  - motivo do prompt por plataforma: infinitivo só no macOS, imperativo em Windows
-    Hello/iOS/Android (hoje mostram o fragmento "desbloquear o FinControl") — dono:
-    frontend;
-  - R1 da AppSec: a marca de login por senha usa a hora do clique em "Pular por
-    enquanto", então a tela de MFA esquecida > 5 min abre sem biometria (conta
-    recém-criada) — dono: frontend/AppSec;
-  - testes: marca no futuro e valor lixo em `bloqueio.test.ts`; fiação de
-    `Login.tsx`/`main.tsx` sem teste (padrão de `TelaBackend.test.tsx`) — dono: testes;
-  - `sessionStorage`/`localStorage` sem try/catch em `bloqueio.ts` — dono: frontend;
+  - [x] logs em `app_log_dir` (`~/Library/Logs/...`, `%LOCALAPPDATA%`) e não na pasta que
+    "Abrir pasta" mostra (`backendLocal.ts:128`, `sidecar.rs:466`) — feito na run
+    `fincontrol-r11-achados`: `<pasta de dados>/logs/`;
+  - [x] motivo do prompt por plataforma: infinitivo só no macOS, imperativo em Windows
+    Hello/iOS/Android — feito na run `fincontrol-r11-achados` (`isTauriMac`);
+  - [x] R1 da AppSec: a marca de login por senha usa a hora do clique em "Pular por
+    enquanto", então a tela de MFA esquecida > 5 min abria sem biometria — feito na run
+    `fincontrol-r11-achados` (o gate de resume arma no mount, sem exigir sessão);
+  - [x] testes: marca no futuro e valor lixo em `bloqueio.test.ts`; fiação de
+    `Login.tsx`/`main.tsx` — feito na run `fincontrol-r11-achados` (`pages/Login.test.tsx`);
+  - [x] `sessionStorage` sem try/catch em `bloqueio.ts` — feito na run
+    `fincontrol-r11-achados` (gravar é melhor esforço; erro na leitura tranca se protegido);
   - login por passkey no nativo recarrega sem marca e cai no bloqueio — dono: produto
     (decisão);
   - conferir em aparelho que a `sessionStorage` morre com o app no Windows/iOS/Android
@@ -112,6 +112,17 @@ delas é compromisso de entrega.
   - 24 falsos positivos de SQL do semgrep (`nosemgrep` justificado ou regra sqlite3) —
     dono: CI/segurança;
   - gitleaks: allowlist da pubkey do updater (`tauri.conf.json:48`) — dono: CI/segurança.
+- [ ] **Achados não bloqueantes da run r11 (correção dos achados da r10)**
+  (`fincontrol-r11-achados/qa/*.md`):
+  - depois do bloqueio de resume na tela do MFA, o desbloqueio volta ao Login e o passo do
+    MFA (QR e segredo) se perde: quem já tem sessão vê o formulário de login
+    (`App.tsx:107`) — dono: produto;
+  - os testes de boot e de resume do `main.tsx` moram em `pages/Login.test.tsx`;
+    morariam melhor num `main.test.tsx` — dono: testes;
+  - checagem explícita de marca `null` em `bloqueio.ts` (hoje vale por `Number(null) = 0`,
+    que tranca) — dono: frontend;
+  - logs órfãos no lugar antigo (`~/Library/Logs/...`, `%LOCALAPPDATA%\...\logs`): limpar
+    numa versão futura — dono: casca Rust.
 
 ## Segurança / acesso
 

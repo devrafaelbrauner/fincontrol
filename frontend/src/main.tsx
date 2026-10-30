@@ -55,7 +55,9 @@ function Raiz({ bloqueadoInicial, precisaServidor }: { bloqueadoInicial: boolean
 
   useEffect(() => {
     let vivo = true;
-    if (isNativo() && temSessao()) {
+    // Sem exigir sessão aqui: o cadastro abre a sessão com o app já montado (tela
+    // do MFA), e o listener confere a sessão na volta.
+    if (isNativo()) {
       biometriaDisponivel().then((b) => { if (vivo) biometria.current = b; });
     }
     return () => { vivo = false; };
