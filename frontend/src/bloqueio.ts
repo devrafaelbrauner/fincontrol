@@ -20,3 +20,22 @@ export function decorridos(agora: number = Date.now()): number {
 export function precisaDesbloquear(agora: number = Date.now()): boolean {
   return decorridos(agora) >= LIMITE_RESUME_MS;
 }
+
+/** O login por senha termina recarregando a página, e a carga nova não é uma
+ *  abertura a frio: quem acabou de digitar a senha não passa pela biometria.
+ *  A marca fica na sessionStorage (morre com a janela: app fechado e reaberto
+ *  tranca), vale uma carga só e por poucos segundos. */
+const CHAVE_LOGIN_POR_SENHA = "fincontrol.login_por_senha";
+export const VALIDADE_LOGIN_POR_SENHA_MS = 30 * 1000;
+
+export function marcarLoginPorSenha(agora: number = Date.now()): void {
+  sessionStorage.setItem(CHAVE_LOGIN_POR_SENHA, String(agora));
+}
+
+/** Decide o bloqueio da carga: `protegido` (sessão + biometria) tranca, a não
+ *  ser que a carga venha logo de um login por senha. Consome a marca sempre. */
+export function bloquearNaCarga(protegido: boolean, agora: number = Date.now()): boolean {
+  const idade = agora - Number(sessionStorage.getItem(CHAVE_LOGIN_POR_SENHA));
+  sessionStorage.removeItem(CHAVE_LOGIN_POR_SENHA);
+  return protegido && !(idade >= 0 && idade < VALIDADE_LOGIN_POR_SENHA_MS);
+}

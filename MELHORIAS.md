@@ -28,7 +28,7 @@ delas é compromisso de entrega.
   do caminho `aarch64-apple-darwin/`, não do nome do arquivo.
 - [ ] **CI conferir tag × versão** — uma `v1.2.2` sem atualizar `VERSION`/`Cargo.toml`
   deixaria o app em 1.2.1 e o updater ofereceria a mesma atualização em loop.
-- [ ] **Fixar as actions do workflow por SHA** (16 tags mutáveis, achado do semgrep)
+- [ ] **Fixar as actions do workflow por SHA** (17 tags mutáveis, achado do semgrep)
   e restringir `VITE_API_BASE` ao passo de build.
 - [ ] **`min-release-age` no `frontend/.npmrc`** — esperar alguns dias antes de
   resolver versões novas de pacotes.
@@ -92,6 +92,26 @@ delas é compromisso de entrega.
   - sem console no release, um panic some sem rastro: um panic hook que grave no log;
   - as frases do desktop na `OfflineBar` não têm teste unitário (só print), e a pasta
     temporária dos testes `limpeza_sw_*` fica para trás se um assert falhar.
+- [ ] **Achados não bloqueantes da run r10 (provas no Mac)** (`fincontrol-r10-mac/qa/*.md`):
+  - logs em `app_log_dir` (`~/Library/Logs/...`, `%LOCALAPPDATA%`) e não na pasta que
+    "Abrir pasta" mostra (`backendLocal.ts:128`, `sidecar.rs:466`) — dono: casca Rust +
+    frontend;
+  - motivo do prompt por plataforma: infinitivo só no macOS, imperativo em Windows
+    Hello/iOS/Android (hoje mostram o fragmento "desbloquear o FinControl") — dono:
+    frontend;
+  - R1 da AppSec: a marca de login por senha usa a hora do clique em "Pular por
+    enquanto", então a tela de MFA esquecida > 5 min abre sem biometria (conta
+    recém-criada) — dono: frontend/AppSec;
+  - testes: marca no futuro e valor lixo em `bloqueio.test.ts`; fiação de
+    `Login.tsx`/`main.tsx` sem teste (padrão de `TelaBackend.test.tsx`) — dono: testes;
+  - `sessionStorage`/`localStorage` sem try/catch em `bloqueio.ts` — dono: frontend;
+  - login por passkey no nativo recarrega sem marca e cai no bloqueio — dono: produto
+    (decisão);
+  - conferir em aparelho que a `sessionStorage` morre com o app no Windows/iOS/Android
+    — dono: QA em aparelho;
+  - 24 falsos positivos de SQL do semgrep (`nosemgrep` justificado ou regra sqlite3) —
+    dono: CI/segurança;
+  - gitleaks: allowlist da pubkey do updater (`tauri.conf.json:48`) — dono: CI/segurança.
 
 ## Segurança / acesso
 
