@@ -29,13 +29,21 @@ const CHAVE_LOGIN_POR_SENHA = "fincontrol.login_por_senha";
 export const VALIDADE_LOGIN_POR_SENHA_MS = 30 * 1000;
 
 export function marcarLoginPorSenha(agora: number = Date.now()): void {
-  sessionStorage.setItem(CHAVE_LOGIN_POR_SENHA, String(agora));
+  try {
+    sessionStorage.setItem(CHAVE_LOGIN_POR_SENHA, String(agora));
+  } catch {
+    // Melhor esforço: sem storage não há marca, e a carga decide como abertura a frio.
+  }
 }
 
 /** Decide o bloqueio da carga: `protegido` (sessão + biometria) tranca, a não
  *  ser que a carga venha logo de um login por senha. Consome a marca sempre. */
 export function bloquearNaCarga(protegido: boolean, agora: number = Date.now()): boolean {
-  const idade = agora - Number(sessionStorage.getItem(CHAVE_LOGIN_POR_SENHA));
-  sessionStorage.removeItem(CHAVE_LOGIN_POR_SENHA);
-  return protegido && !(idade >= 0 && idade < VALIDADE_LOGIN_POR_SENHA_MS);
+  try {
+    const idade = agora - Number(sessionStorage.getItem(CHAVE_LOGIN_POR_SENHA));
+    sessionStorage.removeItem(CHAVE_LOGIN_POR_SENHA);
+    return protegido && !(idade >= 0 && idade < VALIDADE_LOGIN_POR_SENHA_MS);
+  } catch {
+    return protegido; // storage indisponível: decide como sem marca
+  }
 }

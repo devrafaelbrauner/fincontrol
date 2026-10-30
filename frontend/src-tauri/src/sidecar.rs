@@ -463,17 +463,21 @@ impl Caminhos {
             .map_err(|e| format!("app_data_dir: {e}"))?;
         fs::create_dir_all(&dados)
             .map_err(|e| format!("pasta de dados {}: {e}", dados.display()))?;
-        let log = caminhos
-            .app_log_dir()
-            .ok()
-            .filter(|d| fs::create_dir_all(d).is_ok())
-            .map(|d| d.join("backend.log"));
+        let log = log_do_backend(&dados);
         Ok(Caminhos {
             executavel,
             dados,
             log,
         })
     }
+}
+
+/// `<pasta de dados>/logs/backend.log` (a rotação fica ao lado), criando a
+/// pasta; `None` se não der para criar: o backend sobe sem log.
+fn log_do_backend(dados: &Path) -> Option<PathBuf> {
+    let pasta = dados.join("logs");
+    fs::create_dir_all(&pasta).ok()?;
+    Some(pasta.join("backend.log"))
 }
 
 fn spawn(caminhos: &Caminhos, porta: u16) -> std::io::Result<Child> {
@@ -530,13 +534,13 @@ fn abrir_log(caminho: &Path, porta: u16) -> std::io::Result<File> {
 }
 
 fn registrar(app: &AppHandle, linha: &str) {
-    let Ok(dir) = app.path().app_log_dir() else {
+    let Some(log) = app.path().app_data_dir().ok().and_then(|d| log_do_backend(&d)) else {
         return;
     };
     if let Ok(mut arquivo) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("backend.log"))
+        .open(log)
     {
         let _ = writeln!(arquivo, "--- casca: {linha} ---");
     }
@@ -849,5 +853,19 @@ mod testes {
             Err(Falha::Tentativa(_))
         ));
         assert!(inicio.elapsed() >= Duration::from_millis(150));
+    }
+
+    #[test]
+    fn log_do_backend_fica_em_logs_na_pasta_de_dados() {
+        let dados = std::env::temp_dir().join(format!("fincontrol-logs-{}", std::process::id()));
+        // Sobra de uma execução que panicou faria o `is_file()` passar sem rotação.
+        let _ = fs::remove_dir_all(&dados);
+        let log = log_do_backend(&dados).unwrap();
+        assert_eq!(log, dados.join("logs").join("backend.log"));
+        // A rotação de `abrir_log` cai na mesma pasta.
+        fs::write(&log, vec![0u8; LOG_LIMITE as usize + 1]).unwrap();
+        abrir_log(&log, 1).unwrap();
+        assert!(dados.join("logs").join("backend.log.1").is_file());
+        fs::remove_dir_all(&dados).unwrap();
     }
 }
