@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from pathlib import Path
 
@@ -37,7 +38,20 @@ def get_db():
         conn.close()
 
 
+# Script que pede FKs desligadas (rebuild de tabela-pai, como a 016): só o comando no
+# início da linha (menção em comentário `--` não conta) e com qualquer valor falso
+# que o SQLite aceita (OFF, 0, FALSE, NO, com ou sem aspas).
+_FK_OFF = re.compile(r"^\s*PRAGMA\s+foreign_keys\s*=\s*['\"]?(off|0|false|no)\b", re.IGNORECASE | re.MULTILINE)
+
+
 def migrate() -> None:
+    """Aplica as migrations pendentes, cada uma numa transação só.
+
+    A migration e a sua linha em `schema_migrations` entram juntas ou não entram:
+    erro ou app fechado no meio não deixa o banco pela metade, e a próxima abertura
+    roda a migration de novo do zero. Por isso nenhuma migration pode abrir ou fechar
+    a própria transação (BEGIN/COMMIT/SAVEPOINT/VACUUM).
+    """
     conn = connect()
     try:
         conn.execute(
@@ -45,12 +59,32 @@ def migrate() -> None:
             " nome TEXT PRIMARY KEY,"
             " aplicada_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
         )
+        conn.commit()
         aplicadas = {r["nome"] for r in conn.execute("SELECT nome FROM schema_migrations")}
         for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
             if sql_file.name in aplicadas:
                 continue
-            conn.executescript(sql_file.read_text(encoding="utf-8"))
-            conn.execute("INSERT INTO schema_migrations (nome) VALUES (?)", (sql_file.name,))
-            conn.commit()
+            script = sql_file.read_text(encoding="utf-8")
+            # Dentro de uma transação, `PRAGMA foreign_keys` não faz nada (doc do
+            # SQLite): o OFF do script viraria no-op e, no rebuild da 016, o DROP de
+            # `compromissos` levaria junto os pagamentos de `lancamentos_variaveis`.
+            # Então desligamos na conexão antes do BEGIN — só para quem pede, as
+            # outras continuam rodando com as FKs ligadas, como sempre.
+            fk_off = bool(_FK_OFF.search(script))
+            if fk_off:
+                conn.execute("PRAGMA foreign_keys=OFF")
+            try:
+                # O BEGIN vai no próprio script: `executescript` faz COMMIT do que
+                # estiver pendente antes de começar, então um BEGIN separado não valeria.
+                conn.executescript("BEGIN IMMEDIATE;\n" + script)
+                conn.execute("INSERT INTO schema_migrations (nome) VALUES (?)", (sql_file.name,))
+                conn.commit()
+            except BaseException:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
+            finally:
+                if fk_off:
+                    conn.execute("PRAGMA foreign_keys=ON")
     finally:
         conn.close()

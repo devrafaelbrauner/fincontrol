@@ -37,6 +37,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 
 ### Corrigido
 
+- Banco: cada migration roda numa transação junto com o registro em `schema_migrations` — erro ou app fechado no meio não deixa mais o banco pela metade (nem trava as aberturas seguintes), e o `PRAGMA foreign_keys=OFF` pedido pelo script vale de verdade (desligado antes do `BEGIN`, religado depois).
 - If-Match: `categorizar-lote`, `estrategia_texto` e `orientacao_texto` incrementam `versao`.
 - Boot nativo: falha do cofre mostra tela de erro em vez de `#root` vazio; ErrorBoundary nas rotas.
 - Fila offline: 409 = conflito; 404 em DELETE = descarta; 400/422 = erro permanente.
