@@ -1,0 +1,21 @@
+# Regras padrão do gitleaks + uma exceção: a chave PÚBLICA do updater do Tauri
+# (plugins.updater.pubkey, minisign). Ela vai dentro do app para conferir a
+# assinatura das atualizações; não é segredo. O gitleaks 8.30 decodifica o
+# base64 do pubkey e acusa o ID da chave ("minisign public key: ACEB7DA9147F5610");
+# a exceção vale só para esse ID, nesse arquivo, na regra generic-api-key.
+# Trocou a chave do updater: troque o ID abaixo.
+#
+# Exceção por regra ([[rules.allowlists]]), que o gitleaks 8.24.3 do
+# gitleaks-action@v2 (CI) também lê; o [[allowlists]] global só existe a partir
+# do 8.25 e o 8.24.3 o ignoraria sem aviso.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "ID da chave pública minisign do updater do Tauri (não é segredo)"
+condition = "AND"
+paths = ['''(^|/)frontend/src-tauri/tauri\.conf\.json$''']
+regexes = ['''^ACEB7DA9147F5610$''']

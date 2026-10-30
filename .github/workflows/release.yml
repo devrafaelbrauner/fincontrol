@@ -19,11 +19,6 @@ concurrency:
 
 env:
   RELEASES_REPO: devrafaelbrauner/fincontrol-releases
-  # Mesmo domínio de produção usado pelo deploy. Vem de secret: o default
-  # bakeado no pacote tem de ser o servidor real do dono, não um placeholder.
-  # Pode ser vazio de propósito (o app pede o servidor na 1ª abertura) —
-  # o que não pode é um default quebrado; ver scripts/checar-api-base.mjs.
-  VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
 
 jobs:
   build:
@@ -49,19 +44,19 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: frontend/src-tauri -> target
 
@@ -69,7 +64,7 @@ jobs:
 
       # Backend embutido (sidecar): PyInstaller onedir em src-tauri/sidecar-dist/, que o
       # tauri.conf.json leva em bundle.resources. Precisa existir antes do `tauri build`.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -129,17 +124,25 @@ jobs:
       # macOS: `.dmg` para instalar + `*.app.tar.gz` (fonte do updater).
       - name: Build (macOS)
         if: runner.os == 'macOS'
+        env:
+          # Mesmo domínio de produção usado pelo deploy. Vem de secret: o default
+          # bakeado no pacote tem de ser o servidor real do dono, não um placeholder.
+          # Pode ser vazio de propósito (o app pede o servidor na 1ª abertura) —
+          # o que não pode é um default quebrado; ver scripts/checar-api-base.mjs.
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
         run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       # Windows: tenta WiX (.msi); se o WiX falhar, cai para NSIS.
       - name: Build (Windows, MSI; NSIS se o WiX falhar)
         if: runner.os == 'Windows'
         shell: bash
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
         run: |
           npx tauri build --target ${{ matrix.target }} --bundles msi \
             || npx tauri build --target ${{ matrix.target }} --bundles nsis
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bundle-${{ matrix.target }}
           if-no-files-found: error
@@ -151,14 +154,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
       - name: Baixar todos os pacotes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artefatos
           merge-multiple: true
@@ -177,7 +180,7 @@ jobs:
         # RELEASES_PAT: PAT clássico/fine-grained com acesso de escrita SOMENTE
         # ao repo fincontrol-releases (contents:write). Nunca reutilize um token
         # com acesso ao repo do código — este workflow publica artefatos públicos.
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           repository: ${{ env.RELEASES_REPO }}
           token: ${{ secrets.RELEASES_PAT }}
