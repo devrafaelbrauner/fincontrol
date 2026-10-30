@@ -54,12 +54,12 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       // `--mode desktop` (app Tauri): o app já está no disco e não precisa de
-      // service worker nem manifest. Mas builds antigos registraram um sw.js no
-      // perfil do WebView2, que serve o index.html velho e impede o app novo de
-      // rodar (evidencia/sw-antigo.log). Sem sw.js no dist a atualização dele
-      // falha e ele fica para sempre; com este sw.js autodestrutivo, a checagem
-      // de atualização baixa um SW que se desregistra, apaga os caches e
-      // recarrega a janela. Mesmo nome (sw.js), sem registro novo.
+      // service worker nem manifest. O sw.js autodestrutivo é inofensivo (nada
+      // o registra), mas NÃO substitui o SW que builds antigos deixaram no
+      // perfil do WebView2: a atualização dele falha e ele segue servindo o
+      // index.html velho (run fincontrol-r7-f3b, evidencia/sw-antigo.log). No
+      // Windows quem limpa é o lib.rs, que apaga a pasta `Service Worker` do
+      // perfil antes de abrir a janela. Mesmo nome (sw.js), sem registro novo.
       ...(mode === "desktop" ? { selfDestroying: true, injectRegister: false, manifest: false } as const : {}),
     }),
   ],

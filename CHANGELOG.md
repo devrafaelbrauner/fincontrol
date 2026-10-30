@@ -23,7 +23,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Desktop: CORS só das origens Tauri, sem credenciais e com headers explícitos; sem cookie de refresh; `/docs`, `/redoc` e OpenAPI desligados; passkey, push, calendário e feed `.ics` não montados (404); o backend não serve o `frontend/dist`.
 - Desktop: segredos saem do `os.environ` logo depois de o app importar (`cripto.py` resolve a chave Fernet uma vez, no import) e o `uvicorn` sobe com `proxy_headers=False` (`X-Forwarded-For` não fura mais o rate limit).
 - Desktop: `POST /api/anexos/{id}/abrir` abre o anexo no app padrão do sistema, só com login, só dentro de `uploads/` e só com extensão aceita (204). A rota não existe fora do desktop.
-- Desktop (etapa 4): o token local (`X-FinControl-Token`) e o JWT só saem para o backend local já pronto — antes disso a requisição nem é feita e cai no caminho offline; base e token ficam só em memória. Requisições com `credentials: "omit"`; 401 `token_local` relê o `backend_info` e repete uma vez, sem refresh nem logout. Service worker: o build desktop gera um `sw.js` autodestrutivo (`selfDestroying`, sem registro nem manifest) — o SW de um build anterior, que servia o app velho, se atualiza para ele, se desregistra, apaga os caches e recarrega; o boot do desktop também desregistra o que encontrar.
+- Desktop (etapa 4): o token local (`X-FinControl-Token`) e o JWT só saem para o backend local já pronto — antes disso a requisição nem é feita e cai no caminho offline; base e token ficam só em memória. Requisições com `credentials: "omit"`; 401 `token_local` relê o `backend_info` e repete uma vez, sem refresh nem logout. Service worker: o build desktop gera um `sw.js` autodestrutivo (`selfDestroying`, sem registro nem manifest), inofensivo porque nada o registra — mas ele não substitui o SW de um build anterior no WebView2 (a atualização falha); no Windows a limpeza é a pasta `Service Worker` do perfil apagada pelo `lib.rs` (ver Corrigido). O boot do desktop também desregistra o que encontrar.
 - `release.yml`: o smoke do backend congelado confere a prova HMAC do health, 401 sem token e 200 com token.
 - Re-enrolment de MFA exige TOTP vigente ou senha se já houver `totp_secret`.
 - `setup_user` bumpa `refresh_version` e apaga `refresh_tokens` após gravar senha/2FA.
@@ -52,6 +52,9 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - `latest.json`: usa os pacotes do updater v2 (`.app.tar.gz`, `.msi`/`-setup.exe` + `.sig`) e falha se faltar Windows ou Mac arm64.
 - `release.yml`: Mac só arm64 (`--bundles app,dmg`); tag com `-` publica como pré-release; publica `-setup.exe` em vez dos `.zip`.
 - Desktop: reiniciar o backend duas vezes seguidas não deixa mais dois processos no mesmo banco; a geração nova espera o processo anterior sair (limite de 5 s) e geração obsoleta não sobe processo (`sidecar.rs`).
+- Desktop (Windows): sem janela de console junto do app no release (`windows_subsystem = "windows"` fora de debug, `main.rs`).
+- Desktop (Windows): o app não fica mais preso na interface velha ("Servidor do FinControl") num perfil do WebView2 com o `sw.js` de um build anterior. A cada abertura, antes de criar a janela, o `lib.rs` apaga só `EBWebView/Default/Service Worker` dos dados locais do app (melhor esforço; banco, anexos, IndexedDB e localStorage ficam).
+- Desktop: a barra offline diz "O FinControl está reiniciando — mostrando dados salvos…" e "… aguardando o FinControl voltar." durante o reinício do backend local, em vez de "Sem conexão"; web e Capacitor sem mudança. Acabamento: o caminho da pasta de dados quebra sem cortar palavra, "Tentar de novo" vira "Tentando de novo…" durante o reinício e o título da falha fica equilibrado em duas linhas.
 
 ## [1.2.1] — 2026-09-15
 

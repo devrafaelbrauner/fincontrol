@@ -40,8 +40,9 @@ delas é compromisso de entrega.
   core/cli evita mistura de versões no `cap sync`.
 - [ ] **3 alertas `deepmerge` (baixos, só dev)** — o `npm audit fix` só resolve com
   `--force` (sobe major de quem depende dele); revisar quando o pacote pai atualizar.
-- [ ] **Comentário obsoleto em `frontend/src-tauri/src/main.rs`** — ainda diz "sem
-  sidecar, sem Python"; desde a etapa 2 o app sobe o backend embutido.
+- [x] **Comentário obsoleto em `frontend/src-tauri/src/main.rs`** — dizia "sem
+  sidecar, sem Python"; atualizado no branch `desktop-limpeza-sw` (run
+  `fincontrol-r8-sw`) para o backend embutido.
 - [ ] **`index.html` em LF nos checkouts Windows já existentes** — o `.gitattributes`
   vale para checkouts novos; uma cópia de trabalho antiga segue em CRLF até
   `git add --renormalize .` ou um novo checkout do arquivo.
@@ -75,6 +76,22 @@ delas é compromisso de entrega.
     `liberar` e a ordem dentro de `tentativa` só têm a prova de ponta a ponta.
   - se `try_wait`/`wait` derem erro no `parar`, a vaga é liberada sem confirmar que o
     processo saiu (já era assim; no Windows o Job Object cobre). AppSec S3 do r6.
+- [ ] **Achados não bloqueantes da etapa 4 e da limpeza do SW** (`fincontrol-r7-f3b/finish-report.md`,
+  `security-report.md`; `fincontrol-r8-sw/review-code.md`, `evidence-report.md`):
+  - cabeçalho fixo translúcido deixa o conteúdo rolado aparecer por baixo; hover de
+    "Abrir pasta de dados" não muda a cor; no cadastro, com 1001 px de altura, o botão
+    "Criar conta" fica abaixo da dobra (já existiam antes da etapa 4);
+  - entre o backend cair e o Rust avisar `iniciando`, uma requisição ainda pode ir para a
+    porta antiga com token e JWT (não medido; depende do aviso do `sidecar.rs`);
+  - `_definirBackendParaTeste` é exportado no código de produção (`backendLocal.ts`);
+  - single-instance: há uma brecha de microssegundos entre o mutex e a janela `-siw` da
+    1ª instância em que uma 2ª passaria e apagaria a pasta `Service Worker` do app aberto;
+  - um `msedgewebview2` ainda vivo de um fechamento anterior faz o `remove_dir_all` parar
+    no 1º erro e deixar o `Database` do SW pela metade (que o Chromium se recupere é
+    inferência, não medido);
+  - sem console no release, um panic some sem rastro: um panic hook que grave no log;
+  - as frases do desktop na `OfflineBar` não têm teste unitário (só print), e a pasta
+    temporária dos testes `limpeza_sw_*` fica para trás se um assert falhar.
 
 ## Segurança / acesso
 
@@ -96,11 +113,10 @@ delas é compromisso de entrega.
   app desktop usa o backend embutido e nunca pede servidor (e ignora a variável se
   ela vier). Fica em `frontend/scripts/` e `package.json` (`macos`/`windows`), fora do
   raio da etapa 4: trocar o texto ou tirar o cheque desses dois scripts.
-- [ ] **`OfflineBar` engana no desktop** — durante o reinício do backend local a barra
-  diz "Sem conexão — mostrando dados salvos." e, no conflito, fala em "o que está no
-  servidor". No desktop não há rede nem servidor: o texto devia falar do FinControl
-  reiniciando e dos dados deste computador. `components/OfflineBar.tsx` ficou fora do
-  raio da etapa 4 (run `fincontrol-r7-f3b`, DECISIONS 9).
+- [x] **`OfflineBar` engana no desktop** — durante o reinício do backend local a barra
+  dizia "Sem conexão — mostrando dados salvos.". Feito no branch `desktop-limpeza-sw`
+  (run `fincontrol-r8-sw`): no desktop diz "O FinControl está reiniciando — mostrando
+  dados salvos…" e "… aguardando o FinControl voltar."; web e Capacitor iguais.
 - [ ] **Motivo cru do Rust na tela de falha do desktop** — o `motivo` do evento
   `falhou` vem do `sidecar.rs` com caminho `\\?\…` e termos como "sidecar". A
   `TelaBackend` mostra como chega; o texto devia sair legível do Rust (ou ser

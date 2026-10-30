@@ -407,7 +407,7 @@ export default function Config() {
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Pasta de dados</h3>
           <p className="sub">Onde o FinControl guarda os dados deste computador.</p>
-          {pasta && <p className="sub" style={{ wordBreak: "break-all" }}><code>{pasta}</code></p>}
+          {pasta && <p className="sub" style={{ overflowWrap: "anywhere" }}><code>{pasta}</code></p>}
           <div className="linha-form">
             <button className="btn" type="button" onClick={() => { abrirPastaDeDados().catch(() => {}); }}>Abrir pasta</button>
           </div>

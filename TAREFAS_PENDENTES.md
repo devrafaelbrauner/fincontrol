@@ -151,15 +151,17 @@ antes da 5, H6 na 6.
     (`%APPDATA%`/`%LOCALAPPDATA%\com.rafaelbrauner.fincontrol`, `cmdkey /delete`).
 - [ ] **Antes de publicar o modo local** — rodar cada migration numa transação
   (`db.py` grava comando a comando: fechar o app no meio de uma migração deixa o
-  banco quebrado); `windows_subsystem = "windows"` no `src-tauri/src/main.rs`
-  (hoje o app abre uma janela de console junto no Windows); ~~`backend_reiniciar`
+  banco quebrado); ~~`windows_subsystem = "windows"` no `src-tauri/src/main.rs`
+  (hoje o app abre uma janela de console junto no Windows)~~ feito no branch
+  `desktop-limpeza-sw` (run `fincontrol-r8-sw`); ~~`backend_reiniciar`
   sem dois backends ao mesmo tempo num reinício rápido (`sidecar.rs`)~~ mesclado no
-  PR #73 (run `fincontrol-r6-reinicio`); **service worker de build anterior**: no
+  PR #73 (run `fincontrol-r6-reinicio`); ~~**service worker de build anterior**: no
   Windows, um perfil do WebView2 que já tem o `sw.js` de um build antigo continua
   servindo a interface velha ("Servidor do FinControl"), e o `sw.js` autodestrutivo
   do build desktop não consegue substituí-lo (o `update()` falha no WebView2; medido
-  no run `fincontrol-r7-f3b`, `evidencia/sw-antigo.log`). Corrigir pelo Rust: limpar
-  uma vez os dados de service worker do WebView2 na abertura; conferir também no Mac.
+  no run `fincontrol-r7-f3b`, `evidencia/sw-antigo.log`)~~ feito no branch
+  `desktop-limpeza-sw` (run `fincontrol-r8-sw`): o `lib.rs` apaga a pasta
+  `Service Worker` do perfil a cada abertura, antes da janela; conferir no Mac (H6).
 - [ ] **4 — Modo desktop no frontend** — `TelaBackend`, token no `api.ts`, sem
   servidor/passkey/push/.ics, PWA desligada no build desktop. Feito no branch
   `desktop-f3b-frontend` (run `fincontrol-r7-f3b`), com smoke no app Windows; falta o
