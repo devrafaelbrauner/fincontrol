@@ -42,6 +42,7 @@ def listar(todas: bool = False, db: sqlite3.Connection = Depends(get_db)):
     históricos (uma categoria desativada não pode virar "Sem categoria" nos
     gráficos); as listas de escolha continuam usando só as ativas."""
     where = "" if todas else "WHERE ativa = 1"
+    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where é texto fixo ("" ou "WHERE ativa = 1")
     return [dict(r) for r in db.execute(f"SELECT * FROM categorias {where} ORDER BY tipo, nome")]
 
 
@@ -64,6 +65,7 @@ def editar(categoria_id: int, body: CategoriaPatch, db: sqlite3.Connection = Dep
     if "ativa" in campos:
         campos["ativa"] = 1 if campos["ativa"] else 0
     sets = ", ".join(f"{c} = ?" for c in campos)
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — colunas = campos do CategoriaPatch (o Pydantic descarta extras); valores via "?"
     cur = db.execute(
         f"UPDATE categorias SET {sets}, versao = versao + 1 WHERE id = ?", (*campos.values(), categoria_id)
     )

@@ -130,6 +130,7 @@ def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(ge
     # No SQLite, NULL ordena ANTES de qualquer valor — sem esta coluna extra, um
     # compromisso sem data apareceria acima do que vence amanhã, invertendo
     # justamente a urgência que a lista existe para mostrar.
+    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — SELECT_BASE e where são texto fixo
     rows = db.execute(
         f"{SELECT_BASE} {where} GROUP BY c.id ORDER BY c.data_limite IS NULL, c.data_limite, c.id"
     ).fetchall()
@@ -138,6 +139,7 @@ def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(ge
 
 @router.get("/{compromisso_id}")
 def obter(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — SELECT_BASE é texto fixo; o id vai via "?"
     row = db.execute(f"{SELECT_BASE} WHERE c.id = ? GROUP BY c.id", (compromisso_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Compromisso não encontrado")
@@ -181,6 +183,7 @@ def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection =
             raise HTTPException(422, "Informe o nome do compromisso")
     sets = ", ".join(f"{c} = ?" for c in campos)
     try:
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — colunas filtradas por COLUNAS_EDITAVEIS; valores via "?"
         cur = db.execute(
             f"UPDATE compromissos SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
             (*campos.values(), compromisso_id),

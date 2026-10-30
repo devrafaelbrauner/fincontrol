@@ -104,6 +104,7 @@ def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_d
     if "ativa" in campos:
         campos["ativa"] = 1 if campos["ativa"] else 0
     sets = ", ".join(f"{c} = ?" for c in campos)
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — colunas = campos do MetaPatch (o Pydantic descarta extras); valores via "?"
     cur = db.execute(
         f"UPDATE metas SET {sets}, atualizado_em = CURRENT_TIMESTAMP, versao = versao + 1 WHERE id = ?",
         (*campos.values(), meta_id),

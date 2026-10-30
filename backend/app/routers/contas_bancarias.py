@@ -82,6 +82,7 @@ _ULTIMAS_DUAS = """
 
 def _leituras(db: sqlite3.Connection) -> dict[int, list[sqlite3.Row]]:
     por_conta: dict[int, list[sqlite3.Row]] = {}
+    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — _ULTIMAS_DUAS é texto fixo
     for r in db.execute(f"SELECT * FROM ({_ULTIMAS_DUAS}) WHERE pos <= 2 ORDER BY conta_id, pos"):
         por_conta.setdefault(r["conta_id"], []).append(r)
     return por_conta
@@ -111,6 +112,7 @@ def _conta_com_saldo(c: sqlite3.Row, leituras: list[sqlite3.Row]) -> dict:
 def listar(incluir_arquivadas: bool = False, db: sqlite3.Connection = Depends(get_db)):
     """Contas, saldos, variações e a distribuição do total entre elas."""
     where = "" if incluir_arquivadas else "WHERE ativa = 1"
+    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where é texto fixo ("" ou "WHERE ativa = 1")
     contas = db.execute(f"SELECT * FROM contas_bancarias {where} ORDER BY banco, nome").fetchall()
     leituras = _leituras(db)
     itens = [_conta_com_saldo(c, leituras.get(c["id"], [])) for c in contas]
@@ -251,6 +253,7 @@ def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get
         campos["ativa"] = 1 if campos["ativa"] else 0
     sets = ", ".join(f"{c} = ?" for c in campos)  # chaves são as do ContaPatch, nunca externas
     try:
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — colunas = campos do ContaPatch (o Pydantic descarta extras); valores via "?"
         cur = db.execute(
             f"UPDATE contas_bancarias SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
             (*campos.values(), conta_id),

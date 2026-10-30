@@ -180,6 +180,7 @@ def conferir_versao(
         return
     if tabela not in TABELAS_VERSIONADAS:
         raise ValueError(f"tabela não versionada: {tabela}")
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — tabela passa pela allowlist TABELAS_VERSIONADAS; coluna_id é literal ("id"/"categoria_id")
     row = db.execute(
         f"SELECT versao FROM {tabela} WHERE {coluna_id} = ?", (id_,)
     ).fetchone()
