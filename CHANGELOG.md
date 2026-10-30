@@ -35,6 +35,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - PATCH/DELETE de passkey inexistente devolve 404.
 - Dependências atualizadas pelos alertas GHSA que o `npm audit` da CI apontou: `@capacitor/android` e `@capacitor/ios` 8.4.3 (com `capacitor-swift-pm` 8.4.3 no iOS), `vite` 7.3.7 e `source-map-js` 1.2.2.
 - CI: as 17 actions de `release.yml` e `security.yml` fixadas pelo SHA do commit, com a tag em comentário (`@<sha> # v4`); o secret `VITE_API_BASE` sai do `env` do workflow e fica só nos passos `tauri build`.
+- CI: a chave de assinatura do updater (`TAURI_SIGNING_PRIVATE_KEY` e a senha) sai do `env` do job `build` de `release.yml` e fica só nos dois passos `tauri build` — `npm ci`, actions de terceiros e `pip install` não a recebem mais.
 - `frontend/.npmrc`: `min-release-age=7` — o npm ≥ 11.10 só instala versões publicadas há mais de 7 dias; o npm 10 da CI (Node 22) ignora a chave, e lá vale o lockfile.
 - `.gitleaks.toml` na raiz: regras padrão do gitleaks + uma exceção só para o ID da chave pública do updater (`plugins.updater.pubkey` do `tauri.conf.json`), nesse arquivo e na regra `generic-api-key`.
 - 26 supressões `nosemgrep` com motivo, cada uma só da regra citada: SQL com valores via `?` e fragmento fixo ou em allowlist (24), regra de Flask num helper FastAPI (`webauthn_routes.py`) e a activity launcher do Android, que tem de ser exportada. `scan.py security` sem achados (run `fincontrol-r12-scanner`).

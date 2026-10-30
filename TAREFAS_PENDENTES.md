@@ -101,9 +101,9 @@ anexos/IA/passkeys.
 
 Trabalho **não commitado** (instrução da sessão). `/verificar` 2026-09-14.
 
-- [ ] **P1 — POST `/contas-bancarias/{id}/saldos` ainda tem race** — `isolation_level = "IMMEDIATE"` não abre transação no SELECT (Python 3.14: `in_transaction=False` após a leitura). Dois POSTs com `delta_cents` no mesmo segundo leem o mesmo saldo e ambos inserem. Correção: `BEGIN IMMEDIATE` explícito e reler o último saldo *depois* do lock. Encaminhar: `/corrigir`.
-- [ ] **P2 — Sem teste do allowlist de push** — `_endpoint_push_ok` recusa HTTP/SSRF, mas não há teste (http, IP interno, host fora da lista). Encaminhar: `/corrigir`.
-- [ ] **P3 — Commit + push** — 32 arquivos modificados + 2 testes novos, `main` = `origin/main` em `d35a2cf`. Só versionar quando o dono pedir.
+- [x] **P1 — POST `/contas-bancarias/{id}/saldos` ainda tem race** — `isolation_level = "IMMEDIATE"` não abre transação no SELECT (Python 3.14: `in_transaction=False` após a leitura). Dois POSTs com `delta_cents` no mesmo segundo leem o mesmo saldo e ambos inserem. Correção: `BEGIN IMMEDIATE` explícito e reler o último saldo *depois* do lock. Encaminhar: `/corrigir`. *Feito: `BEGIN IMMEDIATE` em `backend/app/routers/contas_bancarias.py`, commit `14501b1`.*
+- [x] **P2 — Sem teste do allowlist de push** — `_endpoint_push_ok` recusa HTTP/SSRF, mas não há teste (http, IP interno, host fora da lista). Encaminhar: `/corrigir`. *Feito: `backend/tests/test_push_allowlist.py`, commit `7462fc0`.*
+- [x] **P3 — Commit + push** — 32 arquivos modificados + 2 testes novos, `main` = `origin/main` em `d35a2cf`. Só versionar quando o dono pedir. *Feito: `14501b1` e `7462fc0` estão na `main`.*
 
 # TAREFAS — desktop local (Windows + macOS, sem servidor)
 
@@ -124,9 +124,11 @@ antes da 5, H6 na 6.
   etapas 2 e 3a" caiu com o merge do PR #72. Publicar o cliente da VPS =
   `versao.sh patch` + tag `v1.2.2` + H1; uma tag hoje leva um instalador desktop
   cuja interface só usa o backend local depois da etapa 4.
-- [ ] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
+- [x] **[SEG] Chave de assinatura só nos passos de `tauri build`** — hoje
   `TAURI_SIGNING_PRIVATE_KEY` está no `env` do job `build` inteiro e chega aos
   scripts do `npm ci`, às actions de terceiros e aos `build.rs` das crates.
+  *Feito na run `fincontrol-r14-chave-build`: a chave e a senha saem do `env` do
+  job e ficam só nos dois passos `tauri build` do `release.yml`.*
 - [x] **2 — Sidecar + casca Rust** — `backend/app/desktop.py`, spec PyInstaller
   onedir em `bundle.resources`, `lib.rs`/`sidecar.rs` (porta, token, cofre,
   Job Object, instância única), CSP `127.0.0.1`, `.gitattributes` (hash da CSP).
