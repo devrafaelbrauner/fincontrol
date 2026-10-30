@@ -71,6 +71,7 @@ def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends
     if not campos:
         raise HTTPException(400, "Nada para atualizar")
     sets = ", ".join(f"{c} = ?" for c in campos)
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — colunas = campos do ContaFixaPatch (o Pydantic descarta extras); valores via "?"
     cur = db.execute(
         f"UPDATE contas_fixas SET {sets}, versao = versao + 1, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?",
         (*campos.values(), conta_id),

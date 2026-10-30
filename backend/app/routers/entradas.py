@@ -34,6 +34,7 @@ def listar(
         params.append(ate)
     itens = [
         dict(r)
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where são cláusulas fixas com "?"; as datas vão em params
         for r in db.execute(
             f"SELECT * FROM entradas WHERE {' AND '.join(where)} ORDER BY data DESC, id DESC", params
         )

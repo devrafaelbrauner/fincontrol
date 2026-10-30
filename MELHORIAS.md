@@ -28,10 +28,14 @@ delas é compromisso de entrega.
   do caminho `aarch64-apple-darwin/`, não do nome do arquivo.
 - [ ] **CI conferir tag × versão** — uma `v1.2.2` sem atualizar `VERSION`/`Cargo.toml`
   deixaria o app em 1.2.1 e o updater ofereceria a mesma atualização em loop.
-- [ ] **Fixar as actions do workflow por SHA** (17 tags mutáveis, achado do semgrep)
-  e restringir `VITE_API_BASE` ao passo de build.
-- [ ] **`min-release-age` no `frontend/.npmrc`** — esperar alguns dias antes de
-  resolver versões novas de pacotes.
+- [x] **Fixar as actions do workflow por SHA** (17 tags mutáveis, achado do semgrep)
+  e restringir `VITE_API_BASE` ao passo de build — feito no branch
+  `seguranca-achados-scanner` (run `fincontrol-r12-scanner`): os 17 `uses:` com o
+  SHA do commit e a tag em comentário; `VITE_API_BASE` só nos passos `tauri build`.
+- [x] **`min-release-age` no `frontend/.npmrc`** — esperar alguns dias antes de
+  resolver versões novas de pacotes. Feito na run `fincontrol-r12-scanner`:
+  `min-release-age=7` (dias; 7 é o mínimo que o semgrep aceita; vale no npm ≥ 11.10).
+  O npm 10 da CI (Node 22) ignora a chave sem aviso; lá só o lockfile segura.
 - [ ] **`useHttpsScheme: true` no Windows (etapa 2)** — tiraria a origin
   `http://tauri.localhost` do CORS; muda a origin e perde o `localStorage`, então
   só vale antes de haver instalação real.
@@ -53,7 +57,8 @@ delas é compromisso de entrega.
 - [ ] **Sidecar menor** — o onedir tem ~53 MB (768 arquivos); excluir módulos não
   usados (ex.: `uvloop`/`watchfiles` do `uvicorn[standard]`) reduziria o instalador.
 - [ ] **Achados não bloqueantes da revisão da etapa 2** (`fincontrol-r4-f2/review-code.md`):
-  - `actions/setup-python` fixado por SHA e `pip install --require-hashes` no sidecar;
+  - `actions/setup-python` já fixado por SHA (run `fincontrol-r12-scanner`); falta o
+    `pip install --require-hashes` no sidecar;
   - evento `backend-estado` pode chegar fora de ordem num reinício;
   - duas threads podem gerar os segredos ao mesmo tempo na 1ª execução;
   - erro ao podar backups antigos derruba o backend (sem teste);
@@ -109,9 +114,10 @@ delas é compromisso de entrega.
     (decisão);
   - conferir em aparelho que a `sessionStorage` morre com o app no Windows/iOS/Android
     — dono: QA em aparelho;
-  - 24 falsos positivos de SQL do semgrep (`nosemgrep` justificado ou regra sqlite3) —
-    dono: CI/segurança;
-  - gitleaks: allowlist da pubkey do updater (`tauri.conf.json:48`) — dono: CI/segurança.
+  - [x] 24 falsos positivos de SQL do semgrep (`nosemgrep` justificado ou regra sqlite3) —
+    feito na run `fincontrol-r12-scanner` (26 marcados com `nosemgrep: <regra>` e motivo);
+  - [x] gitleaks: allowlist da pubkey do updater (`tauri.conf.json:48`) — feito na run
+    `fincontrol-r12-scanner` (`.gitleaks.toml` com exceção só para esse ID).
 - [ ] **Achados não bloqueantes da run r11 (correção dos achados da r10)**
   (`fincontrol-r11-achados/qa/*.md`):
   - depois do bloqueio de resume na tela do MFA, o desbloqueio volta ao Login e o passo do
@@ -123,6 +129,26 @@ delas é compromisso de entrega.
     que tranca) — dono: frontend;
   - logs órfãos no lugar antigo (`~/Library/Logs/...`, `%LOCALAPPDATA%\...\logs`): limpar
     numa versão futura — dono: casca Rust.
+- [ ] **Achados antigos vistos na matriz visual da r11 (fora do diff)**
+  (`fincontrol-r11-achados/qa/matriz-r11.md`, `acabamento-r11.md`):
+  - balões de validação do navegador em inglês ("Fill out this field") no cadastro e no
+    Prazo da meta; o Prazo vazio mostra um placeholder que parece preenchido (dono: frontend);
+  - conta fixa criada hoje entra nos meses passados (mai–set) das Análises e aparece
+    "atrasado" no próprio dia da criação; decidir se é retroativa (dono: backend/produto);
+  - diálogo "Adicionar transação" cortado em 1280x800, sem indicação de rolagem, e o "×"
+    fica sobre o botão "Transação" do header (dono: frontend);
+  - botões da tela de bloqueio sem folga lateral (`.auth-entrar` sem `padding`) (dono: frontend);
+  - em 900 px, "Compromissos" e "Configurações" encostam na borda do tile do hub (dono: frontend);
+  - percentuais com ponto ("327.5%") numa UI que usa vírgula (dono: frontend);
+  - "12 meses" e "24 meses" quebram em duas linhas no seletor de período das Análises
+    (dono: frontend);
+  - tela de abertura cerca de 64 px à esquerda do centro (dono: frontend);
+  - espaçamento apertado em Configurações: sem respiro entre o campo e o rótulo seguinte
+    nem antes de "Salvar" (dono: frontend);
+  - texto da Visão geral vazia ("Você recebeu R$ 0,00… fecha o mês com economia") sem
+    sentido com zero (dono: frontend/produto);
+  - no login, o Tab passa por "Esqueci a senha" antes da senha (dono: frontend);
+  - o FAB "+" cobre a ponta da barra "Sem categoria" (dono: frontend).
 
 ## Segurança / acesso
 
@@ -170,6 +196,22 @@ delas é compromisso de entrega.
   - a prova HMAC do health não amarra a porta: usar `"{porta}:{nonce}"` como mensagem;
   - o health sem nonce responde 200 sem token (decisão 3 do r5: só Host e Origin);
     reavaliar se o health passar a revelar algo além de "vivo".
+- [ ] **Achados não bloqueantes da run r12 (scanner)** (`fincontrol-r12-scanner/qa/code-review.md`,
+  `security-appsec.md`):
+  - Dependabot para GitHub Actions: sem atualizador, os SHAs fixados envelhecem (dono: devops);
+  - `returntocorp/semgrep-action@v1` roda o semgrep 1.36.0; trocar pela CLI atual (dono: devops);
+  - alinhar o gitleaks da CI (8.24.3, que não decodifica base64) com o local (8.30.1)
+    (dono: devops);
+  - actions em Node 20 deprecado (`actions/checkout@v4`, `gitleaks/gitleaks-action@v2`,
+    forçadas a rodar em Node 24): subir de versão ao renovar os pins (dono: devops);
+  - `VITE_API_BASE` poderia ser variável (`vars.`) em vez de secret: o valor é público no
+    bundle (dono: devops);
+  - o npm 12 bloqueia os scripts de install do esbuild e do fsevents (`allowScripts`):
+    aprovar ou documentar (dono: frontend);
+  - os PATCH de `categorias`, `contas_bancarias`, `contas_fixas` e `metas` montam as
+    colunas com as chaves do `*Patch` e dependem do Pydantic descartar chave extra; um
+    `extra="allow"` futuro viraria injeção no nome da coluna, e o `nosemgrep` a esconderia.
+    Allowlist explícita como `COLUNAS_EDITAVEIS` ou teste com chave injetada (dono: backend).
 
 ## Dados / offline
 

@@ -43,6 +43,7 @@ def gastos_do_mes(
         params.append(ate)
     return {
         r["categoria_id"]: r["t"]
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where são cláusulas fixas com "?"; competência e data vão em params
         for r in db.execute(
             f"""SELECT l.categoria_id, SUM(l.valor_cents) t
                FROM lancamentos_variaveis l

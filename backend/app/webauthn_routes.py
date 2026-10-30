@@ -86,6 +86,7 @@ def _origin(request: Request) -> str:
         raise HTTPException(500, "FINCONTROL_WEBAUTHN_ORIGIN obrigatório em produção")
     proto = request.headers.get("x-forwarded-proto", "http")
     host = request.headers.get("host", "localhost")
+    # nosemgrep: python.flask.security.audit.directly-returned-format-string.directly-returned-format-string — regra de Flask; aqui é FastAPI e o valor é a origin esperada do WebAuthn, não a resposta HTTP
     return f"{proto}://{host}"
 
 

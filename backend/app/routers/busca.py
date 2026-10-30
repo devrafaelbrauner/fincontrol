@@ -75,6 +75,7 @@ def buscar(
     itens = []
 
     w, p = clausulas("l.descricao", "l.data", "l.valor_cents")
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — {w} vem de clausulas(): colunas literais e "?"; os valores vão em p
     for r in db.execute(
         f"""SELECT l.id, l.descricao, l.valor_cents, l.data, l.categoria_id, l.forma_pagamento, c.nome AS categoria
             FROM lancamentos_variaveis l LEFT JOIN categorias c ON c.id = l.categoria_id
@@ -84,6 +85,7 @@ def buscar(
         itens.append({"tipo": "variavel", **dict(r)})
 
     w, p = clausulas("e.descricao", "e.data", "e.valor_cents")
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — {w} vem de clausulas(): colunas literais e "?"; os valores vão em p
     for r in db.execute(
         f"""SELECT e.id, e.descricao, e.valor_cents, e.data, e.categoria_id, c.nome AS categoria
             FROM entradas e LEFT JOIN categorias c ON c.id = e.categoria_id
@@ -114,6 +116,7 @@ def buscar(
     if ate:
         where_data.append("data <= ?")
         params_data.append(ate)
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where_f/where_data são cláusulas fixas com "?"; os valores vão nos parâmetros
     for r in db.execute(
         f"""SELECT * FROM (
               SELECT l.id, cf.nome AS descricao, l.valor_cents, l.competencia,
@@ -164,6 +167,7 @@ def buscar(
         having.append("falta_cents <= ?")
         params_c.append(valor_max)
     sql_having = f"HAVING {' AND '.join(having)}" if having else ""
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where_c/sql_having são cláusulas fixas com "?"; os valores vão em params_c
     for r in db.execute(
         f"""SELECT c.id, c.nome, c.credor, c.data_limite, c.valor_total_cents, cat.nome AS categoria,
                    c.categoria_id,

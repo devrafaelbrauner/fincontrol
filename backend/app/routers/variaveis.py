@@ -56,6 +56,7 @@ def listar(
     # cada parcela tem a própria versão, mas o grupo tem a dele.
     itens = [
         dict(r)
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — sql_where são cláusulas fixas com "?"; os valores vão em params
         for r in db.execute(
             f"""SELECT l.*, p.parcelas AS parcelas_total, p.versao AS parcelamento_versao
                 FROM lancamentos_variaveis l

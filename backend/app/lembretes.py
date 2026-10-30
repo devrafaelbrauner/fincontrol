@@ -81,6 +81,7 @@ def pendencias(db: sqlite3.Connection, hoje_: date | None = None) -> list[dict]:
 
     marcadores = {
         (r["conta_fixa_id"], r["competencia"]): r
+        # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — só a lista de "?" é interpolada; as competências vão como parâmetro
         for r in db.execute(
             f"""SELECT conta_fixa_id, competencia, valor_cents, data_pagamento
                 FROM lancamentos_fixos WHERE competencia IN ({','.join('?' * len(comps))})""",
@@ -479,6 +480,7 @@ def _mensagens_compromissos(db: sqlite3.Connection, pend: list[dict]) -> list[di
 def _ja_enviadas(db: sqlite3.Connection, chaves: list[str]) -> set[str]:
     if not chaves:
         return set()
+    # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — só a lista de "?" é interpolada; as chaves vão como parâmetro
     rows = db.execute(
         f"SELECT chave FROM lembretes_enviados WHERE chave IN ({','.join('?' * len(chaves))})", chaves
     )

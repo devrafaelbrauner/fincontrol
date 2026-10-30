@@ -10,6 +10,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- nosemgrep: java.android.security.exported_activity.exported_activity — é a activity launcher (MAIN/LAUNCHER): tem de ser exportada para o sistema abrir o app -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
