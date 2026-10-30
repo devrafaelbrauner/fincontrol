@@ -93,9 +93,11 @@ function Raiz({ bloqueadoInicial, precisaServidor }: { bloqueadoInicial: boolean
  *  cache e fila); só `falhou` volta para a tela cheia. */
 async function iniciarDesktop() {
   // Builds antigos (cliente da VPS) registraram o sw.js no perfil do WebView2.
-  // O desktop não usa service worker: o sw.js do build desktop é autodestrutivo
-  // (vite.config.ts) e cuida do caso em que o SW velho ainda serve o app antigo;
-  // aqui, já no app novo, limpa o que tiver sobrado.
+  // O desktop não usa service worker. O sw.js autodestrutivo do build desktop
+  // (vite.config.ts) é inofensivo, mas não substitui o SW velho (a atualização
+  // falha no WebView2); no Windows a limpeza é o lib.rs apagar a pasta
+  // `Service Worker` do perfil antes da janela. Aqui, já no app novo, desregistra
+  // o que tiver sobrado.
   void navigator.serviceWorker?.getRegistrations()
     .then((regs) => Promise.all(regs.map((r) => r.unregister())))
     .catch(() => {});

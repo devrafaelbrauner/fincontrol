@@ -51,7 +51,7 @@ export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Pr
           <span className="logo"><Logo tamanho={30} /></span>
           {estado.estado === "falhou" ? (
             <div role="alert" className="campo" style={{ gap: "0.35rem" }}>
-              <h2>Não foi possível iniciar o FinControl.</h2>
+              <h2 className="tela-backend-titulo">Não foi possível iniciar o FinControl.</h2>
               <p className="sub">Seus dados não foram alterados.</p>
               <p className="tela-backend-motivo">{estado.motivo}</p>
             </div>
@@ -67,7 +67,7 @@ export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Pr
           {falhou && (
             <>
               <button className="auth-entrar" type="button" disabled={reiniciando} onClick={tentarDeNovo}>
-                Tentar de novo
+                {reiniciando ? "Tentando de novo…" : "Tentar de novo"}
               </button>
               <button className="auth-secundario" type="button" disabled={reiniciando} onClick={abrirPasta}>
                 Abrir pasta de dados

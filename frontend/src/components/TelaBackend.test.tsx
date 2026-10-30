@@ -70,4 +70,22 @@ describe("TelaBackend", () => {
     await act(async () => { terminar(); });
     expect(botao.disabled).toBe(false);
   });
+
+  it("o botão diz \"Tentando de novo…\" enquanto reinicia e volta ao rótulo depois", async () => {
+    let terminar: () => void = () => {};
+    const tentar = vi.fn(() => new Promise<void>((r) => { terminar = r; }));
+    const { getByRole } = render(
+      <TelaBackend estado={{ estado: "falhou", motivo: "x" }} aoTentarDeNovo={tentar} aoAbrirPasta={nada} />,
+    );
+    const botao = getByRole("button", { name: "Tentar de novo" }) as HTMLButtonElement;
+
+    act(() => { fireEvent.click(botao); });
+    expect(botao.textContent).toBe("Tentando de novo…");
+    expect(getByRole("button", { name: "Tentando de novo…" })).toBe(botao);
+    expect(botao.disabled).toBe(true);
+
+    await act(async () => { terminar(); });
+    expect(botao.textContent).toBe("Tentar de novo");
+    expect(botao.disabled).toBe(false);
+  });
 });
