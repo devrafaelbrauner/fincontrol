@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { api, cadastrar, contaConfigurada, login } from "../api";
+import { marcarLoginPorSenha } from "../bloqueio";
 import Logo from "../components/Logo";
 import { IcOk } from "../components/icones";
 import { entrarComPasskey, cadastrarPasskey, temPasskey } from "../passkeys";
@@ -164,6 +165,7 @@ export default function Login() {
     setOcupado(true);
     try {
       await login({ email, senha, codigo_totp, lembrar });
+      marcarLoginPorSenha();
       window.location.href = "/";
     } catch (err) {
       falha(err);
@@ -207,6 +209,7 @@ export default function Login() {
     setOcupado(true);
     try {
       await api("/auth/mfa/confirmar", { method: "POST", body: JSON.stringify({ codigo }) });
+      marcarLoginPorSenha();
       window.location.href = "/";
     } catch (err) {
       setErro((err as Error).message);
@@ -362,7 +365,7 @@ export default function Login() {
           <button className="auth-entrar" type="submit" disabled={ocupado || codigo.length !== 6}>
             {ocupado ? "Confirmando…" : "Ativar MFA e entrar"}
           </button>
-          <button className="auth-secundario" type="button" onClick={() => { window.location.href = "/"; }}>
+          <button className="auth-secundario" type="button" onClick={() => { marcarLoginPorSenha(); window.location.href = "/"; }}>
             Pular por enquanto
           </button>
         </form>

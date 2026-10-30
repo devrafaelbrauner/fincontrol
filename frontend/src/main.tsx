@@ -10,7 +10,7 @@ import TelaServidor from "./components/TelaServidor";
 import TelaBackend from "./components/TelaBackend";
 import { ToastProvider } from "./components/Toast";
 import { EstadoProvider } from "./estado";
-import { marcarAtividade, precisaDesbloquear } from "./bloqueio";
+import { bloquearNaCarga, marcarAtividade, precisaDesbloquear } from "./bloqueio";
 import { biometriaDisponivel } from "./nativo/biometria";
 import { atualizarContadores, definirOffline } from "./offline/estadoOffline";
 import { isDesktopLocal, isNativo } from "./plataforma";
@@ -152,7 +152,7 @@ async function iniciarDesktop() {
         // Mesma ordem do boot de sempre: a sessão (cofre) antes do gate de
         // biometria, que precisa saber se há sessão para proteger.
         await carregarSessao();
-        const bloqueadoInicial = temSessao() && await biometriaDisponivel();
+        const bloqueadoInicial = bloquearNaCarga(temSessao() && await biometriaDisponivel());
         app = { bloqueadoInicial };
         // O backend pode ter reiniciado durante a leitura: aí espera o próximo `pronto`.
         if (estado.estado === "pronto") voltarOnline();
@@ -189,8 +189,8 @@ async function iniciar() {
   vigiarConexao();
 
   const precisaServidor = isNativo() && !temApiBase();
-  const bloqueadoInicial = !precisaServidor && isNativo() && temSessao()
-    && await biometriaDisponivel();
+  const bloqueadoInicial = bloquearNaCarga(!precisaServidor && isNativo() && temSessao()
+    && await biometriaDisponivel());
 
   // Fila que sobrou de uma sessão offline anterior: tenta aplicar já no boot
   // (sem bloquear a renderização — o banner reflete o resultado).

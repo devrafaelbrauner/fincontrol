@@ -16,7 +16,7 @@ export default function Bloqueio({ aoDesbloquear, aoFalhar }: {
 
   async function tentar() {
     setTentando(true);
-    const ok = await autenticarBiometrico("Desbloqueie o FinControl");
+    const ok = await autenticarBiometrico("desbloquear o FinControl");
     if (!montado.current) return;
     setTentando(false);
     if (ok) aoDesbloquear();
