@@ -3,7 +3,8 @@ import QRCode from "qrcode";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, logout } from "../api";
 import { instalarAtualizacao, type ResultadoAtualizacao, verificarAtualizacao } from "../atualizacao";
-import { isNativo, isTauri } from "../plataforma";
+import { abrirPastaDeDados, pastaDeDados } from "../backendLocal";
+import { isDesktopLocal, isNativo, isTauri } from "../plataforma";
 import { cadastrarPasskey } from "../passkeys";
 import { definirServidor, getApiBase } from "../servidor";
 import { limparSessao } from "../sessao";
@@ -49,6 +50,14 @@ export default function Config() {
   const [servidor, setServidor] = useState(getApiBase());
   const [servidorMsg, setServidorMsg] = useState<string | null>(null);
 
+  // Desktop local: sem servidor, passkey, push nem "sair de todos" (o backend
+  // embutido não tem essas rotas); no lugar, a pasta onde os dados moram.
+  const desktop = isDesktopLocal();
+  const [pasta, setPasta] = useState<string | null>(null);
+  useEffect(() => {
+    if (desktop) pastaDeDados().then(setPasta).catch(() => setPasta(null));
+  }, [desktop]);
+
   // Atualização assinada (só Tauri).
   const [att, setAtt] = useState<ResultadoAtualizacao | null>(null);
   const [attOcupado, setAttOcupado] = useState(false);
@@ -84,8 +93,9 @@ export default function Config() {
   }
 
   const carregarPasskeys = useCallback(() => {
+    if (desktop) return;
     api<Passkey[]>("/auth/webauthn/credenciais").then(setPasskeys).catch(() => setPasskeys(null));
-  }, []);
+  }, [desktop]);
 
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
@@ -94,9 +104,9 @@ export default function Config() {
         setModelo(c.modelo);
       })
       .catch((e) => setErro(e.message));
-    api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
+    if (!desktop) api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
     api<{ ativo: boolean }>("/auth/mfa").then((m) => setMfaAtivo(m.ativo)).catch(() => setMfaAtivo(null));
-  }, []);
+  }, [desktop]);
 
   async function iniciarMfa() {
     setMfaMsg(null);
@@ -240,12 +250,15 @@ export default function Config() {
 
   return (
     <>
-      <p className="sub">Integração de IA e notificações.</p>
+      <p className="sub">{desktop ? "Integração de IA, segurança e dados deste computador." : "Integração de IA e notificações."}</p>
 
       <section className="ficha surgir" style={{ maxWidth: 560 }}>
         <h3 className="secao-titulo">IA (OpenRouter)</h3>
         <p className="sub">
-          A chave é criptografada no servidor e nunca volta ao navegador. Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
+          {desktop
+            ? "A chave fica criptografada nos dados deste computador e não volta para a tela."
+            : "A chave é criptografada no servidor e nunca volta ao navegador."}
+          {" "}Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
         </p>
         {cfg && (
           <p>Status:{" "}
@@ -307,46 +320,50 @@ export default function Config() {
         {mfaMsg && <p style={{ marginTop: "0.5rem" }}>{mfaMsg}</p>}
       </section>
 
-      <section className="surgir secao" style={{ maxWidth: 560 }}>
-        <h3 className="secao-titulo">Passkeys</h3>
-        <p className="sub">Um toque para entrar, sem senha — por aparelho. O TOTP continua valendo como segundo fator da senha.</p>
-        {passkeys === null && <p className="sub">Carregando…</p>}
-        {passkeys !== null && passkeys.length === 0 && (
-          <p className="sub">Nenhuma passkey cadastrada. Cadastre a deste aparelho abaixo.</p>
-        )}
-        {passkeys !== null && passkeys.length > 0 && (
-          <ul className="sub" style={{ paddingLeft: "1.1rem" }}>
-            {passkeys.map((p) => (
-              <li key={p.id}>
-                <strong>{p.nome || "Sem nome"}</strong>
-                {p.ultimo_uso_em ? ` — último uso ${p.ultimo_uso_em}` : " — nunca usada"}{" "}
-                <button className="auth-secundario" type="button" style={{ height: "auto" }} onClick={() => removerPasskey(p.id)}>
-                  remover
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <form onSubmit={adicionarPasskey} className="linha-form" style={{ marginTop: "0.5rem" }}>
-          <input placeholder="Nome deste aparelho (ex.: iPhone)" value={passkeyNome}
-            onChange={(e) => setPasskeyNome(e.target.value)} style={{ maxWidth: 240 }} />
-          <button className="btn btn-primario" type="submit">Cadastrar passkey aqui</button>
-        </form>
-        {passkeyMsg && <p style={{ marginTop: "0.5rem" }}>{passkeyMsg}</p>}
-      </section>
+      {!desktop && (
+        <section className="surgir secao" style={{ maxWidth: 560 }}>
+          <h3 className="secao-titulo">Passkeys</h3>
+          <p className="sub">Um toque para entrar, sem senha — por aparelho. O TOTP continua valendo como segundo fator da senha.</p>
+          {passkeys === null && <p className="sub">Carregando…</p>}
+          {passkeys !== null && passkeys.length === 0 && (
+            <p className="sub">Nenhuma passkey cadastrada. Cadastre a deste aparelho abaixo.</p>
+          )}
+          {passkeys !== null && passkeys.length > 0 && (
+            <ul className="sub" style={{ paddingLeft: "1.1rem" }}>
+              {passkeys.map((p) => (
+                <li key={p.id}>
+                  <strong>{p.nome || "Sem nome"}</strong>
+                  {p.ultimo_uso_em ? ` — último uso ${p.ultimo_uso_em}` : " — nunca usada"}{" "}
+                  <button className="auth-secundario" type="button" style={{ height: "auto" }} onClick={() => removerPasskey(p.id)}>
+                    remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form onSubmit={adicionarPasskey} className="linha-form" style={{ marginTop: "0.5rem" }}>
+            <input placeholder="Nome deste aparelho (ex.: iPhone)" value={passkeyNome}
+              onChange={(e) => setPasskeyNome(e.target.value)} style={{ maxWidth: 240 }} />
+            <button className="btn btn-primario" type="submit">Cadastrar passkey aqui</button>
+          </form>
+          {passkeyMsg && <p style={{ marginTop: "0.5rem" }}>{passkeyMsg}</p>}
+        </section>
+      )}
 
-      <section className="surgir secao" style={{ maxWidth: 560 }}>
-        <h3 className="secao-titulo">Sessões</h3>
-        <p className="sub">Encerra o login neste e em todos os outros aparelhos — use se perdeu o celular.</p>
-        <button className="btn btn-perigo" type="button" onClick={() => {
-          if (!confirm("Sair de todos os aparelhos? Você vai precisar entrar de novo em cada um.")) return;
-          void logout(true);
-        }}>
-          Sair de todos os aparelhos
-        </button>
-      </section>
+      {!desktop && (
+        <section className="surgir secao" style={{ maxWidth: 560 }}>
+          <h3 className="secao-titulo">Sessões</h3>
+          <p className="sub">Encerra o login neste e em todos os outros aparelhos — use se perdeu o celular.</p>
+          <button className="btn btn-perigo" type="button" onClick={() => {
+            if (!confirm("Sair de todos os aparelhos? Você vai precisar entrar de novo em cada um.")) return;
+            void logout(true);
+          }}>
+            Sair de todos os aparelhos
+          </button>
+        </section>
+      )}
 
-      {isNativo() && (
+      {isNativo() && !desktop && (
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Servidor</h3>
           <p className="sub">
@@ -386,9 +403,20 @@ export default function Config() {
         </section>
       )}
 
+      {desktop && (
+        <section className="surgir secao" style={{ maxWidth: 560 }}>
+          <h3 className="secao-titulo">Pasta de dados</h3>
+          <p className="sub">Onde o FinControl guarda os dados deste computador.</p>
+          {pasta && <p className="sub" style={{ wordBreak: "break-all" }}><code>{pasta}</code></p>}
+          <div className="linha-form">
+            <button className="btn" type="button" onClick={() => { abrirPastaDeDados().catch(() => {}); }}>Abrir pasta</button>
+          </div>
+        </section>
+      )}
+
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
           instalada pela tela de início (iOS ≥ 16.4). */}
-      {!Capacitor.isNativePlatform() && <section className="surgir secao" style={{ maxWidth: 560 }}>
+      {!Capacitor.isNativePlatform() && !desktop && <section className="surgir secao" style={{ maxWidth: 560 }}>
         <h3 className="secao-titulo">Notificações push</h3>        {push?.habilitado ? (
           <>
             <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>

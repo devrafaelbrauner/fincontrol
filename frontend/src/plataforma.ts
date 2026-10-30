@@ -12,6 +12,15 @@ export function isTauri(): boolean {
   return tauriInjetado();
 }
 
+/** App desktop falando com o backend embutido (sidecar) neste computador.
+ *
+ *  Hoje é o mesmo que `isTauri()`: todo build Tauri é local, sem servidor
+ *  remoto. Fica com nome próprio para as condições do modo local não se
+ *  misturarem com as do Tauri em geral (atualizador, cofre). */
+export function isDesktopLocal(): boolean {
+  return isTauri();
+}
+
 export function isCapacitorNativo(): boolean {
   try {
     return Capacitor.isNativePlatform();

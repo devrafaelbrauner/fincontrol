@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { _definirBackendParaTeste } from "./backendLocal";
 import { _definirCofreParaTeste } from "./nativo/cofre";
 import { carregarServidor, definirServidor, getApiBase, temApiBase } from "./servidor";
 
@@ -46,5 +47,32 @@ describe("base da API em runtime", () => {
     expect(getApiBase()).toBe("");
     expect(temApiBase()).toBe(false);
     expect(cofre.mapa.has("api_base")).toBe(false);
+  });
+});
+
+describe("base da API no desktop", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    _definirBackendParaTeste(null);
+  });
+
+  it("ignora o cofre e o VITE_API_BASE: só vale o backend local", async () => {
+    vi.stubGlobal("isTauri", true);
+    vi.stubEnv("VITE_API_BASE", "https://vps.exemplo.com");
+    const cofre = cofreFalso({ api_base: "https://salvo.exemplo.com" });
+    _definirCofreParaTeste(cofre);
+
+    await carregarServidor();
+    // Antes do `pronto` não há para onde mandar: "" (o api.ts nem tenta).
+    expect(getApiBase()).toBe("");
+    expect(temApiBase()).toBe(false);
+
+    _definirBackendParaTeste({ base: "http://127.0.0.1:5123", token: "a".repeat(64) });
+    expect(getApiBase()).toBe("http://127.0.0.1:5123");
+
+    // Fora do desktop o cofre não aparece: o carregarServidor do desktop não leu nada.
+    vi.stubGlobal("isTauri", false);
+    expect(getApiBase()).toBe("https://vps.exemplo.com");
   });
 });

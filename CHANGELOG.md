@@ -14,6 +14,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Desktop (etapa 2): backend embutido como executável local (`backend/app/desktop.py`, PyInstaller onedir sem UPX via `backend/desktop.spec`). Recebe os segredos e o token numa linha JSON no stdin (nunca no env, argv ou log), escuta só em `127.0.0.1`, sai quando o stdin fecha e copia o banco para `backups/pre-migracao-<versão>-<carimbo>.db` (guarda 5) antes de migração pendente.
 - `release.yml`: Python 3.12 + PyInstaller geram o backend antes do `tauri build`, com smoke do `/api/health` e da saída no EOF do stdin.
 - `.gitattributes`: `frontend/index.html` sempre em LF, para o hash do script inline da CSP valer em checkout Windows.
+- Desktop (etapa 4): a tela do app fala com o backend embutido. Abre em "Abrindo o FinControl…" (`TelaBackend`) até o backend ficar pronto; se ele falhar (ou o endereço não puder ser lido), mostra o motivo, "Tentar de novo" e "Abrir pasta de dados". Reinício do backend com o app aberto vira a barra offline e volta sozinho. Sem tela de servidor, passkey, push, "Sair de todos os aparelhos" e assinatura `.ics`; Configurações ganha "Pasta de dados"; anexo abre no app padrão do sistema (`POST /api/anexos/{id}/abrir`). Sem PWA (manifest e registro) no `vite build --mode desktop`.
 
 ### Segurança
 
@@ -22,6 +23,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - Desktop: CORS só das origens Tauri, sem credenciais e com headers explícitos; sem cookie de refresh; `/docs`, `/redoc` e OpenAPI desligados; passkey, push, calendário e feed `.ics` não montados (404); o backend não serve o `frontend/dist`.
 - Desktop: segredos saem do `os.environ` logo depois de o app importar (`cripto.py` resolve a chave Fernet uma vez, no import) e o `uvicorn` sobe com `proxy_headers=False` (`X-Forwarded-For` não fura mais o rate limit).
 - Desktop: `POST /api/anexos/{id}/abrir` abre o anexo no app padrão do sistema, só com login, só dentro de `uploads/` e só com extensão aceita (204). A rota não existe fora do desktop.
+- Desktop (etapa 4): o token local (`X-FinControl-Token`) e o JWT só saem para o backend local já pronto — antes disso a requisição nem é feita e cai no caminho offline; base e token ficam só em memória. Requisições com `credentials: "omit"`; 401 `token_local` relê o `backend_info` e repete uma vez, sem refresh nem logout. Service worker: o build desktop gera um `sw.js` autodestrutivo (`selfDestroying`, sem registro nem manifest) — o SW de um build anterior, que servia o app velho, se atualiza para ele, se desregistra, apaga os caches e recarrega; o boot do desktop também desregistra o que encontrar.
 - `release.yml`: o smoke do backend congelado confere a prova HMAC do health, 401 sem token e 200 com token.
 - Re-enrolment de MFA exige TOTP vigente ou senha se já houver `totp_secret`.
 - `setup_user` bumpa `refresh_version` e apaga `refresh_tokens` após gravar senha/2FA.

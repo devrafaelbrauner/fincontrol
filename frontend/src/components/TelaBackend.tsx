@@ -1,0 +1,81 @@
+import { useEffect, useState } from "react";
+import type { EstadoBackend } from "../backendLocal";
+import Logo from "./Logo";
+
+/** Depois deste tempo em "iniciando" avisa que está lento — e segue esperando:
+ *  quem decide a falha é o Rust (que já tenta de novo), não um segundo prazo aqui. */
+export const LENTO_MS = 8_000;
+
+interface Props {
+  estado: EstadoBackend;
+  aoTentarDeNovo: () => Promise<void>;
+  aoAbrirPasta: () => Promise<void>;
+}
+
+/** Tela de boot do app desktop enquanto o backend embutido sobe, ou falhou.
+ *
+ *  Sem backend não há dado para mostrar, por isso é tela cheia e não banner.
+ *  Mesma moldura da tela de login, para parecer parte do app. */
+export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Props) {
+  const falhou = estado.estado === "falhou";
+  const [lento, setLento] = useState(false);
+  const [reiniciando, setReiniciando] = useState(false);
+
+  useEffect(() => {
+    setLento(false);
+    if (falhou) return;
+    const t = setTimeout(() => setLento(true), LENTO_MS);
+    return () => clearTimeout(t);
+  }, [falhou]);
+
+  async function tentarDeNovo() {
+    setReiniciando(true);
+    try {
+      await aoTentarDeNovo();
+    } catch {
+      // O resultado do reinício chega pelo evento do backend.
+    } finally {
+      setReiniciando(false);
+    }
+  }
+
+  function abrirPasta() {
+    // Conveniência: se o sistema não abrir, não há o que mostrar aqui.
+    aoAbrirPasta().catch(() => {});
+  }
+
+  return (
+    <div className="auth-split">
+      <div className="auth-form-side">
+        <div className="auth-form">
+          <span className="logo"><Logo tamanho={30} /></span>
+          {estado.estado === "falhou" ? (
+            <div role="alert" className="campo" style={{ gap: "0.35rem" }}>
+              <h2>Não foi possível iniciar o FinControl.</h2>
+              <p className="sub">Seus dados não foram alterados.</p>
+              <p className="tela-backend-motivo">{estado.motivo}</p>
+            </div>
+          ) : (
+            <div role="status" className="tela-backend-status">
+              <span className="tela-backend-giro" aria-hidden="true" />
+              <div className="campo" style={{ gap: "0.35rem" }}>
+                <h2>Abrindo o FinControl…</h2>
+                {lento && <p className="sub">Está demorando mais que o normal.</p>}
+              </div>
+            </div>
+          )}
+          {falhou && (
+            <>
+              <button className="auth-entrar" type="button" disabled={reiniciando} onClick={tentarDeNovo}>
+                Tentar de novo
+              </button>
+              <button className="auth-secundario" type="button" disabled={reiniciando} onClick={abrirPasta}>
+                Abrir pasta de dados
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -3,7 +3,8 @@ import { atualizarContadores, definirOffline, registrarCacheEm } from "./offline
 import { type ItemFila, enfileirar } from "./offline/fila";
 import { aplicarOtimista } from "./offline/otimista";
 import { drenarFila } from "./offline/sincronizador";
-import { isNativo } from "./plataforma";
+import { baseLocal, relerInfo, tokenLocal } from "./backendLocal";
+import { isDesktopLocal, isNativo } from "./plataforma";
 import { guardarRefresh, guardarSessao as salvarSessao, guardarToken, getRefresh, getToken, limparSessao } from "./sessao";
 import { getApiBase } from "./servidor";
 
@@ -45,6 +46,45 @@ function headersNativos(comRefresh = false): Record<string, string> {
   return h;
 }
 
+/** O 401 veio do token do backend local (não do JWT)? Lido de um clone para a
+ *  resposta seguir intacta para quem chamou. */
+async function ehTokenLocal(res: Response): Promise<boolean> {
+  const corpo = await res.clone().json().catch(() => null);
+  return (corpo as { detail?: unknown } | null)?.detail === "token_local";
+}
+
+/** Desktop: envia ao backend embutido com o token do Rust. Sem backend pronto a
+ *  requisição nem sai — o `TypeError` é o mesmo da falha de rede, então cache e
+ *  fila offline assumem, e token e JWT não vão para uma porta que outro processo
+ *  pode ter pegado depois de um reinício. */
+async function enviarLocal(caminho: string, init: RequestInit): Promise<Response> {
+  const base = baseLocal();
+  const token = tokenLocal();
+  if (!base || !token) throw new TypeError("O FinControl ainda está abrindo. Tente de novo em instantes.");
+  const headers = new Headers(init.headers);
+  headers.set("X-FinControl-Token", token);
+  // Sem cookies no desktop: o refresh vai por X-Refresh-Token, e o CORS local
+  // recusa credenciais.
+  return fetch(base + caminho, { ...init, headers, credentials: "omit" });
+}
+
+/** Único ponto de saída para a API. Fora do desktop é o `fetch` de sempre. */
+async function buscar(caminho: string, init: RequestInit): Promise<Response> {
+  if (!isDesktopLocal()) return fetch(getApiBase() + caminho, init);
+  const res = await enviarLocal(caminho, init);
+  if (res.status !== 401 || !(await ehTokenLocal(res))) return res;
+  // O backend reiniciou (porta e token novos): relê e repete uma vez. Não é
+  // sessão vencida — nada de refresh nem de deslogar.
+  try { await relerInfo(); } catch { /* ainda reiniciando: o envio cai no TypeError */ }
+  const repetida = await enviarLocal(caminho, init);
+  if (repetida.status === 401 && (await ehTokenLocal(repetida))) {
+    // Token novo recusado de novo: trata como backend indisponível (offline),
+    // em vez de deixar o 401 parecer sessão vencida para o comAuth.
+    throw new TypeError("O FinControl local recusou a conexão.");
+  }
+  return repetida;
+}
+
 /** Texto legível do `detail` de um erro da API.
  *
  *  Num 422 o FastAPI manda uma LISTA de erros de campo, não uma string — e
@@ -79,7 +119,7 @@ export async function aplicarSessao(corpo: { token: string; refresh_token?: stri
 }
 
 async function postAuth(path: string, body: unknown): Promise<void> {
-  const res = await fetch(getApiBase() + "/api/auth/" + path, {
+  const res = await buscar("/api/auth/" + path, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", ...headersNativos() },
@@ -113,7 +153,7 @@ export const cadastrar = (dados: { nome: string; telefone: string; email: string
  *  backend só demorou a subir — sem conta para entrar e sem caminho para criar. */
 export async function contaConfigurada(): Promise<boolean | null> {
   try {
-    const res = await fetch(getApiBase() + "/api/auth/status", { credentials: "include" });
+    const res = await buscar("/api/auth/status", { credentials: "include" });
     if (!res.ok) return null;
     return ((await res.json()) as { configurado: boolean }).configurado;
   } catch {
@@ -128,7 +168,7 @@ async function irParaLogin(): Promise<never> {
 }
 
 async function renovarAgora(): Promise<string | null> {
-  const res = await fetch(getApiBase() + "/api/auth/refresh", {
+  const res = await buscar("/api/auth/refresh", {
     method: "POST",
     credentials: "include",
     headers: headersNativos(true),
@@ -165,12 +205,12 @@ function renovar(): Promise<string | null> {
 
 /** fetch com Bearer atual; em 401 (fora das rotas públicas de /auth) tenta renovar uma vez e repete. */
 async function comAuth(path: string, montar: (token: string | null) => RequestInit): Promise<Response> {
-  let res = await fetch(getApiBase() + "/api" + path, { credentials: "include", ...montar(getToken()) });
+  let res = await buscar("/api" + path, { credentials: "include", ...montar(getToken()) });
   // /auth/mfa/* é autenticada como as demais; só login/refresh/etc. ficam fora do retry.
   if (res.status === 401 && (!path.startsWith("/auth") || path.startsWith("/auth/mfa"))) {
     const novo = await renovar();
     if (!novo) await irParaLogin();
-    res = await fetch(getApiBase() + "/api" + path, { credentials: "include", ...montar(novo) });
+    res = await buscar("/api" + path, { credentials: "include", ...montar(novo) });
     if (res.status === 401) await irParaLogin();
   }
   return res;
@@ -277,7 +317,7 @@ async function executarDaFila(item: ItemFila): Promise<{ status: number; detail?
   if (item.ifMatch) headers["If-Match"] = item.ifMatch;
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(getApiBase() + "/api" + item.path, {
+  const res = await buscar("/api" + item.path, {
     method: item.method,
     credentials: "include",
     headers,
@@ -318,8 +358,19 @@ export async function apiUpload<T>(path: string, arquivo: File): Promise<T> {
   return corpoOuErro<T>(res);
 }
 
-/** Baixa um anexo autenticado e devolve uma object URL para exibir/abrir no navegador. */
+/** Abre um anexo. Web/celular: baixa autenticado e abre a object URL no
+ *  navegador. Desktop: o backend abre o arquivo no app padrão do sistema — a
+ *  WebView não tem para onde mandar uma object URL. */
 export async function abrirAnexo(anexoId: number): Promise<void> {
+  if (isDesktopLocal()) {
+    const res = await comAuth(`/anexos/${anexoId}/abrir`, (token) => ({
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>),
+    }));
+    // 204 sem corpo: nada para ler.
+    if (!res.ok) throw new Error("Não foi possível abrir o anexo");
+    return;
+  }
   const res = await comAuth(`/anexos/${anexoId}`, (token) => ({
     headers: token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>),
   }));
@@ -331,7 +382,7 @@ export async function abrirAnexo(anexoId: number): Promise<void> {
 }
 
 export async function logout(todos = false): Promise<void> {
-  await fetch(getApiBase() + "/api/auth/logout" + (todos ? "?todos=1" : ""), {
+  await buscar("/api/auth/logout" + (todos ? "?todos=1" : ""), {
     method: "POST",
     credentials: "include",
     // `true` manda o X-Refresh-Token. Sem ele, o app nativo — onde o cookie não
