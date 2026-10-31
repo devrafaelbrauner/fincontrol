@@ -187,3 +187,49 @@ antes da 5, H6 na 6.
 - [ ] **H5** confirmar as metas N1–N7 do plano.
 - [ ] **H6** smoke em Windows 11 x64 e macOS arm64 limpos. *Parte Mac feita numa máquina
   de dev (não limpa); falta Windows 11 e Mac limpos.*
+
+# TAREFAS — Android local + sincronização
+
+Plano do run NEXUS `fincontrol-a0-android-sync` (2026-10-30), perfil `full`; programa em
+`docs/runs/android-local/` (`README.md`, `sprint.md`, briefs). O APK passa a levar o
+backend (Chaquopy), dados no aparelho, IA pelo OpenRouter, sync cifrado celular ↔ PC e
+corte da VPS. Uma fatia por run, ≤ 20 arquivos; o sabor `local` (`.local`) convive com o
+APK de hoje até S10. Ordem: S0 → S2a → S1a → S1b → S2 → S3 → S4a → S4b → S5 → S6 → S7 →
+S8 → S9 → S10 → S11a → S11b. Humanos: HA1 antes de S0, Q1 até o fim de S7, O1 antes de
+S9, Q2 antes de S11a.
+
+- [ ] **S0 — Spike Chaquopy (go/no-go)** — `import app.main` no aparelho, 16 KB, fetch do
+  WebView a `http://127.0.0.1`, boot e tamanho do APK. Brief: `S0-brief.md`. No-go para S1a+.
+- [ ] **S2a — Commit antes da resposta** — `Depends(get_db, scope="function")`,
+  `fastapi>=0.121`; vale para VPS e desktop, independe do Android.
+- [ ] **[SEG] S1a — Casca Android** — sabores `nuvem`/`local`, runtime, cofre no
+  AndroidKeyStore, plugin `BackendLocal`, NSC só 127.0.0.1, guarda com Origin Android.
+- [ ] **S1b — Modo local no front** — `isBackendLocal()`, adaptador Tauri×Capacitor,
+  TelaBackend, sem service worker no `.local`.
+- [ ] **S2 — Offline + ciclo de vida** — modo avião, migration com cópia, 20× force-stop.
+- [ ] **S3 — IA no aparelho** — chave local cifrada, não sincroniza.
+- [ ] **S4a — Import/export (backend)** — zip único, dry-run com relatório, aplicar
+  atômico; cobre o backend da etapa 5 do desktop local.
+- [ ] **S4b — Import/export (UI)** — PrimeiroUso, AssistenteImport, Config › Dados. Open
+  Design antes.
+- [ ] **S5 — Modelo de sync** — migration 019, gid + tombstones por triggers.
+- [ ] **[SEG] S6 — Motor de sync** — lote cifrado E2E, conflito com 2 versões, anexos.
+- [ ] **S7 — UI de sync + agendador** — IndicadorSync, `/conflitos`, gatilho no cliente.
+  Open Design antes.
+- [ ] **[SEG] S8 — Canal** — bloqueada por Q1 (rec. hub na VPS, só cifrado).
+- [ ] **[SEG] S9 — Pareamento** — SAS nos 2 aparelhos, revogar, Wi-Fi para anexos grandes;
+  bloqueada por Q1 e O1. Open Design antes.
+- [ ] **S10 — Corte** — VPS só leitura, import final, 2º aparelho via sync, aceite do dono.
+- [ ] **S11a — Desligar web/PWA** — bloqueada por Q2.
+- [ ] **S11b — Desligar iOS + APK nuvem** — bloqueada por Q2.
+- [ ] **HA1** celular Android por USB ou JDK+SDK+emulador neste Mac (S0, S1a, S1b, S2, S9).
+- [ ] **HA2** PC Windows 11 com o desktop (S9, S10).
+- [ ] **HA3** backup da VPS decifrado (`.age` fora do app; S4a, de novo no S10).
+- [ ] **HA4** SSH na VPS + subdomínio do hub, se Q1 = A (S8, S11a).
+- [ ] **HA5** backup da keystore do APK antes de dado real no celular (S4b, S10).
+- [ ] **HA6** chave OpenRouter de teste (S3).
+- [ ] **HQ1** escolher o canal de sync: A hub na VPS (rec.), B rede local, C drive.
+- [ ] **HQ2** desligar web/PWA/iOS/.ics/push depois do corte (rec. sim).
+- [ ] **HO1** o PC já tem dados próprios no modo local? (v1: parear substitui os dados de um
+  lado — destrutivo).
+- [ ] **HNF** aceitar ou ajustar as metas NF1–NF7 (`proposed` em `produto.md`).
