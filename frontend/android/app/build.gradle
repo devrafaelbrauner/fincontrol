@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// Chaquopy (backend Python no APK, sabor `local`). O plugin vale para o módulo inteiro, sem
+// opção por sabor: o que ele põe no `api` aqui é movido para o `local` lá embaixo, junto
+// com o desligamento das tarefas dele no `nuvem`.
+def apiAntesDoChaquopy = configurations.api.dependencies.toList()
+apply plugin: 'com.chaquo.python'
+def depsDoChaquopy = configurations.api.dependencies.findAll { !(it in apiAntesDoChaquopy) }
+apply plugin: 'org.jetbrains.kotlin.android'  // FinControlApp.kt (src/local)
+
 // --- Assinatura de release -------------------------------------------------
 //
 // As credenciais NUNCA entram no repositório: ficam em
@@ -28,10 +36,13 @@ if (temAssinatura) {
 //
 // A checagem vive no taskGraph, e não aqui fora, porque este bloco é avaliado em
 // TODO build: fazê-la direto abortaria também o `assembleDebug`, que não precisa
-// de chave nenhuma.
+// de chave nenhuma. Só o release do sabor `nuvem` (o app de verdade) pede a chave —
+// `assembleRelease` inclui ele; o `local` assina com a chave de debug. Olha só as
+// tarefas deste módulo: as das bibliotecas (ex.: packageReleaseResources do
+// capacitor-android) entram em qualquer build de release, inclusive o do `local`.
 gradle.taskGraph.whenReady { grafo ->
     def pedeRelease = grafo.allTasks.any {
-        it.name ==~ /(?i)(assemble|bundle|package|install)Release.*/
+        it.project == project && it.name ==~ /(?i)(assemble|bundle|package|install)(Nuvem)?Release.*/
     }
     if (pedeRelease && !temAssinatura) {
         throw new GradleException(
@@ -73,12 +84,37 @@ android {
         }
     }
 
+    // Sabores, lado a lado até o corte do programa android-local:
+    // - nuvem: o APK de hoje (mesmo applicationId, assinatura e comportamento);
+    // - local: backend Python embutido (Chaquopy), com pacote e nome próprios para
+    //   instalar ao lado do nuvem. Assina com a chave de debug: nada dele vai ao usuário.
+    // abiFilters em toda variante porque o Chaquopy os exige (lê só defaultConfig e
+    // sabores, não buildType); o APK nuvem não tem .so, então o filtro não muda nada nele.
+    flavorDimensions = ["modo"]
+    productFlavors {
+        nuvem {
+            dimension "modo"
+            // Sem chave, o sabor fica sem assinatura só para o bloco configurar; quem
+            // barra o build nesse caso é o taskGraph lá em cima, com uma mensagem que
+            // diz o que fazer — aqui o gradle diria apenas "unsigned".
+            if (temAssinatura) {
+                signingConfig signingConfigs.release
+            }
+            ndk { abiFilters "arm64-v8a" }
+        }
+        local {
+            dimension "modo"
+            applicationIdSuffix ".local"
+            signingConfig signingConfigs.debug
+            // Celulares atuais (e o emulador do Apple silicon); a wheel x86_64 do
+            // pydantic-core serve a um emulador x86_64, acrescentando "x86_64" aqui.
+            ndk { abiFilters "arm64-v8a" }
+        }
+    }
+
     buildTypes {
         release {
-            // `null` quando não há chave só para o bloco configurar; quem barra o
-            // build nesse caso é o taskGraph lá em cima, com uma mensagem que diz
-            // o que fazer — aqui o gradle diria apenas "unsigned".
-            signingConfig temAssinatura ? signingConfigs.release : null
+            // A assinatura de release mora no sabor `nuvem` (o `local` usa a de debug).
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -93,7 +129,64 @@ android {
             applicationIdSuffix ".teste"
         }
     }
+
+    // O plugin do Kotlin põe este metadado de build no APK de release: fora, para o
+    // `nuvem` sair com o mesmo conteúdo de antes dos sabores.
+    packaging {
+        resources {
+            excludes += ["kotlin-tooling-metadata.json"]
+        }
+    }
 }
+
+// Kotlin no mesmo alvo do Java (21, que vem do capacitor.build.gradle).
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
+}
+
+// --- Python do sabor `local` (Chaquopy) --------------------------------------
+// Fonte: cópia de backend/app gerada no build/ (o Chaquopy empacota o diretório de fonte
+// inteiro; apontá-lo para backend/ levaria testes, banco de dev e uploads). Dependências:
+// o lock backend/requirements-android.txt, com o pydantic-core das wheels em wheels/ (o
+// pip do Chaquopy só aceita wheel). Python do build: o `python3.13` do PATH.
+def fonteBackend = layout.buildDirectory.dir("backend-local")
+def copiarBackend = tasks.register("copiarBackendLocal", Sync) {
+    from(rootProject.file("../../backend/app")) {
+        exclude "**/__pycache__/**", "**/*.pyc"
+    }
+    into fonteBackend.map { it.dir("app") }
+}
+
+chaquopy {
+    productFlavors {
+        local {
+            version = "3.13"
+            pip {
+                options "--find-links", "wheels"
+                install "-r", "../../../backend/requirements-android.txt"
+            }
+        }
+    }
+    sourceSets {
+        local {
+            srcDir fonteBackend
+        }
+    }
+}
+
+tasks.named { it ==~ /mergeLocal(Debug|Release)PythonSources/ }.configureEach {
+    dependsOn copiarBackend
+}
+
+// Nada de Python no `nuvem`: as tarefas do Chaquopy dele não rodam (sem libpython nem
+// assets de Python no APK) e o jar do runtime Java do Chaquopy vai só para o `local`.
+tasks.named { it ==~ /\w+Nuvem(Debug|Release)Python\w*/ }.configureEach {
+    enabled = false
+}
+configurations.api.dependencies.removeAll(depsDoChaquopy)
+depsDoChaquopy.each { dependencies.add("localApi", it) }
 
 repositories {
     flatDir{

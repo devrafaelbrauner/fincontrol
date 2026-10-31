@@ -116,10 +116,10 @@ echo "==> Versão $NOME_VER (versionCode $ATUAL → $NOVO)"
 echo "==> Backend alvo: $BASE"
 VITE_API_BASE="$BASE" npm run android
 
-echo "==> Compilando o APK de release"
-(cd android && ./gradlew assembleRelease -q)
+echo "==> Compilando o APK de release (sabor nuvem)"
+(cd android && ./gradlew assembleNuvemRelease -q)
 
-APK="android/app/build/outputs/apk/release/app-release.apk"
+APK="android/app/build/outputs/apk/nuvem/release/app-nuvem-release.apk"
 [ -f "$APK" ] || { echo "ERRO: $APK não saiu do build." >&2; exit 1; }
 
 # --- Conferências -----------------------------------------------------------

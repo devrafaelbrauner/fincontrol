@@ -94,10 +94,10 @@ fi
 echo "==> Backend alvo: $BASE"
 FINCONTROL_BUILD_LOCAL=1 FINCONTROL_ANDROID_TESTE_LOCAL=1 VITE_API_BASE="$BASE" npm run android
 
-echo "==> Compilando o APK (variante debug, que libera tráfego em texto claro)"
-(cd android && ./gradlew assembleDebug -q)
+echo "==> Compilando o APK (sabor nuvem, variante debug, que libera tráfego em texto claro)"
+(cd android && ./gradlew assembleNuvemDebug -q)
 
-APK="android/app/build/outputs/apk/debug/app-debug.apk"
+APK="android/app/build/outputs/apk/nuvem/debug/app-nuvem-debug.apk"
 DESTINO="${1:-$HOME/Downloads/Android/fincontrol-teste-local.apk}"
 mkdir -p "$(dirname "$DESTINO")"
 cp "$APK" "$DESTINO"

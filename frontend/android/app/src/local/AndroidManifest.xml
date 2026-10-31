@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sabor `local` (backend Python embutido; spike S0 do programa android-local):
+  - FinControlApp sobe o backend uma vez por processo, fora da main thread, antes do
+    WebView;
+  - network_security_config: texto claro só para 127.0.0.1;
+  - nome próprio na gaveta (o rótulo da activity é o que o launcher mostra).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:name=".FinControlApp"
+        android:label="@string/nome_sabor_local"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:label">
+
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/nome_sabor_local"
+            tools:replace="android:label" />
+    </application>
+
+</manifest>

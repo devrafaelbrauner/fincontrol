@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Nome do sabor `local` na gaveta: precisa ser distinguível do app de verdade (nuvem),
+     que continua instalado ao lado. Vai por nome próprio, aplicado no manifesto do sabor,
+     e não sobrescrevendo app_name: no localDebug o res/ do debug ("FinControl teste")
+     ganharia do sabor, e ele ficaria igual ao APK de teste do nuvem. -->
+<resources>
+    <string name="nome_sabor_local">FinControl local</string>
+</resources>
