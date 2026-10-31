@@ -61,10 +61,10 @@ Profile = esperado; a triagem (0t) decide. OD = Open Design antes do front.
 |---|---|---|---|---|---|---|---|
 | 1 | S0 Spike Chaquopy (go/no-go) | — | HA1 | — | feature | não | **GO**, mesclada (run a2, PR #83) |
 | 2 | S2a Commit antes da resposta | — | — | — | patch | não | mesclada (run a1, PR #82) |
-| 3 | S1a Casca Android | S0 | HA1 | — | feature | não | feita (run a3; brief só na run, não coube no raio) |
-| 4 | S1b Modo local no front | S1a | HA1 | — | feature | não | próxima (`S1b-brief.md`) |
-| 5 | S2 Offline + ciclo de vida | S1b, S2a | HA1 | — | feature | não | a fazer |
-| 6 | S3 IA no aparelho | S2 | HA6 | — | patch | não | a fazer |
+| 3 | S1a Casca Android | S0 | HA1 | — | feature | não | mesclada (run a3, PR #84; brief só na run) |
+| 4 | S1b Modo local no front | S1a | HA1 | — | feature | não | feita (run a4) |
+| 5 | S2 Offline + ciclo de vida | S1b, S2a | HA1 | — | feature | não | próxima (`S2-brief.md`) |
+| 6 | S3 IA no aparelho + endurecimento antes de dado real | S2 | HA6 | — | feature | não | a fazer (CSP, transferência, cadeia de suprimentos: `TAREFAS_PENDENTES.md`) |
 | 7 | S4a Import/export backend | S2a | HA3 | — | patch | não | a fazer |
 | 8 | S4b Import/export UI | S4a, S1b | HA5 | — | feature | sim | a fazer |
 | 9 | S5 Modelo de sync | S0=go | — | — | patch | não | a fazer |
