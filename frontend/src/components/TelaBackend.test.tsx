@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Capacitor } from "@capacitor/core";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TelaBackend, { LENTO_MS } from "./TelaBackend";
@@ -6,6 +7,7 @@ import TelaBackend, { LENTO_MS } from "./TelaBackend";
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 const nada = async () => {};
@@ -87,5 +89,24 @@ describe("TelaBackend", () => {
     await act(async () => { terminar(); });
     expect(botao.textContent).toBe("Tentar de novo");
     expect(botao.disabled).toBe(false);
+  });
+
+  it("no Android não mostra \"Abrir pasta de dados\" (a pasta é interna ao app)", () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+    vi.spyOn(Capacitor, "isPluginAvailable").mockReturnValue(true);
+    const { getByRole, queryByRole } = render(
+      <TelaBackend estado={{ estado: "falhou", motivo: "cofre corrompido" }}
+        aoTentarDeNovo={nada} aoAbrirPasta={nada} />,
+    );
+    expect(getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(queryByRole("button", { name: "Abrir pasta de dados" })).toBeNull();
+  });
+
+  it("no desktop sem `aoAbrirPasta` também não mostra a pasta", () => {
+    const { getByRole, queryByRole } = render(
+      <TelaBackend estado={{ estado: "falhou", motivo: "x" }} aoTentarDeNovo={nada} />,
+    );
+    expect(getByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+    expect(queryByRole("button", { name: "Abrir pasta de dados" })).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isNativo, isTauri, isTauriMac } from "./plataforma";
+import { Capacitor } from "@capacitor/core";
+import { isAndroidLocal, isBackendLocal, isNativo, isTauri, isTauriMac, prepararServiceWorker } from "./plataforma";
 
 describe("isTauri", () => {
   // Roda em node (sem DOM): o Tauri 2 injeta `isTauri = true` no global da
@@ -43,5 +44,97 @@ describe("isTauriMac", () => {
     vi.stubGlobal("isTauri", false);
     vi.stubGlobal("navigator", { userAgent: MAC });
     expect(isTauriMac()).toBe(false);
+  });
+});
+
+describe("isAndroidLocal", () => {
+  // O APK `local` é o único que registra o plugin `BackendLocal`: o mesmo
+  // `dist/` decide em tempo de execução, sem `vite --mode`.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function simularAndroid(comPlugin: boolean) {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+    vi.spyOn(Capacitor, "isPluginAvailable").mockImplementation((nome) => nome === "BackendLocal" && comPlugin);
+  }
+
+  it("no web não é (mesmo sem plugin)", () => {
+    expect(isAndroidLocal()).toBe(false);
+  });
+
+  it("android sem o plugin (sabor `nuvem`) não é", () => {
+    simularAndroid(false);
+    expect(isAndroidLocal()).toBe(false);
+  });
+
+  it("android com o plugin (sabor `local`) é", () => {
+    simularAndroid(true);
+    expect(isAndroidLocal()).toBe(true);
+  });
+
+  it("iOS com um plugin de mesmo nome não é (a plataforma manda)", () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    vi.spyOn(Capacitor, "isPluginAvailable").mockReturnValue(true);
+    expect(isAndroidLocal()).toBe(false);
+  });
+});
+
+describe("isBackendLocal", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("desktop (Tauri, sem Capacitor) é backend local", () => {
+    vi.stubGlobal("isTauri", true);
+    expect(isBackendLocal()).toBe(true);
+  });
+
+  it("APK `local` (android + plugin, sem Tauri) é backend local", () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+    vi.spyOn(Capacitor, "isPluginAvailable").mockReturnValue(true);
+    expect(isBackendLocal()).toBe(true);
+  });
+
+  it("web, iOS e APK `nuvem` não são", () => {
+    expect(isBackendLocal()).toBe(false);
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    expect(isBackendLocal()).toBe(false);
+    vi.restoreAllMocks();
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("android");
+    vi.spyOn(Capacitor, "isPluginAvailable").mockReturnValue(false);
+    expect(isBackendLocal()).toBe(false);
+  });
+});
+
+describe("prepararServiceWorker", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sem `navigator.serviceWorker` não faz nada (node)", () => {
+    expect(() => prepararServiceWorker()).not.toThrow();
+  });
+
+  it("no modo local desregistra sobras em vez de registrar", async () => {
+    vi.stubGlobal("isTauri", true);
+    const desregistrar = vi.fn(async () => true);
+    const registrar = vi.fn();
+    vi.stubGlobal("navigator", { serviceWorker: { getRegistrations: async () => [{ unregister: desregistrar }], register: registrar } });
+    prepararServiceWorker();
+    // A desregistração é assíncrona (promise encadeada, sem await): espera.
+    for (let i = 0; i < 10 && desregistrar.mock.calls.length === 0; i++) await Promise.resolve();
+    expect(desregistrar).toHaveBeenCalledTimes(1);
+    expect(registrar).not.toHaveBeenCalled();
+  });
+
+  it("fora do modo local e fora de PROD não registra (dev)", () => {
+    const registrar = vi.fn();
+    vi.stubGlobal("navigator", { serviceWorker: { getRegistrations: async () => [], register: registrar } });
+    prepararServiceWorker();
+    expect(registrar).not.toHaveBeenCalled();
   });
 });

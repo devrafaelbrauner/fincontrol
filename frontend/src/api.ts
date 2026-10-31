@@ -4,7 +4,7 @@ import { type ItemFila, enfileirar } from "./offline/fila";
 import { aplicarOtimista } from "./offline/otimista";
 import { drenarFila } from "./offline/sincronizador";
 import { baseLocal, relerInfo, tokenLocal } from "./backendLocal";
-import { isDesktopLocal, isNativo } from "./plataforma";
+import { isBackendLocal, isNativo } from "./plataforma";
 import { guardarRefresh, guardarSessao as salvarSessao, guardarToken, getRefresh, getToken, limparSessao } from "./sessao";
 import { getApiBase } from "./servidor";
 
@@ -53,24 +53,24 @@ async function ehTokenLocal(res: Response): Promise<boolean> {
   return (corpo as { detail?: unknown } | null)?.detail === "token_local";
 }
 
-/** Desktop: envia ao backend embutido com o token do Rust. Sem backend pronto a
- *  requisição nem sai — o `TypeError` é o mesmo da falha de rede, então cache e
- *  fila offline assumem, e token e JWT não vão para uma porta que outro processo
- *  pode ter pegado depois de um reinício. */
+/** Modo local: envia ao backend embutido com o token da casca. Sem backend
+ *  pronto a requisição nem sai — o `TypeError` é o mesmo da falha de rede,
+ *  então cache e fila offline assumem, e token e JWT não vão para uma porta
+ *  que outro processo pode ter pegado depois de um reinício. */
 async function enviarLocal(caminho: string, init: RequestInit): Promise<Response> {
   const base = baseLocal();
   const token = tokenLocal();
   if (!base || !token) throw new TypeError("O FinControl ainda está abrindo. Tente de novo em instantes.");
   const headers = new Headers(init.headers);
   headers.set("X-FinControl-Token", token);
-  // Sem cookies no desktop: o refresh vai por X-Refresh-Token, e o CORS local
+  // Sem cookies no modo local: o refresh vai por X-Refresh-Token, e o CORS local
   // recusa credenciais.
   return fetch(base + caminho, { ...init, headers, credentials: "omit" });
 }
 
-/** Único ponto de saída para a API. Fora do desktop é o `fetch` de sempre. */
+/** Único ponto de saída para a API. Fora do modo local é o `fetch` de sempre. */
 async function buscar(caminho: string, init: RequestInit): Promise<Response> {
-  if (!isDesktopLocal()) return fetch(getApiBase() + caminho, init);
+  if (!isBackendLocal()) return fetch(getApiBase() + caminho, init);
   const res = await enviarLocal(caminho, init);
   if (res.status !== 401 || !(await ehTokenLocal(res))) return res;
   // O backend reiniciou (porta e token novos): relê e repete uma vez. Não é
@@ -358,11 +358,11 @@ export async function apiUpload<T>(path: string, arquivo: File): Promise<T> {
   return corpoOuErro<T>(res);
 }
 
-/** Abre um anexo. Web/celular: baixa autenticado e abre a object URL no
- *  navegador. Desktop: o backend abre o arquivo no app padrão do sistema — a
- *  WebView não tem para onde mandar uma object URL. */
+/** Abre um anexo. Web/celular/nuvem: baixa autenticado e abre a object URL no
+ *  navegador. Modo local: o backend abre o arquivo no app padrão do sistema —
+ *  a WebView não tem para onde mandar uma object URL. */
 export async function abrirAnexo(anexoId: number): Promise<void> {
-  if (isDesktopLocal()) {
+  if (isBackendLocal()) {
     const res = await comAuth(`/anexos/${anexoId}/abrir`, (token) => ({
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>),

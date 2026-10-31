@@ -205,26 +205,33 @@ S9, Q2 antes de S11a.
   Wheels do pydantic-core 2.50.2 pelo `wheels-android.yml` (run 41220674404).
 - [x] **S2a — Commit antes da resposta** — `Depends(get_db, scope="function")`,
   `fastapi>=0.121`; vale para VPS e desktop (run a1, PR #82).
-- [x] **[SEG] S1a — Casca Android** (run `fincontrol-a3-casca-android`) — a casca Kotlin
-  gera o token por processo e só marca `pronto` com a prova HMAC; SECRET_KEY/Fernet no
+- [x] **[SEG] S1a — Casca Android** (run `fincontrol-a3-casca-android`, PR #84) — a casca
+  Kotlin gera o token por processo e só marca `pronto` com a prova HMAC; SECRET_KEY/Fernet no
   AndroidKeyStore (AES-GCM, sem autenticação, fora de `files/`, iguais depois de force-stop);
   plugin `BackendLocal` só no `local`; guarda com `FINCONTROL_MODO=android` (401/400/403 pelo
   `adb shell`, porta só em 127.0.0.1); logcat da casca sem token/nonce/prova/segredo; Gradle
   copia só `.py`/`.sql`/`VERSION` e confere o `SHA256SUMS` das wheels; versão real no APK.
-- [ ] **S1b — Modo local no front** — `isBackendLocal()`, adaptador Tauri×Capacitor,
-  TelaBackend, sem service worker no `.local`. Brief: `S1b-brief.md` (1º item bloqueante:
-  `loggingBehavior: "none"`, porque o Capacitor loga o token do `info()` em build debug).
+- [x] **S1b — Modo local no front** (run `fincontrol-a4-front-local`) — o `.local` abre pela
+  `TelaBackend` e fala com o backend do aparelho (`isAndroidLocal()` em tempo de execução,
+  adaptador Tauri×Capacitor com núcleo único); sem service worker no `.local`; token e JWT só
+  em memória; `loggingBehavior: "none"` tira o token do logcat do build debug.
 - [ ] **S2 — Offline + ciclo de vida** — modo avião, migration com cópia, 20× force-stop.
-  Herdado (dona = S2): `/abrir` → `{caminho}` + FileProvider; cópia antes de migrar
-  duplicada de `desktop.py` e sem teste Android (S0 CR3); transferência entre aparelhos copia
-  o cofre e o banco sem a chave do KeyStore → `dataExtractionRules` ou saída pela exportação
-  (S1a A1/CR-1).
-- [ ] **S3 — IA no aparelho** — chave local cifrada, não sincroniza. Herdado, **antes de dado
-  real (S4b)** (dona = S3): `--require-hashes` no `requirements-android.txt` (inclui
-  `chaquopy-libffi`, ausente do PyPI); sdist em `wheels/` sem conferência (S1a CR-2);
-  `cibuildwheel`/maturin fixados e attestation das wheels; tirar o gatilho `push` do
-  `wheels-android.yml`; pip-audit do `requirements-android.txt` na CI; reauditar
-  `cryptography==42.0.8` (7 exceções) antes de X.509/EC/TLS e da S6.
+  Brief: `S2-brief.md`. Herdado (dona = S2): `/abrir` → `{caminho}` + FileProvider; cópia
+  antes de migrar duplicada de `desktop.py` e sem teste Android (S0 CR3); o mock do
+  `Login.test.tsx` não exercita mais o boot local (S1b DECISIONS 6); texto do cadastro no
+  local ("dados só no seu servidor") e contraste do login (axe); testes do SW com `PROD` e da
+  escolha da casca (S1b CR-4/CR-10); limpeza do `apk-local.sh` (S1b DECISIONS 11).
+- [ ] **S3 — IA no aparelho + endurecimento antes de dado real (S4b)** — chave local cifrada,
+  não sincroniza. Herdado (dona = S3):
+  - CSP no Capacitor: `<meta>` no `index.html`; nenhum app Capacitor tem CSP hoje (S1b
+    DECISIONS 5);
+  - transferência entre aparelhos copia o cofre e o banco sem a chave do KeyStore →
+    `dataExtractionRules` ou saída pela exportação (S1a A1/CR-1);
+  - `--require-hashes` no `requirements-android.txt` (inclui `chaquopy-libffi`, ausente do
+    PyPI); sdist em `wheels/` sem conferência (S1a CR-2); `cibuildwheel`/maturin fixados e
+    attestation das wheels; tirar o gatilho `push` do `wheels-android.yml`; pip-audit do
+    `requirements-android.txt` na CI; reauditar `cryptography==42.0.8` (7 exceções) antes de
+    X.509/EC/TLS e da S6.
 - [ ] **S4a — Import/export (backend)** — zip único, dry-run com relatório, aplicar
   atômico; cobre o backend da etapa 5 do desktop local.
 - [ ] **S4b — Import/export (UI)** — PrimeiroUso, AssistenteImport, Config › Dados. Open

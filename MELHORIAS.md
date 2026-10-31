@@ -150,7 +150,7 @@ delas é compromisso de entrega.
   - no login, o Tab passa por "Esqueci a senha" antes da senha (dono: frontend);
   - o FAB "+" cobre a ponta da barra "Sem categoria" (dono: frontend).
 
-- [ ] **Sobras do Android local (S0/S1a, runs a2/a3)** — nenhuma tem fatia dona:
+- [ ] **Sobras do Android local (S0/S1a/S1b, runs a2–a4)** — nenhuma tem fatia dona:
   - `apk-teste.sh` gera `fincontrol-teste-local.apk`, nome que agora confunde com o sabor
     `local`; falta um `apk:local` no `package.json`;
   - script da comparação APK `nuvem` × antes (S0.6/S1a.5 foram feitas à mão); refazer a cada
@@ -168,6 +168,8 @@ delas é compromisso de entrega.
   - segredos em `String` na JVM até o GC (mesma postura do desktop);
   - uvicorn ignora cliente que fecha a escrita antes da resposta (sondas tipo `nc`);
   - registrar o nível de segurança do KeyStore num celular real.
+  - `vite.config.ts:61-67`: o comentário do modo desktop perdeu "o registra), mas NÃO" na S1b
+    e agora diz o contrário do código (o parêntese ficou aberto). Só o texto; o código está certo.
 
 ## Segurança / acesso
 

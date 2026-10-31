@@ -13,7 +13,7 @@ import { EstadoProvider } from "./estado";
 import { bloquearNaCarga, marcarAtividade, precisaDesbloquear } from "./bloqueio";
 import { biometriaDisponivel } from "./nativo/biometria";
 import { atualizarContadores, definirOffline } from "./offline/estadoOffline";
-import { isDesktopLocal, isNativo } from "./plataforma";
+import { isBackendLocal, isNativo, prepararServiceWorker } from "./plataforma";
 import { carregarServidor, temApiBase } from "./servidor";
 import { carregarSessao, limparSessao, temSessao } from "./sessao";
 import "./app.css";
@@ -34,10 +34,10 @@ function vigiarConexao() {
   void atualizarContadores();
 }
 
-/** Desktop: a "conexão" é o backend embutido, e o `navigator.onLine` não diz
+/** Modo local: a "conexão" é o backend embutido, e o `navigator.onLine` não diz
  *  nada sobre ele — o estado offline vem dos avisos do backend. Fica só a
  *  repetição da fila ao voltar ao primeiro plano. */
-function vigiarDesktop() {
+function vigiarLocal() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && baseLocal()) void sincronizar();
   });
@@ -87,23 +87,14 @@ function Raiz({ bloqueadoInicial, precisaServidor }: { bloqueadoInicial: boolean
   return <App />;
 }
 
-/** Boot do app desktop: o backend embutido sobe junto com a janela.
+/** Boot do modo local: o backend embutido sobe junto com o app.
  *
  *  Nenhuma chamada à API antes do primeiro `pronto`; nele, a sessão e o gate de
  *  biometria como no boot de sempre, a fila e só então o app. Um reinício do
  *  backend com o app aberto vira a barra offline (o app segue montado, com
  *  cache e fila); só `falhou` volta para a tela cheia. */
-async function iniciarDesktop() {
-  // Builds antigos (cliente da VPS) registraram o sw.js no perfil do WebView2.
-  // O desktop não usa service worker. O sw.js autodestrutivo do build desktop
-  // (vite.config.ts) é inofensivo, mas não substitui o SW velho (a atualização
-  // falha no WebView2); no Windows a limpeza é o lib.rs apagar a pasta
-  // `Service Worker` do perfil antes da janela. Aqui, já no app novo, desregistra
-  // o que tiver sobrado.
-  void navigator.serviceWorker?.getRegistrations()
-    .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-    .catch(() => {});
-
+async function iniciarLocal() {
+  prepararServiceWorker();
   const root = ReactDOM.createRoot(document.getElementById("root")!);
   let estado: EstadoBackend = { estado: "iniciando" };
   // null até o primeiro `pronto` terminar de ler a sessão.
@@ -165,7 +156,7 @@ async function iniciarDesktop() {
   };
 
   pintar();
-  vigiarDesktop();
+  vigiarLocal();
   window.addEventListener("pagehide", encerrar, { once: true });
   try {
     pararDeOuvir = await observarBackend(aoMudar);
@@ -182,7 +173,8 @@ async function iniciar() {
   // iOS/web seguem o desenho base. Assim a diferença mora no CSS, e nenhum
   // componente precisa perguntar em que aparelho está rodando.
   document.documentElement.dataset.plataforma = Capacitor.getPlatform();
-  if (isDesktopLocal()) return iniciarDesktop();
+  if (isBackendLocal()) return iniciarLocal();
+  prepararServiceWorker();
 
   // Ordem importa: o servidor primeiro, senão a sessão (cofre/Keychain) e só
   // então o gate de biometria, que precisa saber se há sessão para proteger.

@@ -1,25 +1,32 @@
 import { useEffect, useState } from "react";
 import type { EstadoBackend } from "../backendLocal";
+import { isAndroidLocal } from "../plataforma";
 import Logo from "./Logo";
 
 /** Depois deste tempo em "iniciando" avisa que está lento — e segue esperando:
- *  quem decide a falha é o Rust (que já tenta de novo), não um segundo prazo aqui. */
+ *  quem decide a falha é a casca (que já tenta de novo), não um segundo prazo aqui. */
 export const LENTO_MS = 8_000;
 
 interface Props {
   estado: EstadoBackend;
   aoTentarDeNovo: () => Promise<void>;
-  aoAbrirPasta: () => Promise<void>;
+  aoAbrirPasta?: () => Promise<void>;
 }
 
-/** Tela de boot do app desktop enquanto o backend embutido sobe, ou falhou.
+/** Tela de boot do modo local enquanto o backend embutido sobe, ou falhou.
  *
  *  Sem backend não há dado para mostrar, por isso é tela cheia e não banner.
- *  Mesma moldura da tela de login, para parecer parte do app. */
+ *  Mesma moldura da tela de login, para parecer parte do app. No Android não há
+ *  "Abrir pasta de dados": a pasta mora no armazenamento interno do app, que
+ *  nenhum explorador abre sem root. */
 export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Props) {
   const falhou = estado.estado === "falhou";
   const [lento, setLento] = useState(false);
   const [reiniciando, setReiniciando] = useState(false);
+  // Quem esconde o botão no Android é o `!isAndroidLocal()` abaixo (`main.tsx`
+  // passa `aoAbrirPasta` sempre); no desktop, só a presença do prop decide, e o
+  // teste cobre sem `isAndroidLocal()`.
+  const mostrarPasta = !isAndroidLocal() && aoAbrirPasta;
 
   useEffect(() => {
     setLento(false);
@@ -41,7 +48,7 @@ export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Pr
 
   function abrirPasta() {
     // Conveniência: se o sistema não abrir, não há o que mostrar aqui.
-    aoAbrirPasta().catch(() => {});
+    aoAbrirPasta?.().catch(() => {});
   }
 
   return (
@@ -69,9 +76,11 @@ export default function TelaBackend({ estado, aoTentarDeNovo, aoAbrirPasta }: Pr
               <button className="auth-entrar" type="button" disabled={reiniciando} onClick={tentarDeNovo}>
                 {reiniciando ? "Tentando de novo…" : "Tentar de novo"}
               </button>
-              <button className="auth-secundario" type="button" disabled={reiniciando} onClick={abrirPasta}>
-                Abrir pasta de dados
-              </button>
+              {mostrarPasta && (
+                <button className="auth-secundario" type="button" disabled={reiniciando} onClick={abrirPasta}>
+                  Abrir pasta de dados
+                </button>
+              )}
             </>
           )}
         </div>
