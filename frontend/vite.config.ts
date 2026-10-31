@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       // Default não inclui woff2: offline cairia na fonte do sistema.
-      // Os subsets não-latinos ficam de fora do precache: o @fontsource emite um
+      // Os subsets não-latinos ficam fora do precache: o @fontsource emite um
       // woff2 por subset e o navegador só baixa os que o unicode-range pede — mas
       // o precache baixaria TODOS. São 111 KB de cirílico, grego e vietnamita que
       // um app em português nunca renderiza. Continuam servidos sob demanda.
@@ -27,7 +27,12 @@ export default defineConfig(({ mode }) => ({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.ts",
-      injectRegister: "auto",
+      // Nada de `injectRegister`: quem registra é o `prepararServiceWorker`
+      // (`plataforma.ts`) — só web, iOS e APK `nuvem` registram o `/sw.js`; no
+      // modo local (desktop e Android `local`) o registrado é desligado, porque
+      // um SW com o bundle de antes de uma atualização quebraria o par
+      // front×backend. Ver `main.tsx`.
+      injectRegister: false,
       manifest: {
         id: "/",
         name: "FinControl",
@@ -55,12 +60,12 @@ export default defineConfig(({ mode }) => ({
       },
       // `--mode desktop` (app Tauri): o app já está no disco e não precisa de
       // service worker nem manifest. O sw.js autodestrutivo é inofensivo (nada
-      // o registra), mas NÃO substitui o SW que builds antigos deixaram no
-      // perfil do WebView2: a atualização dele falha e ele segue servindo o
-      // index.html velho (run fincontrol-r7-f3b, evidencia/sw-antigo.log). No
-      // Windows quem limpa é o lib.rs, que apaga a pasta `Service Worker` do
-      // perfil antes de abrir a janela. Mesmo nome (sw.js), sem registro novo.
-      ...(mode === "desktop" ? { selfDestroying: true, injectRegister: false, manifest: false } as const : {}),
+      // substitui o SW que builds antigos deixaram no perfil do WebView2: a
+      // atualização dele falha e ele segue servindo o index.html velho (run
+      // fincontrol-r7-f3b, evidencia/sw-antigo.log). No Windows quem limpa é o
+      // lib.rs, que apaga a pasta `Service Worker` do perfil antes de abrir a
+      // janela. Mesmo nome (sw.js), sem registro novo.
+      ...(mode === "desktop" ? { selfDestroying: true, manifest: false } as const : {}),
     }),
   ],
   server: {

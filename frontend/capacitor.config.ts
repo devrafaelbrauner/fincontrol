@@ -22,6 +22,11 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: testeLocal,
+    // Nenhum log do Capacitor no logcat, nem no build debug. No padrão ("debug") ele loga o
+    // resultado de toda chamada de plugin: o token do `BackendLocal.info()` e os tokens de
+    // sessão lidos do SecureStorage. Os `console.*` do front também deixam de ir para o
+    // logcat; o DevTools (chrome://inspect) do build debug continua ligado.
+    loggingBehavior: 'none',
   },
 };
 
