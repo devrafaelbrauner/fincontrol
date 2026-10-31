@@ -37,7 +37,7 @@ class CategoriaPatch(BaseModel):
 
 
 @router.get("")
-def listar(todas: bool = False, db: sqlite3.Connection = Depends(get_db)):
+def listar(todas: bool = False, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """`todas=1` inclui as desativadas — para resolver nome/cor de lançamentos
     históricos (uma categoria desativada não pode virar "Sem categoria" nos
     gráficos); as listas de escolha continuam usando só as ativas."""
@@ -47,7 +47,7 @@ def listar(todas: bool = False, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def criar(body: CategoriaIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: CategoriaIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     cur = db.execute(
         "INSERT INTO categorias (nome, tipo, cor) VALUES (?, ?, ?)",
         (body.nome, body.tipo, body.cor),
@@ -56,7 +56,7 @@ def criar(body: CategoriaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{categoria_id}")
-def editar(categoria_id: int, body: CategoriaPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(categoria_id: int, body: CategoriaPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "categorias", categoria_id, if_match)
     campos = body.model_dump(exclude_unset=True)

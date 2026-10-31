@@ -49,21 +49,21 @@ def _payload(request: Request, token: str) -> dict:
 
 
 @router.get("")
-def info(request: Request, db: sqlite3.Connection = Depends(get_db)):
+def info(request: Request, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Devolve a URL de assinatura, gerando o token na primeira vez."""
     token = _get_token(db) or _set_token(db)
     return _payload(request, token)
 
 
 @router.post("/regenerar")
-def regenerar(request: Request, db: sqlite3.Connection = Depends(get_db)):
+def regenerar(request: Request, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Invalida a URL antiga e emite uma nova (use se o link vazar)."""
     token = _set_token(db)
     return _payload(request, token)
 
 
 @feed_router.get("/calendar/{token}.ics")
-def feed(token: str, db: sqlite3.Connection = Depends(get_db)):
+def feed(token: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     atual = _get_token(db)
     # compare_digest sobre bytes: com str, um token não-ASCII na URL viraria 500.
     if not atual or not secrets.compare_digest(token.encode(), atual.encode()):

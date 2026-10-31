@@ -152,12 +152,12 @@ def _set_config(db: sqlite3.Connection, chave: str, valor: str) -> None:
 
 
 @router.get("/config")
-def ver_config(db: sqlite3.Connection = Depends(get_db)):
+def ver_config(db: sqlite3.Connection = Depends(get_db, scope="function")):
     return {"configurada": openrouter.api_key(db) is not None, "modelo": openrouter.modelo_preferido(db)}
 
 
 @router.put("/config")
-def salvar_config(body: ConfigIn, db: sqlite3.Connection = Depends(get_db)):
+def salvar_config(body: ConfigIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if body.api_key:
         _set_config(db, "openrouter_api_key_enc", criptografar(body.api_key.strip()))
     if body.modelo:
@@ -166,7 +166,7 @@ def salvar_config(body: ConfigIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/config")
-def remover_chave(db: sqlite3.Connection = Depends(get_db)):
+def remover_chave(db: sqlite3.Connection = Depends(get_db, scope="function")):
     db.execute("DELETE FROM config WHERE chave = 'openrouter_api_key_enc'")
     return {"ok": True}
 
@@ -175,7 +175,7 @@ def remover_chave(db: sqlite3.Connection = Depends(get_db)):
 
 @router.post("/extrair/{anexo_id}")
 @limiter.limit("10/minute")
-def extrair(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+def extrair(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
@@ -195,7 +195,7 @@ def extrair(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(ge
 
 @router.post("/extrair-itens/{anexo_id}")
 @limiter.limit("10/minute")
-def extrair_itens(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+def extrair_itens(request: Request, anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Extração itemizada: lê os lançamentos individuais do documento (fatura, extrato)."""
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
@@ -225,7 +225,7 @@ def _ler_insights(db: sqlite3.Connection, competencia: str) -> dict | None:
 
 
 @router.get("/insights/{competencia}")
-def insights_cache(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+def insights_cache(competencia: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         validar_competencia(competencia)
     except ValueError as e:
@@ -235,7 +235,7 @@ def insights_cache(competencia: str, db: sqlite3.Connection = Depends(get_db)):
 
 @router.post("/insights/{competencia}")
 @limiter.limit("10/minute")
-def insights(request: Request, competencia: str, db: sqlite3.Connection = Depends(get_db)):
+def insights(request: Request, competencia: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         validar_competencia(competencia)
     except ValueError as e:
@@ -259,7 +259,7 @@ class CategorizarIn(BaseModel):
 
 
 @router.post("/categorizar")
-def categorizar(body: CategorizarIn, db: sqlite3.Connection = Depends(get_db)):
+def categorizar(body: CategorizarIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     categorias = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1 AND tipo = 'variavel'")]
     if not categorias:
         return {"categoria": None}
@@ -270,7 +270,7 @@ def categorizar(body: CategorizarIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/categorizar-lote")
-def categorizar_lote(db: sqlite3.Connection = Depends(get_db)):
+def categorizar_lote(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Classifica todos os gastos variáveis SEM categoria numa passada e aplica."""
     cats = db.execute("SELECT id, nome FROM categorias WHERE ativa = 1 AND tipo = 'variavel'").fetchall()
     if not cats:
@@ -301,7 +301,7 @@ def categorizar_lote(db: sqlite3.Connection = Depends(get_db)):
 # ---------- estratégia de meta ----------
 
 @router.post("/estrategia-meta/{meta_id}")
-def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def estrategia_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     row = db.execute(
         """SELECT m.*, COALESCE(SUM(a.valor_cents), 0) AS valor_atual_cents
            FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
@@ -351,7 +351,7 @@ def _valor_cents(bruto) -> int | None:
 
 
 @router.post("/planejar-meta/{meta_id}")
-def planejar_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def planejar_meta(meta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Sugere itens de planejamento para a meta (sem gravar — o usuário aceita os que quiser)."""
     row = db.execute(
         """SELECT m.*, COALESCE(SUM(a.valor_cents), 0) AS valor_atual_cents
@@ -394,7 +394,7 @@ class InterpretarIn(BaseModel):
 
 
 @router.post("/interpretar")
-def interpretar(body: InterpretarIn, db: sqlite3.Connection = Depends(get_db)):
+def interpretar(body: InterpretarIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     cats = [r["nome"] for r in db.execute("SELECT nome FROM categorias WHERE ativa = 1")]
     try:
         return openrouter.interpretar_transacao(db, body.texto, hoje().isoformat(), cats)
@@ -456,7 +456,7 @@ def _historico(db: sqlite3.Connection) -> list[dict]:
 
 
 @router.get("/conversa")
-def conversa(db: sqlite3.Connection = Depends(get_db)):
+def conversa(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """A thread inteira, para a tela ser a mesma em qualquer aparelho."""
     linhas = db.execute(
         "SELECT id, papel, texto, criado_em FROM conversa_mensagens ORDER BY id"
@@ -465,14 +465,14 @@ def conversa(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/conversa")
-def limpar_conversa(db: sqlite3.Connection = Depends(get_db)):
+def limpar_conversa(db: sqlite3.Connection = Depends(get_db, scope="function")):
     db.execute("DELETE FROM conversa_mensagens")
     return {"ok": True}
 
 
 @router.post("/perguntar")
 @limiter.limit("10/minute")
-def perguntar(request: Request, body: PerguntarIn, db: sqlite3.Connection = Depends(get_db)):
+def perguntar(request: Request, body: PerguntarIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     pergunta = body.pergunta.strip()
     if not pergunta:
         raise HTTPException(422, "Pergunta vazia")
@@ -544,7 +544,7 @@ def _compromisso_para_ia(db: sqlite3.Connection, compromisso_id: int) -> dict:
 
 
 @router.post("/orientacao-compromisso/{compromisso_id}")
-def orientacao_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+def orientacao_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Plano para quitar este compromisso. Salva em `orientacao_texto`.
 
     Sob demanda, nunca automático: cada chamada é paga, e gerar orientação para
@@ -565,7 +565,7 @@ def orientacao_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends
 
 
 @router.post("/priorizar-compromissos")
-def priorizar_compromissos(db: sqlite3.Connection = Depends(get_db)):
+def priorizar_compromissos(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Ordem sugerida de quitação — uma chamada olhando todos os abertos."""
     linhas = db.execute(
         """SELECT c.id, c.nome, c.credor, c.data_limite,
@@ -605,7 +605,7 @@ def priorizar_compromissos(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/plano-compromisso/{compromisso_id}")
-def plano_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+def plano_compromisso(compromisso_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Parcelas sugeridas até o prazo. NÃO grava nada — o dono aceita o que quiser."""
     comp = _compromisso_para_ia(db, compromisso_id)
     h = hoje()

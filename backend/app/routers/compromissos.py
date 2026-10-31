@@ -123,7 +123,7 @@ SELECT_BASE = """
 
 
 @router.get("")
-def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(get_db)):
+def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(get_db, scope="function")):
     where = "" if incluir_arquivados else "WHERE c.ativo = 1"
     # Vencendo antes primeiro: a aba existe para mostrar o que aperta agora.
     # `data_limite IS NULL` na frente do ORDER BY joga os sem prazo para o FIM.
@@ -138,7 +138,7 @@ def listar(incluir_arquivados: bool = False, db: sqlite3.Connection = Depends(ge
 
 
 @router.get("/{compromisso_id}")
-def obter(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+def obter(compromisso_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — SELECT_BASE é texto fixo; o id vai via "?"
     row = db.execute(f"{SELECT_BASE} WHERE c.id = ? GROUP BY c.id", (compromisso_id,)).fetchone()
     if not row:
@@ -147,7 +147,7 @@ def obter(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def criar(body: CompromissoIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: CompromissoIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not body.nome.strip():
         raise HTTPException(422, "Informe o nome do compromisso")
     _validar_forma(body.forma_pagamento)
@@ -166,7 +166,7 @@ def criar(body: CompromissoIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{compromisso_id}")
-def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "compromissos", compromisso_id, if_match)
     campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
@@ -196,7 +196,7 @@ def editar(compromisso_id: int, body: CompromissoPatch, db: sqlite3.Connection =
 
 
 @router.delete("/{compromisso_id}")
-def excluir(compromisso_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(compromisso_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     """Apaga o compromisso e DESVINCULA os pagamentos, sem apagá-los.
 
@@ -222,7 +222,7 @@ def excluir(compromisso_id: int, db: sqlite3.Connection = Depends(get_db),
 # ---------- pagamentos (lançamentos variáveis vinculados) ----------
 
 @router.get("/{compromisso_id}/pagamentos")
-def pagamentos(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
+def pagamentos(compromisso_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not db.execute("SELECT 1 FROM compromissos WHERE id = ?", (compromisso_id,)).fetchone():
         raise HTTPException(404, "Compromisso não encontrado")
     return [
@@ -235,7 +235,7 @@ def pagamentos(compromisso_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/{compromisso_id}/pagamentos", status_code=201)
-def pagar(compromisso_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db)):
+def pagar(compromisso_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Registra um pagamento — que É um gasto variável, com a categoria e a forma
     do compromisso como padrão. Nada impede pagar mais que o total (acordo com
     juros, valor corrigido): o excedente aparece como quitado, não como erro."""

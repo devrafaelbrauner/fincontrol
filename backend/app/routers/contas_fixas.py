@@ -46,7 +46,7 @@ class AnexoLancamentoIn(BaseModel):
 
 
 @router.get("")
-def listar(db: sqlite3.Connection = Depends(get_db)):
+def listar(db: sqlite3.Connection = Depends(get_db, scope="function")):
     # `versao` acompanha o If-Match do PATCH; `atualizado_em` continua saindo
     # cru para quem já o lia.
     return [{**dict(r), "versao": r["versao"]}
@@ -54,7 +54,7 @@ def listar(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def criar(body: ContaFixaIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: ContaFixaIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     cur = db.execute(
         """INSERT INTO contas_fixas (nome, categoria_id, dia_vencimento, valor_estimado_cents, lembrete_dias_antes)
            VALUES (?, ?, ?, ?, ?)""",
@@ -64,7 +64,7 @@ def criar(body: ContaFixaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{conta_id}")
-def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "contas_fixas", conta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
@@ -82,7 +82,7 @@ def editar(conta_id: int, body: ContaFixaPatch, db: sqlite3.Connection = Depends
 
 
 @router.delete("/{conta_id}")
-def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "contas_fixas", conta_id, if_match)
     if not db.execute("SELECT 1 FROM contas_fixas WHERE id = ?", (conta_id,)).fetchone():
@@ -93,7 +93,7 @@ def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db),
 
 
 @router.get("/lancamentos/{competencia}")
-def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         validar_competencia(competencia)
     except ValueError as e:
@@ -116,7 +116,7 @@ def lancamentos(competencia: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/lancamentos/{lancamento_id}/pagar")
-def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db),
+def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depends(get_db, scope="function"),
           if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     data = body.data_pagamento or hoje().isoformat()
@@ -138,7 +138,7 @@ def pagar(lancamento_id: int, body: PagamentoIn, db: sqlite3.Connection = Depend
 
 
 @router.patch("/lancamentos/{lancamento_id}/anexo")
-def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection = Depends(get_db),
+def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     cur = db.execute(
@@ -151,7 +151,7 @@ def anexar(lancamento_id: int, body: AnexoLancamentoIn, db: sqlite3.Connection =
 
 
 @router.post("/lancamentos/{lancamento_id}/desfazer-pagamento")
-def desfazer_pagamento(lancamento_id: int, db: sqlite3.Connection = Depends(get_db),
+def desfazer_pagamento(lancamento_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
                        if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "lancamentos_fixos", lancamento_id, if_match)
     cur = db.execute(

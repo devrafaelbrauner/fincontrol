@@ -42,6 +42,7 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 
 ### Corrigido
 
+- Banco: o commit passou a acontecer antes da resposta (`Depends(get_db, scope="function")` em todas as rotas, FastAPI ≥ 0.121). Antes, o cliente recebia 200 e o commit vinha depois: o processo morrer nesse meio perdia a escrita, e erro no commit não virava 500.
 - Banco: cada migration roda numa transação junto com o registro em `schema_migrations` — erro ou app fechado no meio não deixa mais o banco pela metade (nem trava as aberturas seguintes), e o `PRAGMA foreign_keys=OFF` pedido pelo script vale de verdade (desligado antes do `BEGIN`, religado depois).
 - If-Match: `categorizar-lote`, `estrategia_texto` e `orientacao_texto` incrementam `versao`.
 - Boot nativo: falha do cofre mostra tela de erro em vez de `#root` vazio; ErrorBoundary nas rotas.

@@ -64,7 +64,7 @@ def _meses_restantes(prazo: str) -> int:
 
 
 @router.get("")
-def listar(db: sqlite3.Connection = Depends(get_db)):
+def listar(db: sqlite3.Connection = Depends(get_db, scope="function")):
     rows = db.execute(
         """SELECT m.*, COALESCE(SUM(a.valor_cents), 0) AS valor_atual_cents
            FROM metas m LEFT JOIN metas_aportes a ON a.meta_id = m.id
@@ -85,7 +85,7 @@ def listar(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def criar(body: MetaIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: MetaIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     cur = db.execute(
         "INSERT INTO metas (nome, valor_total_cents, prazo, estrategia_texto) VALUES (?, ?, ?, ?)",
         (body.nome, body.valor_total_cents, body.prazo, body.estrategia_texto),
@@ -94,7 +94,7 @@ def criar(body: MetaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{meta_id}")
-def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "metas", meta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
@@ -115,7 +115,7 @@ def editar(meta_id: int, body: MetaPatch, db: sqlite3.Connection = Depends(get_d
 
 
 @router.delete("/{meta_id}")
-def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "metas", meta_id, if_match)
     if not db.execute("SELECT 1 FROM metas WHERE id = ?", (meta_id,)).fetchone():
@@ -129,7 +129,7 @@ def excluir(meta_id: int, db: sqlite3.Connection = Depends(get_db),
 # ---------- itens de planejamento ----------
 
 @router.post("/{meta_id}/itens", status_code=201)
-def criar_item(meta_id: int, body: ItemIn, db: sqlite3.Connection = Depends(get_db)):
+def criar_item(meta_id: int, body: ItemIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not db.execute("SELECT 1 FROM metas WHERE id = ?", (meta_id,)).fetchone():
         raise HTTPException(404, "Meta não encontrada")
     if not body.nome.strip():
@@ -149,7 +149,7 @@ COLUNAS_EDITAVEIS = frozenset({"nome", "valor_cents", "descricao"})
 
 
 @router.patch("/{meta_id}/itens/{item_id}")
-def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connection = Depends(get_db),
+def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
                 if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "metas_itens", item_id, if_match)
     campos = {c: v for c, v in body.model_dump(exclude_unset=True).items() if c in COLUNAS_EDITAVEIS}
@@ -172,7 +172,7 @@ def editar_item(meta_id: int, item_id: int, body: ItemPatch, db: sqlite3.Connect
 
 
 @router.delete("/{meta_id}/itens/{item_id}")
-def excluir_item(meta_id: int, item_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir_item(meta_id: int, item_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
                  if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "metas_itens", item_id, if_match)
     cur = db.execute("DELETE FROM metas_itens WHERE id = ? AND meta_id = ?", (item_id, meta_id))
@@ -182,7 +182,7 @@ def excluir_item(meta_id: int, item_id: int, db: sqlite3.Connection = Depends(ge
 
 
 @router.post("/{meta_id}/aportes", status_code=201)
-def aportar(meta_id: int, body: AporteIn, db: sqlite3.Connection = Depends(get_db)):
+def aportar(meta_id: int, body: AporteIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not db.execute("SELECT 1 FROM metas WHERE id = ?", (meta_id,)).fetchone():
         raise HTTPException(404, "Meta não encontrada")
     cur = db.execute(
@@ -193,7 +193,7 @@ def aportar(meta_id: int, body: AporteIn, db: sqlite3.Connection = Depends(get_d
 
 
 @router.get("/{meta_id}/aportes")
-def aportes(meta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def aportes(meta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     return [
         dict(r)
         for r in db.execute(

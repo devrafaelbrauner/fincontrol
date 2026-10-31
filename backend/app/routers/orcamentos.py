@@ -56,7 +56,7 @@ def gastos_do_mes(
 
 
 @router.get("")
-def listar(competencia: str | None = None, db: sqlite3.Connection = Depends(get_db)):
+def listar(competencia: str | None = None, db: sqlite3.Connection = Depends(get_db, scope="function")):
     competencia = competencia or competencia_de(hoje())
     try:
         validar_competencia(competencia)
@@ -83,7 +83,7 @@ def listar(competencia: str | None = None, db: sqlite3.Connection = Depends(get_
 
 
 @router.put("/{categoria_id}")
-def definir(categoria_id: int, body: OrcamentoIn, db: sqlite3.Connection = Depends(get_db),
+def definir(categoria_id: int, body: OrcamentoIn, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     cat = db.execute("SELECT tipo FROM categorias WHERE id = ?", (categoria_id,)).fetchone()
     if not cat:
@@ -102,7 +102,7 @@ def definir(categoria_id: int, body: OrcamentoIn, db: sqlite3.Connection = Depen
 
 
 @router.delete("/{categoria_id}")
-def remover(categoria_id: int, db: sqlite3.Connection = Depends(get_db),
+def remover(categoria_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "orcamentos", categoria_id, if_match, coluna_id="categoria_id")
     cur = db.execute("DELETE FROM orcamentos WHERE categoria_id = ?", (categoria_id,))

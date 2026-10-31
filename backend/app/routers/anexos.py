@@ -53,7 +53,7 @@ def _caminho_confinado(relativo: str) -> Path:
 
 @router.post("", status_code=201)
 @limiter.limit("10/minute")
-def enviar(request: Request, arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db)):
+def enviar(request: Request, arquivo: UploadFile, db: sqlite3.Connection = Depends(get_db, scope="function")):
     info = TIPOS_PERMITIDOS.get(arquivo.content_type)
     if not info:
         raise HTTPException(415, "Tipo de arquivo não suportado (use PDF, JPEG, PNG, HEIC ou WEBP)")
@@ -86,7 +86,7 @@ def enviar(request: Request, arquivo: UploadFile, db: sqlite3.Connection = Depen
 
 
 @router.get("/{anexo_id}")
-def baixar(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+def baixar(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
@@ -99,7 +99,7 @@ def baixar(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/{anexo_id}")
-def excluir(anexo_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     row = db.execute("SELECT * FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
@@ -136,7 +136,7 @@ def _abrir_no_sistema(caminho: Path) -> None:
     )
 
 
-def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db)) -> Response:
+def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")) -> Response:
     """App desktop: abre o anexo no visualizador do sistema (só tipos aceitos, só em uploads/)."""
     row = db.execute("SELECT caminho_arquivo FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:

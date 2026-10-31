@@ -148,13 +148,13 @@ def _exigir_configurado(db: sqlite3.Connection) -> None:
 
 
 @router.get("/status")
-def webauthn_status(db: sqlite3.Connection = Depends(get_db)):
+def webauthn_status(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Público: o login decide se mostra passkey primeiro, sem criar desafio."""
     return {"cadastrado": bool(_credenciais(db))}
 
 
 @router.post("/register/begin")
-def register_begin(request: Request, body: BeginRegisterBody, db: sqlite3.Connection = Depends(get_db),
+def register_begin(request: Request, body: BeginRegisterBody, db: sqlite3.Connection = Depends(get_db, scope="function"),
                    authorization: str | None = Header(default=None)):
     """Inicia o registro: exige sessão (o dono logado cadastra o aparelho)."""
     from .auth import require_auth
@@ -175,7 +175,7 @@ def register_begin(request: Request, body: BeginRegisterBody, db: sqlite3.Connec
 
 
 @router.post("/register/finish", status_code=201)
-def register_finish(request: Request, body: FinishRegisterBody, db: sqlite3.Connection = Depends(get_db),
+def register_finish(request: Request, body: FinishRegisterBody, db: sqlite3.Connection = Depends(get_db, scope="function"),
                     authorization: str | None = Header(default=None)):
     from .auth import require_auth
 
@@ -207,7 +207,7 @@ def register_finish(request: Request, body: FinishRegisterBody, db: sqlite3.Conn
 
 @router.post("/login/begin")
 @limiter.limit("10/minute")
-def login_begin(request: Request, db: sqlite3.Connection = Depends(get_db)):
+def login_begin(request: Request, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Inicia o login por passkey (público). 404 quando não há credencial:
     o cliente cai para senha+TOTP sem tratar como erro."""
     _exigir_configurado(db)
@@ -224,7 +224,7 @@ def login_begin(request: Request, db: sqlite3.Connection = Depends(get_db)):
 
 @router.post("/login/finish")
 @limiter.limit("10/minute")
-def login_finish(request: Request, response: Response, body: FinishLoginBody, db: sqlite3.Connection = Depends(get_db)):
+def login_finish(request: Request, response: Response, body: FinishLoginBody, db: sqlite3.Connection = Depends(get_db, scope="function")):
     _exigir_configurado(db)
     rp_id, origin = _rp_id(request), _origin(request)
     _rejeitar_localhost_em_prod(rp_id, origin)
@@ -266,7 +266,7 @@ def login_finish(request: Request, response: Response, body: FinishLoginBody, db
 
 
 @router.get("/credenciais")
-def listar_credenciais(db: sqlite3.Connection = Depends(get_db), authorization: str | None = Header(default=None)):
+def listar_credenciais(db: sqlite3.Connection = Depends(get_db, scope="function"), authorization: str | None = Header(default=None)):
     """Aparelhos com passkey (logado). Sem public_key: ela nunca sai do servidor."""
     from .auth import require_auth
 
@@ -282,7 +282,7 @@ class RenomearBody(BaseModel):
 
 
 @router.patch("/credenciais/{cred_id}")
-def renomear_credencial(cred_id: str, body: RenomearBody, db: sqlite3.Connection = Depends(get_db),
+def renomear_credencial(cred_id: str, body: RenomearBody, db: sqlite3.Connection = Depends(get_db, scope="function"),
                         authorization: str | None = Header(default=None)):
     from .auth import require_auth
 
@@ -294,7 +294,7 @@ def renomear_credencial(cred_id: str, body: RenomearBody, db: sqlite3.Connection
 
 
 @router.delete("/credenciais/{cred_id}")
-def remover_credencial(cred_id: str, db: sqlite3.Connection = Depends(get_db),
+def remover_credencial(cred_id: str, db: sqlite3.Connection = Depends(get_db, scope="function"),
                        authorization: str | None = Header(default=None)):
     from .auth import require_auth
 

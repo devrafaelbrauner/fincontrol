@@ -100,7 +100,7 @@ def enviar(db: sqlite3.Connection, titulo: str, corpo: str, url: str = "/") -> i
 
 
 @router.get("/config")
-def config(db: sqlite3.Connection = Depends(get_db)):
+def config(db: sqlite3.Connection = Depends(get_db, scope="function")):
     from ..lembretes import HORA_PADRAO  # tardio: lembretes importa este módulo
 
     inscritos = db.execute("SELECT COUNT(*) n FROM push_subscriptions").fetchone()["n"]
@@ -113,7 +113,7 @@ def config(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/subscribe", status_code=201)
-def subscribe(body: InscricaoIn, db: sqlite3.Connection = Depends(get_db)):
+def subscribe(body: InscricaoIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not habilitado():
         raise HTTPException(503, "Push não configurado no servidor")
     if not _endpoint_push_ok(body.endpoint):
@@ -127,7 +127,7 @@ def subscribe(body: InscricaoIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/testar")
-def testar(db: sqlite3.Connection = Depends(get_db)):
+def testar(db: sqlite3.Connection = Depends(get_db, scope="function")):
     if not habilitado():
         raise HTTPException(503, "Push não configurado no servidor")
     n = enviar(db, "FinControl", "Notificação de teste ✅", "/")
@@ -135,7 +135,7 @@ def testar(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/lembretes")
-def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
+def previa_lembretes(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """O que o job do dia notificaria — sem enviar nem marcar como enviado."""
     from .. import lembretes
     from ..util import competencia_de, hoje, somar_meses
@@ -159,7 +159,7 @@ def previa_lembretes(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/lembretes")
-def rodar_lembretes(forcar: bool = False, db: sqlite3.Connection = Depends(get_db)):
+def rodar_lembretes(forcar: bool = False, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Roda o job de lembretes agora (o agendador faz isso uma vez por dia).
 
     `forcar=1` reenvia o que já saiu hoje — útil para ver a notificação chegar.
