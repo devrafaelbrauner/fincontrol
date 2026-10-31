@@ -20,9 +20,10 @@ from .db import get_db
 # Em produção, main.py exige segredos próprios e recusa subir com os defaults.
 ENV = os.environ.get("FINCONTROL_ENV", "dev").strip().lower()
 IS_PROD = ENV in ("production", "prod")
-# App desktop local (sidecar do Tauri): guarda de token/Host/Origin, sem cookie e
-# sem as rotas de servidor. Ver desktop_guard.py e main.py.
-MODO_DESKTOP = os.environ.get("FINCONTROL_MODO", "").strip().lower() == "desktop"
+# Backend embutido (sidecar do Tauri no desktop; Chaquopy no APK Android, sabor `local`):
+# guarda de token/Host/Origin, sem cookie e sem as rotas de servidor. O modo `android` só
+# muda a Origin aceita pela guarda. Ver desktop_guard.py e main.py.
+MODO_DESKTOP = os.environ.get("FINCONTROL_MODO", "").strip().lower() in ("desktop", "android")
 
 SECRET_KEY_DEFAULT = "dev-insecure-troque-em-producao"
 SECRET_KEY = os.environ.get("FINCONTROL_SECRET_KEY", SECRET_KEY_DEFAULT)

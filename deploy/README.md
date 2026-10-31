@@ -182,10 +182,11 @@ a assinatura e o `usesCleartextTraffic` no APK pronto** e copia o resultado para
 `-r` instala por cima e preserva a sessão; `adb uninstall` antes obriga a logar
 de novo.
 
-> `./gradlew assembleRelease` sozinho **não** serve, apesar de ser o comando
-> óbvio: sem `signingConfig` ele entrega `app-release-unsigned.apk`, e o Android
-> recusa instalar APK sem assinatura. O build agora aborta com essa explicação
-> em vez de produzir o arquivo inútil.
+> `./gradlew assembleNuvemRelease` sozinho **não** serve, apesar de ser o comando
+> óbvio: sem `signingConfig` ele entrega `app-nuvem-release-unsigned.apk`, e o
+> Android recusa instalar APK sem assinatura. O build agora aborta com essa
+> explicação em vez de produzir o arquivo inútil. (O `assembleRelease` sem sabor
+> compila também o sabor `local`, que pede o `python3.13` do Chaquopy.)
 
 **A keystore mora fora do repositório**, em `~/.fincontrol-keys/`
 (`fincontrol-release.jks` + `keystore.properties` + `keystore-password.txt`),
@@ -248,7 +249,7 @@ confere isso sozinho no APK pronto, e aborta se vier `true`; à mão seria:
 ```bash
 # deve responder "false" para o release
 "$ANDROID_HOME"/build-tools/*/aapt2 dump xmltree \
-  --file AndroidManifest.xml app/build/outputs/apk/release/app-release.apk \
+  --file AndroidManifest.xml app/build/outputs/apk/nuvem/release/app-nuvem-release.apk \
   | grep -i cleartext
 ```
 

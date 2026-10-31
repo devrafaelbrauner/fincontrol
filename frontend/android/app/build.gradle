@@ -6,7 +6,7 @@ apply plugin: 'com.android.application'
 def apiAntesDoChaquopy = configurations.api.dependencies.toList()
 apply plugin: 'com.chaquo.python'
 def depsDoChaquopy = configurations.api.dependencies.findAll { !(it in apiAntesDoChaquopy) }
-apply plugin: 'org.jetbrains.kotlin.android'  // FinControlApp.kt (src/local)
+apply plugin: 'org.jetbrains.kotlin.android'  // casca do sabor `local` (src/local/java, Kotlin)
 
 // --- Assinatura de release -------------------------------------------------
 //
@@ -148,15 +148,70 @@ kotlin {
 
 // --- Python do sabor `local` (Chaquopy) --------------------------------------
 // Fonte: cópia de backend/app gerada no build/ (o Chaquopy empacota o diretório de fonte
-// inteiro; apontá-lo para backend/ levaria testes, banco de dev e uploads). Dependências:
-// o lock backend/requirements-android.txt, com o pydantic-core das wheels em wheels/ (o
-// pip do Chaquopy só aceita wheel). Python do build: o `python3.13` do PATH.
+// inteiro; apontá-lo para backend/ levaria testes, banco de dev e uploads). Lista branca:
+// só `.py`, `migrations/*.sql` e o VERSION da raiz, ao lado de `app/` (é de lá que o
+// `versao.py` o lê no APK); um banco de dev ou um `.env` largado em backend/app não entra.
+// Dependências: o lock backend/requirements-android.txt, com o pydantic-core das wheels em
+// wheels/ (o pip do Chaquopy só aceita wheel). Python do build: o `python3.13` do PATH.
 def fonteBackend = layout.buildDirectory.dir("backend-local")
 def copiarBackend = tasks.register("copiarBackendLocal", Sync) {
     from(rootProject.file("../../backend/app")) {
-        exclude "**/__pycache__/**", "**/*.pyc"
+        include "**/*.py", "migrations/*.sql"
+        into "app"
     }
-    into fonteBackend.map { it.dir("app") }
+    from(rootProject.file("../../VERSION"))
+    into fonteBackend
+    includeEmptyDirs = false  // sem os __pycache__/ vazios
+}
+
+// As wheels de wheels/ entram no APK pelo `--find-links` do pip, e o lock não tem --hash:
+// conferir o SHA256SUMS aqui vale para todo build do `local`, não só pelo apk-local.sh. Hash
+// diferente, arquivo listado e ausente ou .whl fora da lista (o pip o acharia) = build
+// vermelho antes do pip. Sem outputs declarados: roda sempre (são poucos MB).
+def conferirWheels = tasks.register("conferirWheelsLocal") {
+    def pasta = file("wheels")
+    doLast {
+        def somas = new File(pasta, "SHA256SUMS")
+        if (!somas.isFile()) {
+            throw new GradleException("wheels/SHA256SUMS não existe: sem ele as wheels não entram no APK.")
+        }
+        def listadas = [:]
+        somas.eachLine { linha ->
+            if (!linha.trim()) return
+            def m = linha =~ /([0-9a-f]{64}) [ *](\S+)/
+            if (!m.matches()) {
+                throw new GradleException("wheels/SHA256SUMS: linha fora do formato do shasum: ${linha}")
+            }
+            listadas[m.group(2)] = m.group(1)
+        }
+        def problemas = []
+        listadas.each { nome, esperado ->
+            def arquivo = new File(pasta, nome)
+            if (!arquivo.isFile()) {
+                problemas << "${nome}: está no SHA256SUMS e não na pasta"
+                return
+            }
+            def digest = java.security.MessageDigest.getInstance("SHA-256")
+            arquivo.withInputStream { entrada ->
+                byte[] bloco = new byte[65536]
+                int lidos
+                while ((lidos = entrada.read(bloco)) != -1) {
+                    digest.update(bloco, 0, lidos)
+                }
+            }
+            def real = digest.digest().encodeHex().toString()
+            if (real != esperado) {
+                problemas << "${nome}: sha256 ${real}, o SHA256SUMS diz ${esperado}"
+            }
+        }
+        pasta.listFiles().findAll { it.name.endsWith(".whl") && !listadas.containsKey(it.name) }.each {
+            problemas << "${it.name}: wheel fora do SHA256SUMS"
+        }
+        if (problemas) {
+            throw new GradleException(
+                "As wheels de android/app/wheels não conferem com o SHA256SUMS:\n  " + problemas.join("\n  "))
+        }
+    }
 }
 
 chaquopy {
@@ -178,6 +233,9 @@ chaquopy {
 
 tasks.named { it ==~ /mergeLocal(Debug|Release)PythonSources/ }.configureEach {
     dependsOn copiarBackend
+}
+tasks.named { it ==~ /installLocal(Debug|Release)PythonRequirements/ }.configureEach {
+    dependsOn conferirWheels
 }
 
 // Nada de Python no `nuvem`: as tarefas do Chaquopy dele não rodam (sem libpython nem

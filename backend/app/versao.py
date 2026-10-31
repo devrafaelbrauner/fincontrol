@@ -17,6 +17,9 @@ from pathlib import Path
 # backend/app/versao.py → backend/app → backend → raiz
 _RAIZ = Path(__file__).resolve().parent.parent.parent
 _ARQUIVO = _RAIZ / "VERSION"
+# No APK Android (sabor `local`) não existe a raiz do repositório: o build copia o `VERSION`
+# para o lado do pacote `app/` (`copiarBackendLocal` em frontend/android/app/build.gradle).
+_EMPACOTADO = Path(__file__).resolve().parent.parent / "VERSION"
 
 # `FALLBACK` é o que se vê se o arquivo sumir no empacotamento (um `pip install`
 # sem ele, um contêiner que copiou só `backend/`). Fica propositalmente feio:
@@ -26,10 +29,12 @@ FALLBACK = "0.0.0+desconhecida"
 
 
 def ler_versao() -> str:
-    try:
-        return _ARQUIVO.read_text(encoding="utf-8").strip() or FALLBACK
-    except OSError:
-        return FALLBACK
+    for arquivo in (_ARQUIVO, _EMPACOTADO):
+        try:
+            return arquivo.read_text(encoding="utf-8").strip() or FALLBACK
+        except OSError:
+            continue
+    return FALLBACK
 
 
 VERSAO = ler_versao()
