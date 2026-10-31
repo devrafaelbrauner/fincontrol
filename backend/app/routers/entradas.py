@@ -23,7 +23,7 @@ def listar(
     # nada e a lista volta inteira parecendo filtrada.
     de: DataFiltro = None,
     ate: DataFiltro = None,
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(get_db, scope="function"),
 ):
     where, params = ["1=1"], []
     if de:
@@ -43,7 +43,7 @@ def listar(
 
 
 @router.post("", status_code=201)
-def criar(body: EntradaIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: EntradaIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         cur = db.execute(
             "INSERT INTO entradas (descricao, categoria_id, valor_cents, data, recorrente) VALUES (?, ?, ?, ?, ?)",
@@ -55,7 +55,7 @@ def criar(body: EntradaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/{entrada_id}")
-def excluir(entrada_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(entrada_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "entradas", entrada_id, if_match)
     cur = db.execute("DELETE FROM entradas WHERE id = ?", (entrada_id,))

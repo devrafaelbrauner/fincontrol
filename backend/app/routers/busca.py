@@ -44,7 +44,7 @@ def buscar(
     ate: str | None = None,
     valor_min: int | None = Query(None, ge=0),
     valor_max: int | None = Query(None, ge=0),
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(get_db, scope="function"),
 ):
     q = (q or "").strip() or None
     if not any((q, de, ate, valor_min is not None, valor_max is not None)):

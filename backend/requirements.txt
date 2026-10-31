@@ -1,4 +1,4 @@
-fastapi>=0.111
+fastapi>=0.121
 uvicorn[standard]>=0.30
 pyjwt>=2.8
 pyotp>=2.9

@@ -308,14 +308,14 @@ def _cookie_refresh(request: Request) -> str | None:
 
 
 @router.get("/status")
-def status(db: sqlite3.Connection = Depends(get_db)):
+def status(db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Público: o frontend decide entre tela de login e de cadastro (primeiro uso)."""
     return {"configurado": config_get(db, "senha_hash") is not None}
 
 
 @router.post("/cadastro", status_code=201)
 @limiter.limit("5/minute")
-def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlite3.Connection = Depends(get_db)):
+def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Cria a conta única no primeiro uso. Com conta existente, retorna 409 —
     nunca sobrescreve (redefinição de senha é pelo terminal: python -m app.setup_user).
 
@@ -358,7 +358,7 @@ def cadastro(request: Request, response: Response, body: CadastroBody, db: sqlit
 @router.post("/login")
 @limiter.limit("5/minute")                                    # por IP
 @limiter.limit("30/minute", key_func=lambda *_: "login")      # teto global: Argon2 custa 64 MiB/tentativa
-def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Connection = Depends(get_db)):
+def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Connection = Depends(get_db, scope="function")):
     senha_hash = config_get(db, "senha_hash")
     if not senha_hash:
         raise HTTPException(503, "Usuário não configurado — rode: python -m app.setup_user")
@@ -389,7 +389,7 @@ def login(request: Request, response: Response, body: LoginBody, db: sqlite3.Con
 
 @router.post("/refresh")
 @limiter.limit("30/minute")
-def refresh(request: Request, response: Response, db: sqlite3.Connection = Depends(get_db),
+def refresh(request: Request, response: Response, db: sqlite3.Connection = Depends(get_db, scope="function"),
             x_refresh_token: str | None = Header(default=None)):
     # Web: refresh token no cookie httpOnly. Nativo: no header X-Refresh-Token.
     cookie = _cookie_refresh(request) or x_refresh_token
@@ -465,7 +465,7 @@ def refresh(request: Request, response: Response, db: sqlite3.Connection = Depen
 @router.post("/logout")
 @limiter.limit("10/minute")
 def logout(request: Request, response: Response, todos: bool = False,
-           db: sqlite3.Connection = Depends(get_db),
+           db: sqlite3.Connection = Depends(get_db, scope="function"),
            x_refresh_token: str | None = Header(default=None)):
     """Encerra a sessão DESTE aparelho. `?todos=1` derruba todos os outros também.
 
@@ -511,7 +511,7 @@ def require_auth(authorization: str | None = Header(default=None)):
 # ---------- MFA (TOTP) — ativação em duas etapas, com o usuário logado ----------
 
 @router.get("/mfa", dependencies=[Depends(require_auth)])
-def mfa_status(db: sqlite3.Connection = Depends(get_db)):
+def mfa_status(db: sqlite3.Connection = Depends(get_db, scope="function")):
     return {"ativo": config_get(db, "totp_secret") is not None}
 
 
@@ -543,7 +543,7 @@ def _exigir_fator_vigente(db: sqlite3.Connection, senha: str | None, codigo_totp
 
 
 @router.post("/mfa/iniciar", dependencies=[Depends(require_auth)])
-def mfa_iniciar(body: MfaProvaBody | None = None, db: sqlite3.Connection = Depends(get_db)):
+def mfa_iniciar(body: MfaProvaBody | None = None, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Gera um secret PENDENTE (só vira exigência de login após confirmar um código
     — garante que o autenticador foi cadastrado antes de trancar a porta)."""
     prova = body or MfaProvaBody()
@@ -556,7 +556,7 @@ def mfa_iniciar(body: MfaProvaBody | None = None, db: sqlite3.Connection = Depen
 
 
 @router.post("/mfa/confirmar", dependencies=[Depends(require_auth)])
-def mfa_confirmar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
+def mfa_confirmar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db, scope="function")):
     _exigir_fator_vigente(db, body.senha, body.codigo_totp)
     secret = config_get(db, "totp_secret_pendente")
     if not secret:
@@ -569,7 +569,7 @@ def mfa_confirmar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/mfa/desativar", dependencies=[Depends(require_auth)])
-def mfa_desativar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db)):
+def mfa_desativar(body: CodigoBody, db: sqlite3.Connection = Depends(get_db, scope="function")):
     secret = config_get(db, "totp_secret")
     if not secret:
         return {"ativo": False}

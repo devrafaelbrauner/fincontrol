@@ -9,7 +9,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/{competencia}")
-def dashboard(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+def dashboard(competencia: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         validar_competencia(competencia)
     except ValueError as e:

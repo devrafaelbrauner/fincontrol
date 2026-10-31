@@ -109,7 +109,7 @@ def _conta_com_saldo(c: sqlite3.Row, leituras: list[sqlite3.Row]) -> dict:
 
 
 @router.get("")
-def listar(incluir_arquivadas: bool = False, db: sqlite3.Connection = Depends(get_db)):
+def listar(incluir_arquivadas: bool = False, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Contas, saldos, variações e a distribuição do total entre elas."""
     where = "" if incluir_arquivadas else "WHERE ativa = 1"
     # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query — where é texto fixo ("" ou "WHERE ativa = 1")
@@ -142,7 +142,7 @@ def listar(incluir_arquivadas: bool = False, db: sqlite3.Connection = Depends(ge
 
 
 @router.get("/reconciliacao/{competencia}")
-def reconciliacao(competencia: str, db: sqlite3.Connection = Depends(get_db)):
+def reconciliacao(competencia: str, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Variação REAL dos saldos no mês × o que os lançamentos explicam.
 
     Os dois eixos do app são independentes (ver migration 012), e é justamente
@@ -218,7 +218,7 @@ def reconciliacao(competencia: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def criar(body: ContaIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: ContaIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     banco, nome = body.banco.strip(), body.nome.strip()
     if not banco or not nome:
         raise HTTPException(422, "Informe o banco e o nome da conta")
@@ -236,7 +236,7 @@ def criar(body: ContaIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{conta_id}")
-def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "contas_bancarias", conta_id, if_match)
     campos = body.model_dump(exclude_unset=True)
@@ -266,7 +266,7 @@ def editar(conta_id: int, body: ContaPatch, db: sqlite3.Connection = Depends(get
 
 
 @router.delete("/{conta_id}")
-def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(conta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     """Apaga a conta e todo o histórico dela (ON DELETE CASCADE).
 
@@ -291,7 +291,7 @@ def _ultimo_saldo(db: sqlite3.Connection, conta_id: int) -> sqlite3.Row | None:
 
 
 @router.post("/{conta_id}/saldos", status_code=201)
-def atualizar_saldo(conta_id: int, body: SaldoIn, db: sqlite3.Connection = Depends(get_db)):
+def atualizar_saldo(conta_id: int, body: SaldoIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     # BEGIN IMMEDIATE (SQL) pega o lock de escrita ANTES de reler o último saldo.
     # isolation_level = "IMMEDIATE" sozinho NÃO inicia transação no SELECT
     # (Python 3.14: in_transaction=False). Dois POSTs no mesmo segundo não
@@ -318,7 +318,7 @@ def atualizar_saldo(conta_id: int, body: SaldoIn, db: sqlite3.Connection = Depen
 
 
 @router.get("/{conta_id}/saldos")
-def historico(conta_id: int, db: sqlite3.Connection = Depends(get_db)):
+def historico(conta_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Histórico do mais recente para o mais antigo, com a variação de cada
     leitura em relação à anterior (a mais antiga fica com variação nula)."""
     if not db.execute("SELECT 1 FROM contas_bancarias WHERE id = ?", (conta_id,)).fetchone():
@@ -336,7 +336,7 @@ def historico(conta_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.delete("/{conta_id}/saldos/{saldo_id}")
-def excluir_saldo(conta_id: int, saldo_id: int, db: sqlite3.Connection = Depends(get_db)):
+def excluir_saldo(conta_id: int, saldo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Remove uma leitura errada. Como tudo é derivado, apagar a mais recente
     faz o saldo atual voltar a ser a anterior — sem nada a reconciliar."""
     cur = db.execute("DELETE FROM saldos_conta WHERE id = ? AND conta_id = ?", (saldo_id, conta_id))

@@ -25,7 +25,7 @@ MESES_MAX = 36
 def historico(
     ate: str | None = None,
     meses: int = Query(12, ge=2, le=MESES_MAX),
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(get_db, scope="function"),
 ):
     """Série mensal (entradas/fixas/variáveis/saldo) e gastos por categoria,
     dos `meses` que terminam em `ate` (padrão: o mês corrente)."""

@@ -38,7 +38,7 @@ def listar(
     de: DataFiltro = None,
     ate: DataFiltro = None,
     categoria_id: int | None = None,
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(get_db, scope="function"),
 ):
     where, params = ["1=1"], []
     if de:
@@ -81,7 +81,7 @@ class ParceladoIn(BaseModel):
 
 
 @router.post("/parcelado", status_code=201)
-def criar_parcelado(body: ParceladoIn, db: sqlite3.Connection = Depends(get_db)):
+def criar_parcelado(body: ParceladoIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     """Cria o parcelamento e TODAS as parcelas de uma vez, uma por mês.
 
     Materializar já — em vez de gerar on-access como as contas fixas — é
@@ -132,7 +132,7 @@ class ParceladoPatch(BaseModel):
 
 
 @router.patch("/parcelado/{parcelamento_id}")
-def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqlite3.Connection = Depends(get_db),
+def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
                             if_match: str | None = Header(default=None, alias="If-Match")):
     """Muda a categoria da compra INTEIRA — todas as parcelas, passadas e
     futuras. Recategorizar só um mês é o PATCH comum do lançamento; sem este
@@ -157,7 +157,7 @@ def recategorizar_parcelado(parcelamento_id: int, body: ParceladoPatch, db: sqli
 
 
 @router.delete("/parcelado/{parcelamento_id}")
-def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
                       if_match: str | None = Header(default=None, alias="If-Match")):
     """Exclui a compra parcelada inteira — todas as parcelas, passadas e futuras.
     Para tirar só um mês, exclua a parcela como um lançamento comum."""
@@ -172,7 +172,7 @@ def excluir_parcelado(parcelamento_id: int, db: sqlite3.Connection = Depends(get
 
 
 @router.post("", status_code=201)
-def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
+def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db, scope="function")):
     try:
         cur = db.execute(
             """INSERT INTO lancamentos_variaveis (descricao, categoria_id, valor_cents, data, forma_pagamento, anexo_id)
@@ -186,7 +186,7 @@ def criar(body: VariavelIn, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.patch("/{lancamento_id}")
-def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db),
+def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Depends(get_db, scope="function"),
            if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "lancamentos_variaveis", lancamento_id, if_match)
     campos = body.model_dump(exclude_unset=True)  # atualização parcial (anexo e/ou categoria)
@@ -207,7 +207,7 @@ def editar(lancamento_id: int, body: VariavelPatch, db: sqlite3.Connection = Dep
 
 
 @router.delete("/{lancamento_id}")
-def excluir(lancamento_id: int, db: sqlite3.Connection = Depends(get_db),
+def excluir(lancamento_id: int, db: sqlite3.Connection = Depends(get_db, scope="function"),
             if_match: str | None = Header(default=None, alias="If-Match")):
     conferir_versao(db, "lancamentos_variaveis", lancamento_id, if_match)
     cur = db.execute("DELETE FROM lancamentos_variaveis WHERE id = ?", (lancamento_id,))
