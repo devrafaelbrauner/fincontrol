@@ -1,12 +1,17 @@
-"""Guarda do modo desktop (ASGI puro): Host, Origin e token local em toda requisição.
+"""Guarda do backend embutido (ASGI puro): Host, Origin e token local em toda requisição.
 
-Ativa só quando `FINCONTROL_MODO=desktop` (o `main.py` a instala por dentro do CORS, que
-responde o preflight). O backend escuta em 127.0.0.1 numa porta aleatória, e qualquer
-processo local ou página com DNS rebinding pode achar essa porta. Por isso:
+Ativa com `FINCONTROL_MODO=desktop` (sidecar do Tauri) ou `android` (APK, sabor `local`); o
+`main.py` a instala por dentro do CORS, que responde o preflight. O backend escuta em
+127.0.0.1 numa porta aleatória, e qualquer processo local ou página com DNS rebinding pode
+achar essa porta. Por isso:
 
 - `Host` diferente de `127.0.0.1:<porta>` → 400 `host_invalido` (barra DNS rebinding);
 - `Origin` presente e fora da lista → 403 `origem_invalida` (barra páginas do navegador);
 - `X-FinControl-Token` diferente do token da sessão → 401 `token_local`.
+
+Só no modo `android` a lista ganha `https://localhost`, a origem do WebView do Capacitor. Ela
+é a mesma em todo app Capacitor do aparelho, então lá a Origin não isola nada: quem barra
+outro app é o token. No desktop essa origem segue 403.
 
 `GET /api/health` é a única rota sem token: checa Host e Origin e, com o header
 `X-FinControl-Nonce` (32 hex), responde `{"ok": true, "prova": HMAC-SHA256(token, nonce)}`.
@@ -18,9 +23,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 
 ORIGENS_DESKTOP = ("tauri://localhost", "http://tauri.localhost")
+ORIGEM_ANDROID = "https://localhost"  # WebView do Capacitor; só com FINCONTROL_MODO=android
 ORIGEM_DEV = "http://localhost:1420"  # `tauri dev` (Vite); só com FINCONTROL_DESKTOP_DEV=1
 HEADER_TOKEN = b"x-fincontrol-token"
 HEADER_NONCE = b"x-fincontrol-nonce"
@@ -35,8 +42,14 @@ def prova_de(token: str, nonce: str) -> str:
     return hmac.new(token.encode("utf-8"), nonce.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
+def modo_android() -> bool:
+    """`FINCONTROL_MODO=android`, que o `app/android.py` liga antes de importar o `app.main`."""
+    return os.environ.get("FINCONTROL_MODO", "").strip().lower() == "android"
+
+
 def origens_desktop(dev: bool) -> list[str]:
-    return [*ORIGENS_DESKTOP, *((ORIGEM_DEV,) if dev else ())]
+    android = (ORIGEM_ANDROID,) if modo_android() else ()
+    return [*ORIGENS_DESKTOP, *android, *((ORIGEM_DEV,) if dev else ())]
 
 
 def _resposta(status: int, corpo: dict) -> tuple[dict, dict]:
@@ -54,7 +67,8 @@ class DesktopGuard:
 
     Os valores vêm por parâmetro (o `main.py` os lê do ambiente no import), porque o
     `desktop.py` apaga o token do `os.environ` antes da primeira requisição — e o
-    Starlette só constrói a pilha de middlewares nessa primeira requisição.
+    Starlette só constrói a pilha de middlewares nessa primeira requisição. O modo
+    (`origens_desktop`) sai do `FINCONTROL_MODO`, que não é segredo e fica no ambiente.
     """
 
     def __init__(self, app, *, token: str, porta: int, dev: bool = False) -> None:

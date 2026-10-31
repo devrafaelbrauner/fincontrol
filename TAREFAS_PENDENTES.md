@@ -198,40 +198,33 @@ APK de hoje até S10. Ordem: S0 → S2a → S1a → S1b → S2 → S3 → S4a �
 S8 → S9 → S10 → S11a → S11b. Humanos: HA1 antes de S0, Q1 até o fim de S7, O1 antes de
 S9, Q2 antes de S11a.
 
-- [x] **S0 — Spike Chaquopy (go/no-go)** — **GO** (run `fincontrol-a2-spike-android`,
-  branch `a2-spike-android`). Emulador arm64 16 KB (API 36, WebView 133): `import app.main`
-  com Python 3.13, `/api/health` com prova HMAC em `127.0.0.1`, `.so` alinhados a 16 KB,
-  fetch do WebView do `.local` → 200 sem mixed content, boot frio 0,76–1,04 s, APK arm64
-  33,1 MiB; APK `nuvem` igual ao de antes. Wheels do pydantic-core 2.50.2 pelo
-  `wheels-android.yml` (run 41220674404).
-- [ ] **S2a — Commit antes da resposta** — `Depends(get_db, scope="function")`,
-  `fastapi>=0.121`; vale para VPS e desktop, independe do Android. *PR #82 (run a1): CI
-  verde e Reality PASS, espera o merge.*
-- [ ] **[SEG] S1a — Casca Android** — sabores `nuvem`/`local`, runtime, cofre no
-  AndroidKeyStore, plugin `BackendLocal`, NSC só 127.0.0.1, guarda com Origin Android.
-  Herdado da S0 (a2; dona = S1a, que corrige ou manda para o `MELHORIAS.md`):
-  - remendo de Origin `https://localhost` em `android.py` → `desktop_guard.py` com
-    `FINCONTROL_MODO=android`; decidir quem gera o token (D1 Python × D7 Kotlin);
-  - no Android o loopback é de todos os apps e `https://localhost` é a origem de qualquer
-    app Capacitor: o token é a única barreira → só na memória da casca, CSP no front;
-  - logcat: tirar nonce/prova (`FinControlApp.kt:115`) e sanitizar o traceback do import;
-  - cadeia de suprimentos: `--require-hashes` no `requirements-android.txt`, `SHA256SUMS`
-    conferido no Gradle (hoje só no `apk-local.sh`), nome `chaquopy-libffi` ausente do PyPI,
-    `cibuildwheel`/maturin fixados, attestation das wheels, gatilho `push` do workflow só
-    até ele estar na `main`;
-  - `cryptography==42.0.8` + 7 exceções do pip-audit: reauditar antes de X.509/EC/TLS ou da
-    S6; job de pip-audit do `requirements-android.txt` na CI;
-  - `android.py`: fechar o socket no timeout/morte da thread; cópia antes de migrar
-    duplicada de `desktop.py` e sem teste Android; `copiarBackendLocal` só `.py` e `.sql`;
-  - `VERSION` fora do APK (versão `0.0.0+desconhecida`); `deploy/README.md:185,251` com
-    `assembleRelease`/caminho antigo; nome `fincontrol-teste-local.apk` ambíguo; script
-    `apk:local` no `package.json`; script da comparação nuvem × antes; `abiFilters` arm64
-    também no nuvem; ResourceWarning no fixture do `test_android_boot`;
-  - repetir o S0.4 num WebView atual (Local Network Access) e o boot num celular real (NF1).
+- [x] **S0 — Spike Chaquopy (go/no-go)** — **GO** (run `fincontrol-a2-spike-android`, PR #83).
+  Emulador arm64 16 KB (API 36, WebView 133): `import app.main` com Python 3.13, `/api/health`
+  com prova HMAC em `127.0.0.1`, `.so` alinhados a 16 KB, fetch do WebView do `.local` → 200
+  sem mixed content, boot frio 0,76–1,04 s, APK arm64 33,1 MiB; APK `nuvem` igual ao de antes.
+  Wheels do pydantic-core 2.50.2 pelo `wheels-android.yml` (run 41220674404).
+- [x] **S2a — Commit antes da resposta** — `Depends(get_db, scope="function")`,
+  `fastapi>=0.121`; vale para VPS e desktop (run a1, PR #82).
+- [x] **[SEG] S1a — Casca Android** (run `fincontrol-a3-casca-android`) — a casca Kotlin
+  gera o token por processo e só marca `pronto` com a prova HMAC; SECRET_KEY/Fernet no
+  AndroidKeyStore (AES-GCM, sem autenticação, fora de `files/`, iguais depois de force-stop);
+  plugin `BackendLocal` só no `local`; guarda com `FINCONTROL_MODO=android` (401/400/403 pelo
+  `adb shell`, porta só em 127.0.0.1); logcat da casca sem token/nonce/prova/segredo; Gradle
+  copia só `.py`/`.sql`/`VERSION` e confere o `SHA256SUMS` das wheels; versão real no APK.
 - [ ] **S1b — Modo local no front** — `isBackendLocal()`, adaptador Tauri×Capacitor,
-  TelaBackend, sem service worker no `.local`.
+  TelaBackend, sem service worker no `.local`. Brief: `S1b-brief.md` (1º item bloqueante:
+  `loggingBehavior: "none"`, porque o Capacitor loga o token do `info()` em build debug).
 - [ ] **S2 — Offline + ciclo de vida** — modo avião, migration com cópia, 20× force-stop.
-- [ ] **S3 — IA no aparelho** — chave local cifrada, não sincroniza.
+  Herdado (dona = S2): `/abrir` → `{caminho}` + FileProvider; cópia antes de migrar
+  duplicada de `desktop.py` e sem teste Android (S0 CR3); transferência entre aparelhos copia
+  o cofre e o banco sem a chave do KeyStore → `dataExtractionRules` ou saída pela exportação
+  (S1a A1/CR-1).
+- [ ] **S3 — IA no aparelho** — chave local cifrada, não sincroniza. Herdado, **antes de dado
+  real (S4b)** (dona = S3): `--require-hashes` no `requirements-android.txt` (inclui
+  `chaquopy-libffi`, ausente do PyPI); sdist em `wheels/` sem conferência (S1a CR-2);
+  `cibuildwheel`/maturin fixados e attestation das wheels; tirar o gatilho `push` do
+  `wheels-android.yml`; pip-audit do `requirements-android.txt` na CI; reauditar
+  `cryptography==42.0.8` (7 exceções) antes de X.509/EC/TLS e da S6.
 - [ ] **S4a — Import/export (backend)** — zip único, dry-run com relatório, aplicar
   atômico; cobre o backend da etapa 5 do desktop local.
 - [ ] **S4b — Import/export (UI)** — PrimeiroUso, AssistenteImport, Config › Dados. Open

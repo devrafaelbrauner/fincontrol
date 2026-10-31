@@ -150,6 +150,25 @@ delas é compromisso de entrega.
   - no login, o Tab passa por "Esqueci a senha" antes da senha (dono: frontend);
   - o FAB "+" cobre a ponta da barra "Sem categoria" (dono: frontend).
 
+- [ ] **Sobras do Android local (S0/S1a, runs a2/a3)** — nenhuma tem fatia dona:
+  - `apk-teste.sh` gera `fincontrol-teste-local.apk`, nome que agora confunde com o sabor
+    `local`; falta um `apk:local` no `package.json`;
+  - script da comparação APK `nuvem` × antes (S0.6/S1a.5 foram feitas à mão); refazer a cada
+    alta de Chaquopy, Kotlin ou AGP;
+  - `abiFilters "arm64-v8a"` também vale no `nuvem` (hoje sem `.so`, mas um plugin nativo
+    futuro sairia só para arm64 sem aviso);
+  - o manifest do sabor `local` ainda descreve o spike da S0;
+  - sem harness de teste JVM para a casca Kotlin: a prova é só no aparelho;
+  - `test_versao.py` não cobre o `VERSION` empacotado ao lado de `app/` (o fallback passa só
+    porque `backend/VERSION` não existe);
+  - `RuntimeBackend` avisa os ouvintes fora do lock: com `reiniciar` e `iniciar` ao mesmo
+    tempo os eventos podem sair fora de ordem (≤ 300 ms antes do `exitProcess`);
+  - no timeout, `android.py` fecha o socket de outra thread enquanto o uvicorn pode estar com
+    ele (pior caso: traceback no stderr de um processo que já vai morrer);
+  - segredos em `String` na JVM até o GC (mesma postura do desktop);
+  - uvicorn ignora cliente que fecha a escrita antes da resposta (sondas tipo `nc`);
+  - registrar o nível de segurança do KeyStore num celular real.
+
 ## Segurança / acesso
 
 - [x] **Lock biométrico por abertura** — 1.2.0: Face ID / Touch ID / Windows

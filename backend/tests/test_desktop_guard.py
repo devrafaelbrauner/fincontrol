@@ -1,7 +1,8 @@
-"""Guarda do modo desktop (`app/desktop_guard.py`) num app Starlette isolado.
+"""Guarda do backend embutido (`app/desktop_guard.py`) num app Starlette isolado.
 
-Contrato: Host exato `127.0.0.1:<porta>` (400 `host_invalido`), Origin na lista Tauri
-(403 `origem_invalida`), `X-FinControl-Token` igual ao da sessão (401 `token_local`) em toda
+Contrato: Host exato `127.0.0.1:<porta>` (400 `host_invalido`), Origin na lista Tauri — mais
+`https://localhost` (WebView do Capacitor) só com `FINCONTROL_MODO=android` — (403
+`origem_invalida`), `X-FinControl-Token` igual ao da sessão (401 `token_local`) em toda
 rota menos `GET /api/health`, que devolve a prova HMAC-SHA256(token, nonce) sem o token.
 """
 
@@ -129,6 +130,35 @@ def test_origem_do_dev_so_com_a_flag():
     with _cliente(dev=True) as c:
         assert c.get("/api/dados", headers=_com_token(Origin="http://localhost:1420")).status_code == 200
         assert c.get("/api/dados", headers=_com_token(Origin="http://localhost:5173")).status_code == 403
+
+
+# ---------- modo android × desktop (FINCONTROL_MODO) ----------
+
+@pytest.mark.parametrize("modo", ["desktop", "Desktop", None, "", "androide"])
+def test_origem_do_capacitor_403_fora_do_modo_android(monkeypatch, modo):
+    if modo is None:
+        monkeypatch.delenv("FINCONTROL_MODO", raising=False)
+    else:
+        monkeypatch.setenv("FINCONTROL_MODO", modo)
+    assert "https://localhost" not in desktop_guard.origens_desktop(False)
+    with _cliente() as c:
+        r = c.get("/api/dados", headers=_com_token(Origin="https://localhost"))
+        assert (r.status_code, r.json()) == (403, {"detail": "origem_invalida"})
+        assert c.get("/api/health", headers={"Origin": "https://localhost"}).status_code == 403
+
+
+@pytest.mark.parametrize("modo", ["android", " Android "])
+def test_origem_do_capacitor_aceita_no_modo_android(monkeypatch, modo):
+    monkeypatch.setenv("FINCONTROL_MODO", modo)
+    assert desktop_guard.origens_desktop(False) == ["tauri://localhost", "http://tauri.localhost", "https://localhost"]
+    with _cliente() as c:
+        assert c.get("/api/dados", headers=_com_token(Origin="https://localhost")).json() == {"dados": 1}
+        assert c.get("/api/health", headers={"Origin": "https://localhost"}).json() == {"ok": True}
+        # A Origin não isola no Android (é a de todo app Capacitor): sem o token segue 401.
+        r = c.get("/api/dados", headers={"Origin": "https://localhost"})
+        assert (r.status_code, r.json()) == (401, {"detail": "token_local"})
+        for outra in ("http://localhost", "https://localhost:8443", "capacitor://localhost", "https://evil.example"):
+            assert c.get("/api/dados", headers=_com_token(Origin=outra)).status_code == 403
 
 
 # ---------- token ----------
