@@ -34,12 +34,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             bundles: msi
     runs-on: ${{ matrix.os }}
-    # A chave privada de assinatura do updater vive SÓ aqui (GitHub Secrets) e
-    # SÓ neste job de build — o job `release` (que publica) nunca a vê.
-    # A pubkey correspondente está no tauri.conf.json (minisign, válida).
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    # A chave privada de assinatura do updater vive SÓ nos GitHub Secrets e entra
+    # SÓ nos dois passos `tauri build` abaixo: nem o `npm ci`, nem as actions de
+    # terceiros, nem o `pip install` a recebem, e o job `release` (que publica)
+    # nunca a vê. Dentro do `tauri build` o cargo ainda repassa o env aos `build.rs`.
+    # A pubkey correspondente está no tauri.conf.json (minisign).
     defaults:
       run:
         working-directory: frontend
@@ -130,6 +129,8 @@ jobs:
           # Pode ser vazio de propósito (o app pede o servidor na 1ª abertura) —
           # o que não pode é um default quebrado; ver scripts/checar-api-base.mjs.
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       # Windows: tenta WiX (.msi); se o WiX falhar, cai para NSIS.
@@ -138,6 +139,8 @@ jobs:
         shell: bash
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npx tauri build --target ${{ matrix.target }} --bundles msi \
             || npx tauri build --target ${{ matrix.target }} --bundles nsis
