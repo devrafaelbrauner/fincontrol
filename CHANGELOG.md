@@ -15,6 +15,11 @@ Correções do code review (auth, If-Match da IA, offline, nativo).
 - `release.yml`: Python 3.12 + PyInstaller geram o backend antes do `tauri build`, com smoke do `/api/health` e da saída no EOF do stdin.
 - `.gitattributes`: `frontend/index.html` sempre em LF, para o hash do script inline da CSP valer em checkout Windows.
 - Desktop (etapa 4): a tela do app fala com o backend embutido. Abre em "Abrindo o FinControl…" (`TelaBackend`) até o backend ficar pronto; se ele falhar (ou o endereço não puder ser lido), mostra o motivo, "Tentar de novo" e "Abrir pasta de dados". Reinício do backend com o app aberto vira a barra offline e volta sozinho. Sem tela de servidor, passkey, push, "Sair de todos os aparelhos" e assinatura `.ics`; Configurações ganha "Pasta de dados"; anexo abre no app padrão do sistema (`POST /api/anexos/{id}/abrir`). Sem PWA (manifest e registro) no `vite build --mode desktop`.
+- Android (spike S0 do programa `docs/runs/android-local/`): sabor `local` do APK (`com.rafaelbrauner.fincontrol.local`, instala ao lado do de hoje) com o `backend/` embutido pelo Chaquopy 17.2 (Python 3.13, só arm64-v8a, páginas de 16 KB). `backend/app/android.py` sobe o FastAPI em `127.0.0.1:<porta sorteada>` com token por processo e prova HMAC no `/api/health`; cleartext só para `127.0.0.1`. Dependências próprias em `backend/requirements-android.txt` (sem webauthn/pywebpush, `cryptography==42.0.8` com as exceções do pip-audit documentadas) e wheels do pydantic-core 2.50.2 geradas pelo `wheels-android.yml` (cibuildwheel), versionadas com `SHA256SUMS`. `apk-local.sh` gera e instala o sabor novo. Por enquanto é só prova técnica: a tela ainda não usa esse backend (fatias S1a/S1b).
+
+### Alterado
+
+- Android: o APK de hoje vira o sabor `nuvem` (mesmo `applicationId`, assinatura e conteúdo); `apk-release.sh`/`apk-teste.sh` usam `assembleNuvemRelease`/`assembleNuvemDebug`. O backend só importa as rotas de passkey (webauthn) fora do modo desktop/Android; a VPS segue igual.
 
 ### Segurança
 

@@ -198,12 +198,36 @@ APK de hoje até S10. Ordem: S0 → S2a → S1a → S1b → S2 → S3 → S4a �
 S8 → S9 → S10 → S11a → S11b. Humanos: HA1 antes de S0, Q1 até o fim de S7, O1 antes de
 S9, Q2 antes de S11a.
 
-- [ ] **S0 — Spike Chaquopy (go/no-go)** — `import app.main` no aparelho, 16 KB, fetch do
-  WebView a `http://127.0.0.1`, boot e tamanho do APK. Brief: `S0-brief.md`. No-go para S1a+.
+- [x] **S0 — Spike Chaquopy (go/no-go)** — **GO** (run `fincontrol-a2-spike-android`,
+  branch `a2-spike-android`). Emulador arm64 16 KB (API 36, WebView 133): `import app.main`
+  com Python 3.13, `/api/health` com prova HMAC em `127.0.0.1`, `.so` alinhados a 16 KB,
+  fetch do WebView do `.local` → 200 sem mixed content, boot frio 0,76–1,04 s, APK arm64
+  33,1 MiB; APK `nuvem` igual ao de antes. Wheels do pydantic-core 2.50.2 pelo
+  `wheels-android.yml` (run 41220674404).
 - [ ] **S2a — Commit antes da resposta** — `Depends(get_db, scope="function")`,
-  `fastapi>=0.121`; vale para VPS e desktop, independe do Android.
+  `fastapi>=0.121`; vale para VPS e desktop, independe do Android. *PR #82 (run a1): CI
+  verde e Reality PASS, espera o merge.*
 - [ ] **[SEG] S1a — Casca Android** — sabores `nuvem`/`local`, runtime, cofre no
   AndroidKeyStore, plugin `BackendLocal`, NSC só 127.0.0.1, guarda com Origin Android.
+  Herdado da S0 (a2; dona = S1a, que corrige ou manda para o `MELHORIAS.md`):
+  - remendo de Origin `https://localhost` em `android.py` → `desktop_guard.py` com
+    `FINCONTROL_MODO=android`; decidir quem gera o token (D1 Python × D7 Kotlin);
+  - no Android o loopback é de todos os apps e `https://localhost` é a origem de qualquer
+    app Capacitor: o token é a única barreira → só na memória da casca, CSP no front;
+  - logcat: tirar nonce/prova (`FinControlApp.kt:115`) e sanitizar o traceback do import;
+  - cadeia de suprimentos: `--require-hashes` no `requirements-android.txt`, `SHA256SUMS`
+    conferido no Gradle (hoje só no `apk-local.sh`), nome `chaquopy-libffi` ausente do PyPI,
+    `cibuildwheel`/maturin fixados, attestation das wheels, gatilho `push` do workflow só
+    até ele estar na `main`;
+  - `cryptography==42.0.8` + 7 exceções do pip-audit: reauditar antes de X.509/EC/TLS ou da
+    S6; job de pip-audit do `requirements-android.txt` na CI;
+  - `android.py`: fechar o socket no timeout/morte da thread; cópia antes de migrar
+    duplicada de `desktop.py` e sem teste Android; `copiarBackendLocal` só `.py` e `.sql`;
+  - `VERSION` fora do APK (versão `0.0.0+desconhecida`); `deploy/README.md:185,251` com
+    `assembleRelease`/caminho antigo; nome `fincontrol-teste-local.apk` ambíguo; script
+    `apk:local` no `package.json`; script da comparação nuvem × antes; `abiFilters` arm64
+    também no nuvem; ResourceWarning no fixture do `test_android_boot`;
+  - repetir o S0.4 num WebView atual (Local Network Access) e o boot num celular real (NF1).
 - [ ] **S1b — Modo local no front** — `isBackendLocal()`, adaptador Tauri×Capacitor,
   TelaBackend, sem service worker no `.local`.
 - [ ] **S2 — Offline + ciclo de vida** — modo avião, migration com cópia, 20× force-stop.
@@ -223,6 +247,8 @@ S9, Q2 antes de S11a.
 - [ ] **S11a — Desligar web/PWA** — bloqueada por Q2.
 - [ ] **S11b — Desligar iOS + APK nuvem** — bloqueada por Q2.
 - [ ] **HA1** celular Android por USB ou JDK+SDK+emulador neste Mac (S0, S1a, S1b, S2, S9).
+  *Emulador feito no Mac (AVD `fc-arm64-16k`, 16 KB, API 36) e usado na S0; o celular arm64
+  ainda falta para medir o NF1 em aparelho real e para a S9.*
 - [ ] **HA2** PC Windows 11 com o desktop (S9, S10).
 - [ ] **HA3** backup da VPS decifrado (`.age` fora do app; S4a, de novo no S10).
 - [ ] **HA4** SSH na VPS + subdomínio do hub, se Q1 = A (S8, S11a).

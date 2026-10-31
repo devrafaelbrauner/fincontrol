@@ -46,7 +46,7 @@ de ponta a ponta. No fim, a VPS deixa de ser a fonte da verdade (corte com aceit
 
 | Item | Bloqueia | Recomendação |
 |---|---|---|
-| HA1 celular Android (USB) ou JDK+SDK+emulador neste Mac | S0, S1a, S1b, S2, S9 | celular arm64 por USB |
+| HA1 celular Android (USB) ou JDK+SDK+emulador neste Mac | S0, S1a, S1b, S2, S9 | emulador feito (AVD `fc-arm64-16k`, usado na S0); celular arm64 ainda para NF1 e S9 |
 | Q1 canal de sync | S8, S9 (e S10/S11) | A: VPS como hub, só cifrado |
 | O1 o PC já tem dados próprios no modo local? | S9 (v1 substitui ao parear: destrutivo) | responder antes de S9 |
 | Q2 desligar web/PWA/iOS/.ics/push após o corte | S11a, S11b | sim |
@@ -59,9 +59,9 @@ Profile = esperado; a triagem (0t) decide. OD = Open Design antes do front.
 
 | # | Fatia | Dep | Pré humano | Bloqueio | Perfil | OD | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | S0 Spike Chaquopy (go/no-go) | — | HA1 | — | feature | não | próxima (`S0-brief.md`) |
-| 2 | S2a Commit antes da resposta | — | — | — | patch | não | a fazer |
-| 3 | S1a Casca Android | S0 | HA1 | — | feature | não | a fazer |
+| 1 | S0 Spike Chaquopy (go/no-go) | — | HA1 | — | feature | não | **GO** (run a2, branch `a2-spike-android`) |
+| 2 | S2a Commit antes da resposta | — | — | — | patch | não | PR #82 (run a1), espera merge |
+| 3 | S1a Casca Android | S0 | HA1 | — | feature | não | próxima: a run escreve o `S1a-brief.md` (herdados da S0 no `TAREFAS_PENDENTES.md`) |
 | 4 | S1b Modo local no front | S1a | HA1 | — | feature | não | a fazer |
 | 5 | S2 Offline + ciclo de vida | S1b, S2a | HA1 | — | feature | não | a fazer |
 | 6 | S3 IA no aparelho | S2 | HA6 | — | patch | não | a fazer |
