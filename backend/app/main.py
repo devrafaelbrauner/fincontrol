@@ -20,7 +20,6 @@ from .db import connect, migrate
 from .desktop_guard import DesktopGuard, origens_desktop
 from .util import ConflitoDeVersao
 from .versao import VERSAO
-from .webauthn_routes import router as webauthn_router
 from .routers import analises, anexos, busca, calendario, categorias, compromissos, contas_bancarias, contas_fixas, dashboard, entradas, ia, metas, orcamentos, push, variaveis
 
 _log = logging.getLogger("uvicorn.error")
@@ -285,6 +284,10 @@ ROTAS_SO_SERVIDOR = (calendario.router, push.router)
 
 app.include_router(auth_router, prefix="/api")
 if not MODO_DESKTOP:
+    # Import só aqui: o backend embutido (desktop e Android) não precisa do `webauthn`, e o
+    # Android nem o instala (pede cryptography>=49; o Chaquopy só tem a 42.0.8).
+    from .webauthn_routes import router as webauthn_router
+
     app.include_router(webauthn_router, prefix="/api")
 for r in (categorias.router, contas_fixas.router, contas_bancarias.router, variaveis.router, entradas.router, metas.router, compromissos.router, dashboard.router, analises.router, busca.router, orcamentos.router, anexos.router, calendario.router, ia.router, push.router):
     if MODO_DESKTOP and r in ROTAS_SO_SERVIDOR:

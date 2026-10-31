@@ -1,0 +1,68 @@
+# Backend embutido no APK Android, sabor `local` (Chaquopy 17.2, Python 3.13). Não instalar
+# na VPS nem no desktop: esses usam o requirements.txt.
+#   Instalado pelo frontend/android/app/build.gradle:
+#   pip { options("--find-links", "wheels"); install("-r", "../../../backend/requirements-android.txt") }
+#
+# Lock: tudo com ==, transitivas incluídas (resolvido com o pip no Python 3.13; mesmas
+# versões do .venv do backend onde o Android permite). O pip do Chaquopy só aceita wheel:
+# - pydantic-core: wheel Android própria em frontend/android/app/wheels/ (+ SHA256SUMS),
+#   saída do .github/workflows/wheels-android.yml (o pydantic 2.14.2 fixa a 2.50.2);
+# - cryptography, cffi, argon2-cffi-bindings e chaquopy-libffi (dependência da wheel de
+#   cffi): wheels do índice do Chaquopy, as únicas cp313 de lá (o cryptography liga no
+#   OpenSSL do runtime, libcrypto_python.so);
+# - o resto: wheels puras do PyPI (o wrapt usa a py3-none-any).
+# Fora de propósito: webauthn (pede cryptography>=49; a passkey é rota só da VPS),
+# pywebpush (push é rota só da VPS) e o [standard] do uvicorn (fica asyncio + h11).
+#
+# pip-audit (decisão O4 do programa android-local): o cryptography 42.0.8 tem 7 avisos
+# (11 linhas com os repetidos), nenhum aplicável. No Android o backend usa do cryptography
+# só a Fernet (app/cripto.py, app/desktop.py): nada de X.509, TLS ou chave pública EC por
+# ele (o TLS do httpx é o módulo ssl do Python).
+# - PYSEC-2026-1284 (CVE-2024-12797, GHSA-79v4-65xg-pq4g), GHSA-h4gh-qq45-vh27 e
+#   GHSA-537c-gmf6-5ccf: OpenSSL estático das wheels do PyPI. A wheel do Chaquopy não traz
+#   essa cópia (usa o OpenSSL do runtime), e o backend não faz TLS pelo cryptography.
+# - PYSEC-2026-2141 (CVE-2026-26007, GHSA-r6ph-v2qm-q3c2): subgrupo não validado ao
+#   carregar chave pública EC de curva SECT. Sem chave EC no Android (passkey fica na VPS).
+# - PYSEC-2026-35 (CVE-2026-34073, GHSA-m959-cc7f-wv43), PYSEC-2026-3553 (CVE-2026-69249,
+#   GHSA-jwv3-5hgf-82ww) e PYSEC-2026-3554 (CVE-2026-69248, GHSA-m2h6-j472-rp4c):
+#   validação de cadeia X.509 (cryptography.x509.verification), que o backend não usa.
+# Rever a cada cryptography novo no índice do Chaquopy e antes de usar no Android outra
+# primitiva além da Fernet (a S6 prevê ChaCha20-Poly1305, Ed25519 e X25519):
+#   pip-audit -r backend/requirements-android.txt --no-deps --disable-pip \
+#     --ignore-vuln PYSEC-2026-1284 --ignore-vuln GHSA-h4gh-qq45-vh27 \
+#     --ignore-vuln GHSA-537c-gmf6-5ccf --ignore-vuln PYSEC-2026-2141 \
+#     --ignore-vuln PYSEC-2026-35 --ignore-vuln PYSEC-2026-3553 --ignore-vuln PYSEC-2026-3554
+# (sai "No known vulnerabilities found, 11 ignored"; o chaquopy-libffi, que não está no
+# PyPI, aparece como não auditado — por isso sem --strict.)
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==21.2.0
+certifi==2026.10.23
+cffi==1.17.1
+chaquopy-libffi==3.3
+click==8.5.0
+cryptography==42.0.8
+deprecated==3.0.1
+fastapi==0.162.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+limits==5.8.0
+opentelemetry-api==1.45.2
+packaging==26.3
+pycparser==3.12
+pydantic==2.14.2
+pydantic-core==2.50.2
+pyjwt==2.15.1
+pyotp==2.10.0
+python-multipart==0.0.33
+slowapi==0.1.10
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.6
+uvicorn==0.54.0
+wrapt==2.5.2
