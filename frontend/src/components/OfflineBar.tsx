@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { sincronizar } from "../api";
 import { atualizarContadores, estadoOffline, subscreverOffline } from "../offline/estadoOffline";
 import { conflitos as listarConflitos, descartarConflito, type ItemFila, reativarSemIfMatch } from "../offline/fila";
-import { isDesktopLocal } from "../plataforma";
+import { isBackendLocal } from "../plataforma";
 
 function hora(iso: string): string {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -10,8 +10,8 @@ function hora(iso: string): string {
 
 /** Barra de status offline + resolução de conflitos de edição.
  *
- * Sem resposta da API (sem conexão na web/Capacitor; no desktop, o backend
- * local reiniciando), diz que os dados são de hora X (nunca finge que são
+ * Sem resposta da API (sem conexão na web/Capacitor; no modo local, o backend
+ * embutido reiniciando), diz que os dados são de hora X (nunca finge que são
  * atuais) e quantas escritas estão na fila. Com conflito, mostra item a item
  * para o dono escolher: aceitar o que está salvo no backend ou sobrepor a
  * própria edição. Nada é descartado sem essa escolha. */
@@ -38,22 +38,22 @@ export default function OfflineBar() {
 
   if (!estado.offline && estado.pendentes === 0 && estado.conflitos === 0) return null;
 
-  // Desktop: quem some é o backend deste computador, não a rede.
-  const desktop = isDesktopLocal();
+  // Modo local (desktop e Android): quem some é o backend deste aparelho, não a rede.
+  const local = isBackendLocal();
   const desde = estado.cacheEm ? ` de ${hora(estado.cacheEm)}` : "";
 
   return (
     <div className="offline-barra" role="status">
       {estado.offline && (
         <span className="offline-texto">
-          {desktop
+          {local
             ? `O FinControl está reiniciando — mostrando dados salvos${desde}.`
             : `Sem conexão — mostrando dados salvos${desde}.`}
         </span>
       )}
       {estado.pendentes > 0 && (
         <span className="offline-texto">
-          {desktop
+          {local
             ? `${estado.pendentes} alteração(ões) aguardando o FinControl voltar.`
             : `${estado.pendentes} alteração(ões) aguardando conexão.`}
         </span>

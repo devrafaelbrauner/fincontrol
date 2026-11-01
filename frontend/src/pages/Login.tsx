@@ -5,7 +5,7 @@ import { marcarLoginPorSenha } from "../bloqueio";
 import Logo from "../components/Logo";
 import { IcOk } from "../components/icones";
 import { entrarComPasskey, cadastrarPasskey, temPasskey } from "../passkeys";
-import { isDesktopLocal } from "../plataforma";
+import { isBackendLocal, isDesktopLocal } from "../plataforma";
 
 type Modo = "carregando" | "login" | "login-mfa" | "login-senha" | "cadastro" | "mfa-qr";
 
@@ -111,9 +111,11 @@ export default function Login() {
   const [secret, setSecret] = useState("");
 
   // passkey: o botão entra primeiro quando há credencial; a senha fica em "Outra forma".
-  // No desktop não há passkey (o backend local não tem WebAuthn): sempre senha.
-  const desktop = isDesktopLocal();
-  const [comPasskey, setComPasskey] = useState<boolean | null>(desktop ? false : null);
+  // No modo local (desktop e Android) não há passkey (o backend embutido não tem
+  // WebAuthn): sempre senha. E os dados ficam no computador/aparelho, não num servidor.
+  const local = isBackendLocal();
+  const ondeFicamOsDados = !local ? "no seu servidor" : isDesktopLocal() ? "neste computador" : "neste aparelho";
+  const [comPasskey, setComPasskey] = useState<boolean | null>(local ? false : null);
   // Convite pós-cadastro: mensagem do resultado (não erro fatal — o MFA segue).
   const [passkeyMsg, setPasskeyMsg] = useState<string | null>(null);
 
@@ -124,7 +126,7 @@ export default function Login() {
       // conta à vista, que é o motivo de o helper distinguir os dois casos.
       setJaTemConta(tem === true);
       setModo(tem === false ? "cadastro" : "login");
-      if (tem !== false && !desktop) temPasskey().then(setComPasskey).catch(() => setComPasskey(false));
+      if (tem !== false && !local) temPasskey().then(setComPasskey).catch(() => setComPasskey(false));
       else setComPasskey(false);
     });
   }, []);
@@ -318,7 +320,7 @@ export default function Login() {
           </div>
           {dicaSenha && (
             <p className="sub" style={{ fontSize: "0.78rem" }}>
-              {desktop
+              {local
                 ? "App pessoal e local, sem recuperação por e-mail: guarde bem a senha."
                 : <>App pessoal, sem recuperação por e-mail: redefina no servidor com <code>python -m app.setup_user</code>.</>}
             </p>
@@ -343,12 +345,12 @@ export default function Login() {
           <div className="campo" style={{ gap: "0.35rem" }}>
             <h2>Proteja sua conta</h2>
             <p className="sub">
-              {desktop
+              {local
                 ? "Ative o MFA: além da senha, o login vai pedir o código do app autenticador."
                 : "Dois caminhos, nesta ordem: a passkey deste aparelho primeiro (um toque, sem senha), o MFA depois (código do autenticador)."}
             </p>
           </div>
-          {!desktop && (
+          {!local && (
             <>
               <button className="auth-entrar" type="button" onClick={oferecerPasskeyPosCadastro} disabled={ocupado}>
                 Cadastrar passkey neste aparelho
@@ -379,9 +381,7 @@ export default function Login() {
         <form onSubmit={criarConta} style={{ display: "contents" }}>
           <div className="campo" style={{ gap: "0.35rem" }}>
             <h2>Criar sua conta</h2>
-            <p className="sub">
-              {desktop ? "Primeiro acesso: os dados ficam só neste computador." : "Primeiro acesso: os dados ficam só no seu servidor."}
-            </p>
+            <p className="sub">Primeiro acesso: os dados ficam só {ondeFicamOsDados}.</p>
           </div>
           <div className="campo">
             <label htmlFor="c-nome">Nome</label>

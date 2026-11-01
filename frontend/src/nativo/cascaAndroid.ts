@@ -12,6 +12,7 @@ interface BackendLocalNativo {
   info(): Promise<InfoBackendAndroid>;
   reiniciar(): Promise<void>;
   pastaDeDados(): Promise<{ caminho: string }>;
+  abrirAnexo(opcoes: { caminho: string }): Promise<void>;
 }
 
 type BackendLocalPlugin = BackendLocalNativo & Plugin;
@@ -52,6 +53,14 @@ export function pedirReinicio(): Promise<void> {
 /** Caminho da pasta de dados do backend (banco, anexos, logs), para exibir. */
 export async function lerPastaDeDados(): Promise<string> {
   return (await plugin().pastaDeDados()).caminho;
+}
+
+/** Abre um anexo no app padrão do aparelho, pelo FileProvider da casca. `caminho`
+ *  é o que o `/anexos/{id}/abrir` do backend devolve, relativo à pasta de dados
+ *  (`uploads/<arquivo>`); a casca confere de novo que ele fica em `uploads/` e
+ *  rejeita o resto (`caminho_invalido`, `tipo_invalido`, `sem_app`). */
+export function abrirAnexoNaCasca(caminho: string): Promise<void> {
+  return plugin().abrirAnexo({ caminho });
 }
 
 /** Ouve o evento `estado` da casca. Devolve a função que para de ouvir.

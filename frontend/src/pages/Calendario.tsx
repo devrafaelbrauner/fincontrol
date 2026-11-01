@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAtualizacao } from "../estado";
 import { api, brl } from "../api";
 import { IcExpandir, IcRecolher } from "../components/icones";
-import { isDesktopLocal } from "../plataforma";
+import { isBackendLocal } from "../plataforma";
 
 type Lancamento = { id: number; nome: string; valor_cents: number; vencimento: string; status: "pago" | "pendente" | "atrasado" };
 type FeedInfo = { token: string; caminho: string; url: string; webcal: string };
@@ -153,9 +153,9 @@ export default function Calendario() {
         )}
       </section>
 
-      {/* Desktop local: o backend embutido não publica o feed .ics (precisaria
-          de uma URL pública para o outro app assinar). */}
-      {!isDesktopLocal() && (
+      {/* Modo local (desktop e Android): o backend embutido não publica o feed .ics
+          (precisaria de uma URL pública para o outro app assinar). */}
+      {!isBackendLocal() && (
         <section className="secao">
           <button className="btn" onClick={abrirAssinatura} aria-expanded={assinaturaAberta}>
             {assinaturaAberta ? "Ocultar" : "Assinar em outro app (.ics)"}

@@ -4,7 +4,8 @@ import { type ItemFila, enfileirar } from "./offline/fila";
 import { aplicarOtimista } from "./offline/otimista";
 import { drenarFila } from "./offline/sincronizador";
 import { baseLocal, relerInfo, tokenLocal } from "./backendLocal";
-import { isBackendLocal, isNativo } from "./plataforma";
+import { abrirAnexoNaCasca } from "./nativo/cascaAndroid";
+import { isAndroidLocal, isBackendLocal, isNativo } from "./plataforma";
 import { guardarRefresh, guardarSessao as salvarSessao, guardarToken, getRefresh, getToken, limparSessao } from "./sessao";
 import { getApiBase } from "./servidor";
 
@@ -359,16 +360,18 @@ export async function apiUpload<T>(path: string, arquivo: File): Promise<T> {
 }
 
 /** Abre um anexo. Web/celular/nuvem: baixa autenticado e abre a object URL no
- *  navegador. Modo local: o backend abre o arquivo no app padrão do sistema —
- *  a WebView não tem para onde mandar uma object URL. */
+ *  navegador. Modo local: a WebView não tem para onde mandar uma object URL. No
+ *  desktop o backend abre o arquivo no app padrão do sistema (204); no Android
+ *  ele devolve `{caminho}` em `uploads/`, e a casca abre pelo FileProvider. */
 export async function abrirAnexo(anexoId: number): Promise<void> {
   if (isBackendLocal()) {
     const res = await comAuth(`/anexos/${anexoId}/abrir`, (token) => ({
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : ({} as Record<string, string>),
     }));
-    // 204 sem corpo: nada para ler.
     if (!res.ok) throw new Error("Não foi possível abrir o anexo");
+    // Desktop: 204 sem corpo, o backend já abriu. Android: quem abre é a casca.
+    if (isAndroidLocal()) await abrirAnexoNaCasca((await res.json() as { caminho: string }).caminho);
     return;
   }
   const res = await comAuth(`/anexos/${anexoId}`, (token) => ({

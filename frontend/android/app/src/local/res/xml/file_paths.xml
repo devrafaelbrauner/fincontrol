@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sabor `local`: substitui o file_paths.xml do main (a raiz do armazenamento externo e o cache
+  inteiros) no FileProvider deste sabor. Só sai do app, por `content://` com leitura concedida
+  na hora, o que a casca entrega a outro app:
+  - uploads/: os anexos, abertos no app padrão pelo `abrirAnexo` do BackendLocalPlugin;
+  - exportacoes/: o arquivo da exportação, que a casca compartilha.
+  O banco, o cofre e as cópias de backups/ (o resto de files/fincontrol/) ficam de fora.
+-->
+<paths>
+    <files-path name="uploads" path="fincontrol/uploads/" />
+    <files-path name="exportacoes" path="fincontrol/exportacoes/" />
+</paths>

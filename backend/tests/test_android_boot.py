@@ -8,6 +8,12 @@ da casca, 401 sem o token, a Origin do Capacitor aceita pela guarda (`FINCONTROL
 sem remendo no `android.py`) e outra recusada, segredos fora do `os.environ`, `webauthn` não
 importado e a 2ª chamada recusada. EOF no stdin encerra o filho. Uma falha antes do `pronto`
 (prazo estourado ou uvicorn morto) solta a porta e não deixa thread de pé.
+
+Ciclo de vida (S2): banco existente passa pelo `quick_check` e, com migração pendente, é
+copiado em `backups/` antes de migrar; banco danificado não migra, não copia e não sobe
+(`BancoCorrompido`, que a casca mostra no `falhou`); migração que quebra no meio não deixa nada
+e a cópia fica. Com a conta criada, as rotas só de servidor (passkey, push, calendário e o feed
+`.ics`) dão 404 e o `/abrir` devolve o caminho do anexo em `uploads/`.
 """
 
 import contextlib
@@ -16,8 +22,10 @@ import hmac
 import json
 import os
 import queue
+import re
 import secrets
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -27,7 +35,10 @@ import pytest
 
 from app import android
 from app.desktop import EntradaInvalida
-from tests.test_desktop_boot import BACKEND, PRAZO_PRONTO, _ip_fora_do_loopback, _linha, _segredos, pedir
+from app.versao import VERSAO
+from tests.test_desktop_boot import (
+    BACKEND, MIGRATIONS, PRAZO_PRONTO, _banco_antigo, _ip_fora_do_loopback, _linha, _migracoes_em, _segredos, pedir,
+)
 
 ORIGEM_CAPACITOR = "https://localhost"
 
@@ -254,3 +265,190 @@ def test_segredos_invalidos_recusados_antes_de_tocar_em_nada(tmp_path, segredos)
     assert android._iniciado is False
     recebidos = json.loads(segredos) if segredos.startswith("{") else {}
     assert not any(v in str(erro.value) for v in recebidos.values() if isinstance(v, str) and len(v) >= 8)
+
+
+# ---------- ciclo de vida do banco (S2.3): quick_check, cópia antes de migrar, transação ----------
+
+# Falha esperada no `iniciar`: imprime o tipo do erro (o que a casca mostra no `falhou`). Com um
+# 2º argumento, as migrações vêm dessa pasta (a de mentira, que quebra no meio).
+FILHO_ERRO = """
+import json, os, sys
+from pathlib import Path
+os.environ["FINCONTROL_DATA"] = sys.argv[1]  # o mesmo valor que o `iniciar` põe antes do import
+from app import android, db, desktop
+if len(sys.argv) > 2:
+    db.MIGRATIONS_DIR = Path(sys.argv[2])
+try:
+    android.iniciar(sys.argv[1], sys.stdin.readline())
+    erro = None
+except Exception as e:
+    erro = type(e).__name__
+print(json.dumps({
+    "erro": erro,
+    "segredos_no_ambiente": sorted(k for k in desktop.SEGREDOS_ENV if k in os.environ),
+}), flush=True)
+"""
+
+
+def _sha256(arquivo) -> str:
+    return hashlib.sha256(arquivo.read_bytes()).hexdigest()
+
+
+def test_banco_com_migracao_pendente_conferido_e_copiado_antes_de_migrar(tmp_path):
+    dados = tmp_path / "dados"
+    db_path = dados / "fincontrol.db"
+    aplicadas = len(MIGRATIONS) - 1
+    _banco_antigo(db_path, aplicadas)
+
+    with _filho(FILHO, dados, _linha(_segredos()) * 2) as (info, _, stderr):
+        assert isinstance(info["porta"], int)
+        log = stderr.read_text("utf-8", "replace")
+    backups = dados / "backups"
+    copias = sorted(backups.iterdir())
+    versao = re.escape(re.sub(r"[^A-Za-z0-9._-]", "_", VERSAO))
+    assert len(copias) == 1, copias
+    assert re.fullmatch(rf"pre-migracao-{versao}-\d{{8}}-\d{{6}}\.db", copias[0].name)
+    assert _migracoes_em(copias[0]) == aplicadas  # foto de antes da migração
+    assert _migracoes_em(db_path) == len(MIGRATIONS)  # o app migrou depois
+    conferiu = log.index("fincontrol-backend: quick_check ok em ")
+    copiou = log.index(f"fincontrol-backend: migração pendente: banco copiado para backups/{copias[0].name}")
+    assert conferiu < copiou
+
+    # Banco em dia: confere de novo, sem cópia nova.
+    with _filho(FILHO, dados, _linha(_segredos()) * 2) as (_, _, stderr):
+        log = stderr.read_text("utf-8", "replace")
+    assert "fincontrol-backend: quick_check ok em " in log
+    assert "migração pendente" not in log
+    assert sorted(backups.iterdir()) == copias
+
+
+def _banco_danificado(db_path, dano: str) -> None:
+    """Banco com várias páginas e um dano: o cabeçalho (o SQLite nem o abre) ou o meio de uma
+    página de tabela (abre, mas o `quick_check` acusa)."""
+    db_path.parent.mkdir(parents=True)
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE t (x TEXT)")
+    conn.executemany("INSERT INTO t VALUES (?)", [("x" * 200,) for _ in range(500)])
+    conn.commit()
+    conn.close()
+    with open(db_path, "r+b") as f:
+        if dano == "cabecalho":
+            f.write(b"\xff" * 100)
+        else:
+            f.seek(5 * 4096 + 100)
+            f.write(b"\x00" * 2000)
+
+
+@pytest.mark.parametrize("dano", ["cabecalho", "pagina"])
+def test_banco_danificado_nao_migra_nao_copia_e_nao_sobe(tmp_path, dano):
+    dados = tmp_path / "dados"
+    db_path = dados / "fincontrol.db"
+    _banco_danificado(db_path, dano)
+    antes = _sha256(db_path)
+
+    with _filho(FILHO_ERRO, dados, _linha(_segredos())) as (info, _, stderr):
+        assert info == {"erro": "BancoCorrompido", "segredos_no_ambiente": []}
+        assert "quick_check ok" not in stderr.read_text("utf-8", "replace")
+    assert _sha256(db_path) == antes  # nem migração, nem cópia: o arquivo fica como estava
+    assert not (dados / "backups").exists()
+
+
+def test_migracao_que_quebra_no_boot_nao_deixa_nada_e_a_copia_fica(tmp_path):
+    migracoes = tmp_path / "migracoes"
+    migracoes.mkdir()
+    (migracoes / "001_ok.sql").write_text("CREATE TABLE a (x INTEGER);\n", encoding="utf-8")
+    (migracoes / "002_quebra.sql").write_text(
+        "CREATE TABLE b (y INTEGER);\nINSERT INTO a VALUES (1);\nINSERT INTO tabela_que_nao_existe VALUES (1);\n",
+        encoding="utf-8",
+    )
+    dados = tmp_path / "dados"
+    db_path = dados / "fincontrol.db"
+    dados.mkdir()
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE schema_migrations (nome TEXT PRIMARY KEY, aplicada_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+    conn.executescript((migracoes / "001_ok.sql").read_text(encoding="utf-8"))
+    conn.execute("INSERT INTO schema_migrations (nome) VALUES ('001_ok.sql')")
+    conn.commit()
+    conn.close()
+
+    with _filho(FILHO_ERRO, dados, _linha(_segredos()), str(migracoes)) as (info, _, stderr):
+        # O tipo do erro do SQLite chega à casca, que fica em `falhou` com ele no motivo.
+        assert info == {"erro": "OperationalError", "segredos_no_ambiente": []}
+        log = stderr.read_text("utf-8", "replace")
+    assert "quick_check ok" in log and "migração pendente: banco copiado para backups/" in log
+    conn = sqlite3.connect(db_path)
+    try:
+        assert [r[0] for r in conn.execute("SELECT nome FROM schema_migrations")] == ["001_ok.sql"]
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'b'").fetchone() is None
+        assert conn.execute("SELECT COUNT(*) FROM a").fetchone()[0] == 0
+        assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        conn.close()
+    copias = list((dados / "backups").glob("pre-migracao-*.db"))
+    assert len(copias) == 1 and _migracoes_em(copias[0]) == 1
+
+
+# ---------- rotas só de servidor e o /abrir, com a conta criada ----------
+
+SENHA = "Senha-forte-do-dono-123!"
+
+
+@pytest.fixture(scope="module")
+def com_conta(tmp_path_factory):
+    """Outro backend Android de pé, com a conta do dono criada e o JWT dela."""
+    segredos = _segredos()
+    dados = tmp_path_factory.mktemp("android-conta") / "dados"
+    with _filho(FILHO, dados, _linha(segredos) * 2) as (info, _, _):
+        porta = info["porta"]
+        local = {"X-FinControl-Token": segredos["token"], "Origin": ORIGEM_CAPACITOR}
+        corpo = json.dumps({"nome": "Dono", "email": "dono@exemplo.com", "senha": SENHA}).encode()
+        status, _, resposta = pedir(porta, "POST", "/api/auth/cadastro", {**local, "Content-Type": "application/json"}, corpo)
+        assert status == 201, resposta
+        yield {"porta": porta, "dados": dados, "local": local,
+               "headers": {**local, "Authorization": f"Bearer {json.loads(resposta)['token']}"}}
+
+
+def test_rota_comum_responde_com_a_sessao(com_conta):
+    status, _, _ = pedir(com_conta["porta"], "GET", "/api/categorias", com_conta["headers"])
+    assert status == 200  # o 404 abaixo é falta da rota, não da sessão
+
+
+@pytest.mark.parametrize(("metodo", "caminho"), [
+    ("GET", "/api/auth/webauthn/status"),
+    ("POST", "/api/auth/webauthn/login/begin"),
+    ("GET", "/api/auth/webauthn/credenciais"),
+    ("GET", "/api/push/config"),
+    ("POST", "/api/push/subscribe"),
+    ("GET", "/api/calendario"),
+    ("POST", "/api/calendario/regenerar"),
+    ("GET", "/calendar/qualquer.ics"),
+    ("GET", "/docs"),
+    ("GET", "/openapi.json"),
+    ("GET", "/"),
+])
+def test_rotas_so_de_servidor_dao_404_no_android(com_conta, metodo, caminho):
+    headers = {**com_conta["headers"], "Content-Type": "application/json"}
+    status, _, _ = pedir(com_conta["porta"], metodo, caminho, headers, b"{}" if metodo == "POST" else None)
+    assert status == 404
+
+
+def test_abrir_devolve_o_caminho_do_anexo_em_uploads(com_conta):
+    porta, headers = com_conta["porta"], com_conta["headers"]
+    pdf = b"%PDF-1.4\n% anexo de teste\n"
+    limite = "fc" + secrets.token_hex(8)
+    corpo = (f'--{limite}\r\nContent-Disposition: form-data; name="arquivo"; filename="nota.pdf"\r\n'
+             "Content-Type: application/pdf\r\n\r\n").encode() + pdf + f"\r\n--{limite}--\r\n".encode()
+    status, _, resposta = pedir(porta, "POST", "/api/anexos",
+                                {**headers, "Content-Type": f"multipart/form-data; boundary={limite}"}, corpo)
+    assert status == 201, resposta
+    anexo = json.loads(resposta)["id"]
+
+    status, _, _ = pedir(porta, "POST", f"/api/anexos/{anexo}/abrir", com_conta["local"])
+    assert status == 401  # sem o JWT
+    status, _, resposta = pedir(porta, "POST", f"/api/anexos/{anexo}/abrir", headers)
+    assert status == 200
+    caminho = json.loads(resposta)["caminho"]
+    assert caminho == f"uploads/{hashlib.sha256(pdf).hexdigest()}.pdf"
+    assert (com_conta["dados"] / caminho).read_bytes() == pdf
+    status, _, _ = pedir(porta, "POST", "/api/anexos/999999/abrir", headers)
+    assert status == 404
