@@ -211,27 +211,22 @@ S9, Q2 antes de S11a.
   plugin `BackendLocal` só no `local`; guarda com `FINCONTROL_MODO=android` (401/400/403 pelo
   `adb shell`, porta só em 127.0.0.1); logcat da casca sem token/nonce/prova/segredo; Gradle
   copia só `.py`/`.sql`/`VERSION` e confere o `SHA256SUMS` das wheels; versão real no APK.
-- [x] **S1b — Modo local no front** (run `fincontrol-a4-front-local`) — o `.local` abre pela
-  `TelaBackend` e fala com o backend do aparelho (`isAndroidLocal()` em tempo de execução,
-  adaptador Tauri×Capacitor com núcleo único); sem service worker no `.local`; token e JWT só
-  em memória; `loggingBehavior: "none"` tira o token do logcat do build debug.
-- [ ] **S2 — Offline + ciclo de vida** — modo avião, migration com cópia, 20× force-stop.
-  Brief: `S2-brief.md`. Herdado (dona = S2): `/abrir` → `{caminho}` + FileProvider; cópia
-  antes de migrar duplicada de `desktop.py` e sem teste Android (S0 CR3); o mock do
-  `Login.test.tsx` não exercita mais o boot local (S1b DECISIONS 6); texto do cadastro no
-  local ("dados só no seu servidor") e contraste do login (axe); testes do SW com `PROD` e da
-  escolha da casca (S1b CR-4/CR-10); limpeza do `apk-local.sh` (S1b DECISIONS 11).
-- [ ] **S3 — IA no aparelho + endurecimento antes de dado real (S4b)** — chave local cifrada,
-  não sincroniza. Herdado (dona = S3):
-  - CSP no Capacitor: `<meta>` no `index.html`; nenhum app Capacitor tem CSP hoje (S1b
-    DECISIONS 5);
-  - transferência entre aparelhos copia o cofre e o banco sem a chave do KeyStore →
-    `dataExtractionRules` ou saída pela exportação (S1a A1/CR-1);
-  - `--require-hashes` no `requirements-android.txt` (inclui `chaquopy-libffi`, ausente do
-    PyPI); sdist em `wheels/` sem conferência (S1a CR-2); `cibuildwheel`/maturin fixados e
-    attestation das wheels; tirar o gatilho `push` do `wheels-android.yml`; pip-audit do
-    `requirements-android.txt` na CI; reauditar `cryptography==42.0.8` (7 exceções) antes de
-    X.509/EC/TLS e da S6.
+- [x] **S1b — Modo local no front** (run `fincontrol-a4-front-local`, PR #85) — o `.local` abre
+  pela `TelaBackend` e fala com o backend do aparelho (`isAndroidLocal()` em tempo de execução,
+  adaptador Tauri×Capacitor com núcleo único); sem service worker no `.local`; token local só em
+  memória (JWT/refresh no Keystore, como no desktop); `loggingBehavior: "none"`.
+- [x] **S2 — Offline + ciclo de vida** (run `fincontrol-a5-offline-ciclo`) — em modo avião o
+  `.local` entra, cria, edita, exclui e reabre com o dado lá; 20 force-stops no meio de escritas
+  sem quebrar o banco; `quick_check` e cópia antes de migrar no boot; o que é de servidor some da
+  tela e dá 404; anexo abre pelo FileProvider (só `uploads/` e `exportacoes/`).
+- [ ] **[SEG] S3a — Endurecimento antes de dado real** — brief: `S3-brief.md`. CSP no Capacitor;
+  `dataExtractionRules` na troca de aparelho; mensagens de falha legíveis no `RuntimeBackend.kt`;
+  cadeia de suprimentos (`--require-hashes` com `chaquopy-libffi`, sdist em `wheels/`, pins e
+  attestation, sem gatilho `push`, pip-audit do `requirements-android.txt`, `cryptography` 42.0.8
+  reauditada); limpeza do `apk-local.sh`; decisão do autofill fora do login.
+- [ ] **S3b — IA no aparelho + acabamento** (pré HA6) — chave de IA local cifrada, não
+  sincroniza; contraste do login e `safe-area-inset-top` no `app.css`; botão do Bloqueio e salto
+  da `TelaBackend`; testes do SW com `PROD`, da escolha da casca e de "2 leituras por evento".
 - [ ] **S4a — Import/export (backend)** — zip único, dry-run com relatório, aplicar
   atômico; cobre o backend da etapa 5 do desktop local.
 - [ ] **S4b — Import/export (UI)** — PrimeiroUso, AssistenteImport, Config › Dados. Open
