@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, logout } from "../api";
 import { instalarAtualizacao, type ResultadoAtualizacao, verificarAtualizacao } from "../atualizacao";
 import { abrirPastaDeDados, pastaDeDados } from "../backendLocal";
-import { isDesktopLocal, isNativo, isTauri } from "../plataforma";
+import { isBackendLocal, isDesktopLocal, isNativo, isTauri } from "../plataforma";
 import { cadastrarPasskey } from "../passkeys";
 import { definirServidor, getApiBase } from "../servidor";
 import { limparSessao } from "../sessao";
@@ -50,13 +50,16 @@ export default function Config() {
   const [servidor, setServidor] = useState(getApiBase());
   const [servidorMsg, setServidorMsg] = useState<string | null>(null);
 
-  // Desktop local: sem servidor, passkey, push nem "sair de todos" (o backend
-  // embutido não tem essas rotas); no lugar, a pasta onde os dados moram.
+  // Modo local (desktop e Android): sem servidor, passkey, push nem "sair de todos"
+  // (o backend embutido não tem essas rotas); no lugar, a pasta onde os dados moram.
+  // "Abrir pasta" só no desktop: no Android o caminho é só para ler.
+  const local = isBackendLocal();
   const desktop = isDesktopLocal();
+  const aparelho = desktop ? "computador" : "aparelho";
   const [pasta, setPasta] = useState<string | null>(null);
   useEffect(() => {
-    if (desktop) pastaDeDados().then(setPasta).catch(() => setPasta(null));
-  }, [desktop]);
+    if (local) pastaDeDados().then(setPasta).catch(() => setPasta(null));
+  }, [local]);
 
   // Atualização assinada (só Tauri).
   const [att, setAtt] = useState<ResultadoAtualizacao | null>(null);
@@ -93,9 +96,9 @@ export default function Config() {
   }
 
   const carregarPasskeys = useCallback(() => {
-    if (desktop) return;
+    if (local) return;
     api<Passkey[]>("/auth/webauthn/credenciais").then(setPasskeys).catch(() => setPasskeys(null));
-  }, [desktop]);
+  }, [local]);
 
   const carregar = useCallback(() => {
     api<IaConfig>("/ia/config")
@@ -104,9 +107,9 @@ export default function Config() {
         setModelo(c.modelo);
       })
       .catch((e) => setErro(e.message));
-    if (!desktop) api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
+    if (!local) api<PushConfig>("/push/config").then(setPush).catch(() => setPush(null));
     api<{ ativo: boolean }>("/auth/mfa").then((m) => setMfaAtivo(m.ativo)).catch(() => setMfaAtivo(null));
-  }, [desktop]);
+  }, [local]);
 
   async function iniciarMfa() {
     setMfaMsg(null);
@@ -250,13 +253,13 @@ export default function Config() {
 
   return (
     <>
-      <p className="sub">{desktop ? "Integração de IA, segurança e dados deste computador." : "Integração de IA e notificações."}</p>
+      <p className="sub">{local ? `Integração de IA, segurança e dados deste ${aparelho}.` : "Integração de IA e notificações."}</p>
 
       <section className="ficha surgir" style={{ maxWidth: 560 }}>
         <h3 className="secao-titulo">IA (OpenRouter)</h3>
         <p className="sub">
-          {desktop
-            ? "A chave fica criptografada nos dados deste computador e não volta para a tela."
+          {local
+            ? `A chave fica criptografada nos dados deste ${aparelho} e não volta para a tela.`
             : "A chave é criptografada no servidor e nunca volta ao navegador."}
           {" "}Permite ler boletos/comprovantes por foto ou PDF, categorizar e gerar insights.
         </p>
@@ -320,7 +323,7 @@ export default function Config() {
         {mfaMsg && <p style={{ marginTop: "0.5rem" }}>{mfaMsg}</p>}
       </section>
 
-      {!desktop && (
+      {!local && (
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Passkeys</h3>
           <p className="sub">Um toque para entrar, sem senha — por aparelho. O TOTP continua valendo como segundo fator da senha.</p>
@@ -350,7 +353,7 @@ export default function Config() {
         </section>
       )}
 
-      {!desktop && (
+      {!local && (
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Sessões</h3>
           <p className="sub">Encerra o login neste e em todos os outros aparelhos — use se perdeu o celular.</p>
@@ -363,7 +366,7 @@ export default function Config() {
         </section>
       )}
 
-      {isNativo() && !desktop && (
+      {isNativo() && !local && (
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Servidor</h3>
           <p className="sub">
@@ -403,20 +406,26 @@ export default function Config() {
         </section>
       )}
 
-      {desktop && (
+      {local && (
         <section className="surgir secao" style={{ maxWidth: 560 }}>
           <h3 className="secao-titulo">Pasta de dados</h3>
-          <p className="sub">Onde o FinControl guarda os dados deste computador.</p>
+          <p className="sub">
+            {desktop
+              ? "Onde o FinControl guarda os dados deste computador."
+              : "Onde o FinControl guarda os dados deste aparelho. Desinstalar o app apaga esta pasta."}
+          </p>
           {pasta && <p className="sub" style={{ overflowWrap: "anywhere" }}><code>{pasta}</code></p>}
-          <div className="linha-form">
-            <button className="btn" type="button" onClick={() => { abrirPastaDeDados().catch(() => {}); }}>Abrir pasta</button>
-          </div>
+          {desktop && (
+            <div className="linha-form">
+              <button className="btn" type="button" onClick={() => { abrirPastaDeDados().catch(() => {}); }}>Abrir pasta</button>
+            </div>
+          )}
         </section>
       )}
 
       {/* WebView de app nativo não tem Web Push — no iPhone, o push exige a PWA
           instalada pela tela de início (iOS ≥ 16.4). */}
-      {!Capacitor.isNativePlatform() && !desktop && <section className="surgir secao" style={{ maxWidth: 560 }}>
+      {!Capacitor.isNativePlatform() && !local && <section className="surgir secao" style={{ maxWidth: 560 }}>
         <h3 className="secao-titulo">Notificações push</h3>        {push?.habilitado ? (
           <>
             <p className="sub">Instale o app na tela inicial e ative as notificações para receber lembretes.</p>

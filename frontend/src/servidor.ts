@@ -1,6 +1,6 @@
 import { baseLocal } from "./backendLocal";
 import { cofre } from "./nativo/cofre";
-import { isDesktopLocal, isNativo } from "./plataforma";
+import { isBackendLocal, isNativo } from "./plataforma";
 
 /** Base da API em runtime.
  *
@@ -13,8 +13,8 @@ import { isDesktopLocal, isNativo } from "./plataforma";
  * O valor do cofre é lido uma vez no boot para uma variável de módulo, porque o
  * `fetch` precisa da base de forma SÍNCRONA em cada request.
  *
- * No desktop a base é a do backend embutido, lida do Rust a cada início (a
- * porta muda); cofre e VITE_API_BASE não valem lá. */
+ * No modo local (desktop e APK Android `local`) a base é a do backend embutido,
+ * lida da casca a cada início (a porta muda); cofre e VITE_API_BASE não valem lá. */
 
 const CHAVE = "api_base";
 
@@ -23,9 +23,9 @@ let salva: string | null = null;
 const limpar = (url: string) => url.replace(/\/+$/, "");
 
 /** Base efetiva. Sem cofre nem VITE_API_BASE, devolve "" (web usa same-origin).
- *  No desktop, "" enquanto o backend local não está pronto. */
+ *  No modo local, "" enquanto o backend embutido não está pronto. */
 export function getApiBase(): string {
-  if (isDesktopLocal()) return baseLocal() ?? "";
+  if (isBackendLocal()) return baseLocal() ?? "";
   if (salva != null) return salva;
   return limpar(import.meta.env.VITE_API_BASE ?? "");
 }
@@ -35,9 +35,9 @@ export function temApiBase(): boolean {
   return getApiBase().length > 0;
 }
 
-/** Carrega a base salva no cofre (nativo). No web e no desktop é no-op. */
+/** Carrega a base salva no cofre (nativo). No web e no modo local é no-op. */
 export async function carregarServidor(): Promise<void> {
-  if (!isNativo() || isDesktopLocal()) return;
+  if (!isNativo() || isBackendLocal()) return;
   const valor = await (await cofre()).ler(CHAVE);
   if (valor) salva = limpar(valor);
 }

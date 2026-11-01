@@ -4,7 +4,10 @@
   - FinControlApp sobe o backend uma vez por processo, fora da main thread, antes do
     WebView;
   - network_security_config: texto claro só para 127.0.0.1;
-  - nome próprio na gaveta (o rótulo da activity é o que o launcher mostra).
+  - nome próprio na gaveta (o rótulo da activity é o que o launcher mostra);
+  - FileProvider: o do main, substituído inteiro, com o `res/xml/file_paths.xml` deste sabor
+    (só `uploads/` e `exportacoes/` da pasta de dados). É por ele que a casca entrega um anexo
+    ao app padrão (`abrirAnexo` do BackendLocalPlugin), com leitura só para aquela abertura.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -19,6 +22,17 @@
             android:name=".MainActivity"
             android:label="@string/nome_sabor_local"
             tools:replace="android:label" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true"
+            tools:node="replace">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

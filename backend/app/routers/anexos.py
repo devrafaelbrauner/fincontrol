@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 
 from ..auth import MODO_DESKTOP, limiter
 from ..db import DATA_DIR, get_db
+from ..desktop_guard import modo_android
 
 UPLOADS_DIR = DATA_DIR / "uploads"
 TAMANHO_MAXIMO_BYTES = 15 * 1024 * 1024
@@ -136,8 +137,8 @@ def _abrir_no_sistema(caminho: Path) -> None:
     )
 
 
-def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")) -> Response:
-    """App desktop: abre o anexo no visualizador do sistema (só tipos aceitos, só em uploads/)."""
+def _anexo_no_disco(anexo_id: int, db: sqlite3.Connection) -> Path:
+    """O arquivo do anexo para abrir: só dentro de uploads/, só tipo aceito e só se existir."""
     row = db.execute("SELECT caminho_arquivo FROM anexos WHERE id = ?", (anexo_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Anexo não encontrado")
@@ -146,10 +147,26 @@ def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="functio
         raise HTTPException(400, "Tipo de anexo não permitido")
     if not caminho.is_file():
         raise HTTPException(404, "Arquivo não encontrado no disco")
-    _abrir_no_sistema(caminho)
+    return caminho
+
+
+def abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")) -> Response:
+    """App desktop: abre o anexo no visualizador do sistema (só tipos aceitos, só em uploads/)."""
+    _abrir_no_sistema(_anexo_no_disco(anexo_id, db))
     return Response(status_code=204)
 
 
-# Só existe no app desktop: no servidor, "abrir no sistema" abriria na máquina da VPS.
+def caminho_para_abrir(anexo_id: int, db: sqlite3.Connection = Depends(get_db, scope="function")) -> dict[str, str]:
+    """APK Android: o Python não abre app nenhum. Devolve o caminho relativo à pasta de dados
+    (`uploads/<arquivo>`), com as mesmas conferências do desktop, e a casca abre pelo
+    FileProvider, que também só expõe `uploads/`."""
+    caminho = _anexo_no_disco(anexo_id, db)
+    return {"caminho": f"{UPLOADS_DIR.name}/{caminho.relative_to(UPLOADS_DIR.resolve()).as_posix()}"}
+
+
+# Só no backend embutido: no servidor, "abrir no sistema" abriria na máquina da VPS.
 if MODO_DESKTOP:
-    router.add_api_route("/{anexo_id}/abrir", abrir, methods=["POST"], status_code=204, response_class=Response)
+    if modo_android():
+        router.add_api_route("/{anexo_id}/abrir", caminho_para_abrir, methods=["POST"])
+    else:
+        router.add_api_route("/{anexo_id}/abrir", abrir, methods=["POST"], status_code=204, response_class=Response)
